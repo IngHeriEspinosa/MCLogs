@@ -1,0 +1,9 @@
+node_modules/
+dist/
+logs/
+
+# Keep environment variables out of version control
+.env
+
+# npm pack artifacts
+*.tgz

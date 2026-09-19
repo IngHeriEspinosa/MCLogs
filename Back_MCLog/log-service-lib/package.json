@@ -1,0 +1,86 @@
+{
+  "name": "@enviromentmc/mclog",
+  "version": "1.0.0",
+  "description": "Cliente REST y middleware de validación para el servicio de logs centralizados MCLog",
+  "keywords": [
+    "mclog",
+    "logging",
+    "logs",
+    "observability",
+    "log-shipping",
+    "express",
+    "typescript"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/EricColladoG/Logs_Service#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EricColladoG/Logs_Service.git",
+    "directory": "log-service-lib"
+  },
+  "bugs": {
+    "url": "https://github.com/EricColladoG/Logs_Service/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./express": {
+      "types": "./dist/express.d.ts",
+      "default": "./dist/express.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "express": [
+        "./dist/express.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "peerDependencies": {
+    "express": ">=4",
+    "express-validator": ">=7"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    },
+    "express-validator": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "express": "^4.21.2",
+    "express-validator": "^7.2.1",
+    "supertest": "^7.1.1",
+    "@types/supertest": "^6.0.3",
+    "typescript": "^5.7.3",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Log {
+    id           Int           @id @default(autoincrement())
+    timestamp    DateTime      @default(now())
+    application  String
+    service      String?
+    host         String?
+    level        LogLevel
+    environment  Environment
+    message      String
+    traceId      String?       @db.VarChar(128)
+    spanId       String?       @db.VarChar(128)
+    metadata     Json?
+
+    @@index([timestamp])
+    @@index([application])
+    @@index([level])
+    @@index([environment])
+    @@index([traceId])
+    @@index([application, timestamp])
+    @@index([level, timestamp])
+}
+
+model User {
+    id            Int             @id @default(autoincrement())
+    email         String          @unique
+    passwordHash  String
+    role          String          @default("user")
+    createdAt     DateTime        @default(now())
+    refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+    id        Int      @id @default(autoincrement())
+    token     String   @unique
+    userId    Int
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+    revokedAt DateTime?
+
+    @@index([token])
+}
+
+enum LogLevel {
+  debug
+  info
+  warn
+  error
+}
+
+enum Environment {
+  development
+  staging
+  production
+}

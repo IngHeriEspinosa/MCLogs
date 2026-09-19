@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+
+# Artefactos de compilacion
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+
+# Variables de entorno (los *.example SI se versionan)
+.env
+.env.local
+.env.prod
+
+# Paquetes npm empaquetados
+*.tgz
+
+# Cobertura de tests
+coverage/
+
+# Backups de base de datos
+deploy/backups/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
