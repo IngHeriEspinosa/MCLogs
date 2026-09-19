@@ -3,6 +3,8 @@ import { Request, Response } from 'express';
 import logger from '../config/logger';
 import { config } from '../config/env';
 import type { AuthenticatedRequest } from '../middlewares/requireAuth';
+import { computeFingerprint, shouldFingerprint } from '../utils/fingerprint';
+import { getLevelTimeline } from '../services/analysisService';
 import {
     CreateLogInput,
     createLog,
@@ -42,10 +44,28 @@ const rejectedByScope = (applications: string[] | undefined, candidates: unknown
 };
 
 const toCreateInput = (body: Record<string, unknown>, req: Request, res: Response): CreateLogInput => {
-    const { application, service, host, level, environment, message, timestamp, traceId, spanId, metadata } = body as any;
+    const {
+        application,
+        service,
+        host,
+        level,
+        environment,
+        message,
+        timestamp,
+        traceId,
+        spanId,
+        metadata,
+        errorName,
+        errorCode,
+        errorStack,
+        fingerprint
+    } = body as any;
+
+    const resolvedService = service ?? application;
+
     return {
         application,
-        service: service ?? application,
+        service: resolvedService,
         host: host ?? req.hostname,
         level: level as LogLevel,
         environment: environment as Environment,
@@ -53,7 +73,24 @@ const toCreateInput = (body: Record<string, unknown>, req: Request, res: Respons
         timestamp: timestamp ? new Date(timestamp) : undefined,
         traceId: traceId ?? (res.locals.traceId as string | undefined),
         spanId,
-        metadata: metadata ?? undefined
+        metadata: metadata ?? undefined,
+        errorName: errorName ?? undefined,
+        errorCode: errorCode ?? undefined,
+        errorStack: errorStack ?? undefined,
+        // Si el emisor no manda huella, se calcula aqui para errores y avisos.
+        // Respetar la que venga permite agrupar con un criterio propio.
+        fingerprint:
+            fingerprint ??
+            (shouldFingerprint(level)
+                ? computeFingerprint({
+                      application,
+                      service: resolvedService,
+                      message,
+                      errorName,
+                      errorCode,
+                      errorStack
+                  })
+                : undefined)
     };
 };
 
@@ -91,7 +128,7 @@ const csvEscape = (value: unknown) => {
 };
 
 const parseFilters = (req: Request) => {
-    const { application, level, environment, search, service, host, traceId, from, to } = req.query;
+    const { application, level, environment, search, service, host, traceId, fingerprint, from, to } = req.query;
     return {
         application: application as string | undefined,
         level: level as string | undefined,
@@ -100,6 +137,7 @@ const parseFilters = (req: Request) => {
         service: service as string | undefined,
         host: host as string | undefined,
         traceId: traceId as string | undefined,
+        fingerprint: fingerprint as string | undefined,
         from: from ? new Date(from as string) : undefined,
         to: to ? new Date(to as string) : undefined,
         applicationsIn: allowedApplications(req)
@@ -175,8 +213,25 @@ export const getLog = async (req: Request, res: Response) => {
 };
 
 export const stats = async (req: Request, res: Response) => {
+    const filters = {
+        application: req.query.application as string | undefined,
+        environment: req.query.environment as string | undefined,
+        applicationsIn: allowedApplications(req)
+    };
+
+    // Ventana de la linea temporal. Por defecto 24 h, que es lo que muestra el
+    // dashboard; los totales no dependen de ella.
+    const to = req.query.to ? new Date(req.query.to as string) : new Date();
+    const hours = Number(req.query.hours);
+    const effectiveHours = Number.isFinite(hours) && hours > 0 ? Math.min(hours, 24 * 31) : 24;
+    const from = req.query.from ? new Date(req.query.from as string) : new Date(to.getTime() - effectiveHours * 3600 * 1000);
+
     try {
-        res.json(await getLogStats({ applicationsIn: allowedApplications(req) }));
+        const [summary, timeline] = await Promise.all([
+            getLogStats(filters),
+            getLevelTimeline(filters, from, to)
+        ]);
+        res.json({ ...summary, timeline, from: from.toISOString(), to: to.toISOString() });
     } catch (error) {
         logger.error('Error retrieving log stats', { error });
         res.status(500).json({ error: 'Error retrieving stats' });

@@ -1,7 +1,15 @@
 import express from 'express';
 import { getLog, getLogs, log, logBatch, purgeLogs, stats } from '../controllers/logController';
+import { applications, errorGroups, logContext, trace } from '../controllers/analysisController';
 import { validateLog, validateLogBatch } from '../middlewares/validateLog';
-import { validateLogDelete, validateLogQuery } from '../middlewares/validateLogQuery';
+import {
+    validateErrorGroups,
+    validateLogContext,
+    validateLogDelete,
+    validateLogQuery,
+    validateStatsQuery,
+    validateTrace
+} from '../middlewares/validateLogQuery';
 import { requireAuthOrReadKey, requireIngest } from '../middlewares/authApiKey';
 import { requireAuth } from '../middlewares/requireAuth';
 import { requireRole } from '../middlewares/requireRole';
@@ -13,9 +21,17 @@ const router = express.Router();
 router.post('/log', ingestLimiter, requireIngest, validateLog, log);
 router.post('/logs/batch', ingestLimiter, requireIngest, validateLogBatch, logBatch);
 
-// Consulta: JWT de usuario o API key con scope "read"
+// Consulta y analisis: JWT de usuario o API key con scope "read".
+//
+// Las rutas con segmento fijo van ANTES que /logs/:id: si no, Express tomaria
+// "stats" o "applications" como si fueran un id.
+router.get('/logs/stats', queryLimiter, requireAuthOrReadKey, validateStatsQuery, stats);
+router.get('/logs/applications', queryLimiter, requireAuthOrReadKey, applications);
+router.get('/logs/errors/groups', queryLimiter, requireAuthOrReadKey, validateErrorGroups, errorGroups);
+router.get('/logs/trace/:traceId', queryLimiter, requireAuthOrReadKey, validateTrace, trace);
+router.get('/logs/:id/context', queryLimiter, requireAuthOrReadKey, validateLogContext, logContext);
+
 router.get('/logs', queryLimiter, requireAuthOrReadKey, validateLogQuery, getLogs);
-router.get('/logs/stats', queryLimiter, requireAuthOrReadKey, stats);
 router.get('/logs/:id', queryLimiter, requireAuthOrReadKey, getLog);
 
 // Administracion: solo usuarios con rol admin. Una API key nunca puede purgar.

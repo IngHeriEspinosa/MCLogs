@@ -13,6 +13,11 @@ export type CreateLogInput = {
     traceId?: string;
     spanId?: string;
     metadata?: Prisma.InputJsonValue;
+    errorName?: string;
+    errorCode?: string;
+    errorStack?: string;
+    /** Huella de agrupacion; ver src/utils/fingerprint.ts */
+    fingerprint?: string;
 };
 
 export const createLog = async (input: CreateLogInput) => {
@@ -40,6 +45,7 @@ export type LogFilters = {
     service?: string;
     host?: string;
     traceId?: string;
+    fingerprint?: string;
     from?: Date;
     to?: Date;
     /**
@@ -60,8 +66,9 @@ type Sort = {
     direction: 'asc' | 'desc';
 };
 
-const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
-    const { application, level, environment, search, service, host, traceId, from, to, applicationsIn } = filters;
+export const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
+    const { application, level, environment, search, service, host, traceId, fingerprint, from, to, applicationsIn } =
+        filters;
 
     // from y to comparten la misma clave "timestamp": deben combinarse en un solo objeto
     const timestamp: Prisma.DateTimeFilter | undefined =
@@ -72,6 +79,7 @@ const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
         ...(service && { service: { contains: service, mode: 'insensitive' } }),
         ...(host && { host: { contains: host, mode: 'insensitive' } }),
         ...(traceId && { traceId }),
+        ...(fingerprint && { fingerprint }),
         ...(level && { level: level as LogLevel }),
         ...(environment && { environment: environment as Environment }),
         ...(timestamp && { timestamp }),

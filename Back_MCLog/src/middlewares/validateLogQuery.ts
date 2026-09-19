@@ -1,5 +1,5 @@
 import { RequestHandler } from "express";
-import { query, validationResult, ValidationChain } from "express-validator";
+import { param, query, validationResult, ValidationChain } from "express-validator";
 
 const handle: RequestHandler = (req, res, next) => {
   const errors = validationResult(req);
@@ -25,8 +25,46 @@ export const validateLogQuery: Array<ValidationChain | RequestHandler> = [
   query("service").optional().isString().isLength({ max: 120 }),
   query("host").optional().isString().isLength({ max: 255 }),
   query("traceId").optional().isString().isLength({ max: 128 }),
+  query("fingerprint").optional().isString().isLength({ max: 64 }),
   query("search").optional().isString().isLength({ max: 300 }),
   handle,
+];
+
+/** Ventana relativa en horas, comun a grupos de error y estadisticas. */
+const hoursRule = query("hours").optional().isInt({ min: 1, max: 24 * 31 }).toInt();
+
+export const validateErrorGroups: Array<ValidationChain | RequestHandler> = [
+  hoursRule,
+  query("from").optional().isISO8601().toDate(),
+  query("to").optional().isISO8601().toDate(),
+  query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
+  query("level").optional().isIn(["debug", "info", "warn", "error"]),
+  query("environment").optional().isIn(["development", "staging", "production"]),
+  query("application").optional().isString().isLength({ max: 120 }),
+  query("service").optional().isString().isLength({ max: 120 }),
+  handle
+];
+
+export const validateStatsQuery: Array<ValidationChain | RequestHandler> = [
+  hoursRule,
+  query("from").optional().isISO8601().toDate(),
+  query("to").optional().isISO8601().toDate(),
+  query("environment").optional().isIn(["development", "staging", "production"]),
+  query("application").optional().isString().isLength({ max: 120 }),
+  handle
+];
+
+export const validateTrace: Array<ValidationChain | RequestHandler> = [
+  param("traceId").isString().isLength({ min: 1, max: 128 }).withMessage("traceId must be 1-128 chars"),
+  handle
+];
+
+export const validateLogContext: Array<ValidationChain | RequestHandler> = [
+  param("id").isInt({ min: 1 }).withMessage("id must be a positive integer").toInt(),
+  query("before").optional().isInt({ min: 1, max: 3600 }).toInt(),
+  query("after").optional().isInt({ min: 1, max: 3600 }).toInt(),
+  query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),
+  handle
 ];
 
 export const validateLogDelete: Array<ValidationChain | RequestHandler> = [

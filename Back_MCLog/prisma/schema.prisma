@@ -26,6 +26,15 @@ model Log {
   spanId      String?     @db.VarChar(128)
   metadata    Json?
 
+  /// Clase de la excepcion ("TypeError", "SuiteScriptError").
+  errorName   String? @db.VarChar(200)
+  /// Codigo de error de la aplicacion o del proveedor ("ECONNRESET", "USER_ERROR").
+  errorCode   String? @db.VarChar(100)
+  errorStack  String?
+  /// Huella de agrupacion: identifica ocurrencias del mismo fallo aunque el
+  /// mensaje lleve ids, fechas o URLs distintos. Ver src/utils/fingerprint.ts.
+  fingerprint String? @db.VarChar(64)
+
   @@index([timestamp])
   @@index([application])
   @@index([level])
@@ -33,6 +42,8 @@ model Log {
   @@index([traceId])
   @@index([application, timestamp])
   @@index([level, timestamp])
+  @@index([fingerprint, timestamp])
+  @@index([environment, level, timestamp])
 }
 
 model User {
