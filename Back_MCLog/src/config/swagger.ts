@@ -2,7 +2,7 @@ import swaggerJSDoc from "swagger-jsdoc";
 
 const logQueryParams = [
   { in: "query", name: "page", schema: { type: "integer", minimum: 1 } },
-  { in: "query", name: "pageSize", schema: { type: "integer", minimum: 1, maximum: 500 } },
+  { in: "query", name: "pageSize", schema: { type: "integer", minimum: 1, maximum: 200 } },
   { in: "query", name: "application", schema: { type: "string" } },
   { in: "query", name: "service", schema: { type: "string" } },
   { in: "query", name: "host", schema: { type: "string" } },

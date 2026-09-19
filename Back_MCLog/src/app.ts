@@ -3,8 +3,9 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
-import client from "prom-client";
 import { config } from "./config/env";
+import { registry } from "./config/metrics";
+import { APP_VERSION } from "./config/version";
 import logger from "./config/logger";
 import { prisma } from "./config/prisma";
 import { swaggerSpec } from "./config/swagger";
@@ -20,9 +21,6 @@ import { queryLimiter } from "./middlewares/rateLimiters";
 
 export const createApp = () => {
   const app = express();
-
-  const registry = new client.Registry();
-  client.collectDefaultMetrics({ register: registry });
 
   app.set("trust proxy", config.trustProxy);
   app.use(helmet());
@@ -53,13 +51,25 @@ export const createApp = () => {
   });
 
   app.get("/health", async (_req: Request, res: Response) => {
+    const base = {
+      version: APP_VERSION,
+      uptimeSeconds: Math.round(process.uptime()),
+      timestamp: new Date().toISOString(),
+    };
     try {
+      // El health check consulta la base de datos: un proceso vivo que no
+      // alcanza PostgreSQL no puede servir de nada y debe salir del balanceador.
       await prisma.$queryRaw`SELECT 1`;
-      res.json({ status: "ok", timestamp: new Date().toISOString() });
+      res.json({ status: "ok", database: "up", ...base });
     } catch (error) {
       logger.error("Health check failed", { error });
-      res.status(503).json({ status: "degraded" });
+      res.status(503).json({ status: "degraded", database: "down", ...base });
     }
+  });
+
+  // Especificacion OpenAPI en crudo, para generar clientes y tipos.
+  app.get("/openapi.json", (_req: Request, res: Response) => {
+    res.json(swaggerSpec);
   });
 
   app.get("/metrics", requireApiKey("metrics"), async (_req: Request, res: Response) => {

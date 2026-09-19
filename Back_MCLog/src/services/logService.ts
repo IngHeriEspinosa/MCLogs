@@ -1,5 +1,6 @@
 import { Environment, LogLevel, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { logsIngested } from '../config/metrics';
 
 export type CreateLogInput = {
     application: string;
@@ -15,13 +16,19 @@ export type CreateLogInput = {
 };
 
 export const createLog = async (input: CreateLogInput) => {
-    return prisma.log.create({
-        data: input
-    });
+    const created = await prisma.log.create({ data: input });
+    logsIngested.inc({ application: input.application, level: input.level });
+    return created;
 };
 
 export const createLogsBatch = async (inputs: CreateLogInput[]) => {
     const result = await prisma.log.createMany({ data: inputs });
+    // Se cuenta lo insertado, no lo recibido: createMany puede descartar filas.
+    if (result.count === inputs.length) {
+        for (const input of inputs) {
+            logsIngested.inc({ application: input.application, level: input.level });
+        }
+    }
     return result.count;
 };
 
@@ -149,6 +156,35 @@ export const getLogStats = async (filters: LogFilters = {}) => {
         byApplication: byApplication.map((r) => ({ application: r.application, count: r._count._all })),
         byEnvironment: byEnvironment.map((r) => ({ environment: r.environment, count: r._count._all }))
     };
+};
+
+/**
+ * Borra en lotes los logs anteriores a una fecha. Un unico DELETE masivo sobre
+ * una tabla de millones de filas mantiene el bloqueo demasiado tiempo y compite
+ * con la ingesta, asi que se trocea y se cede el control entre lotes.
+ */
+export const deleteLogsOlderThanInBatches = async (
+    before: Date,
+    batchSize = 5000,
+    maxBatches = 1000
+): Promise<number> => {
+    let deleted = 0;
+    for (let batch = 0; batch < maxBatches; batch++) {
+        const rows = await prisma.log.findMany({
+            where: { timestamp: { lt: before } },
+            select: { id: true },
+            take: batchSize
+        });
+        if (rows.length === 0) break;
+
+        const result = await prisma.log.deleteMany({ where: { id: { in: rows.map((row) => row.id) } } });
+        deleted += result.count;
+
+        if (rows.length < batchSize) break;
+        // Respiro entre lotes para no monopolizar la base de datos.
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+    return deleted;
 };
 
 export const deleteLogsBefore = async (before: Date, application?: string) => {

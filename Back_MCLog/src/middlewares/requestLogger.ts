@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../config/logger';
+import { httpRequestDuration, routeLabel } from '../config/metrics';
 
 // Registra una línea por petición al terminar la respuesta (método, ruta, status, duración).
 // El body solo se registra en nivel debug y con campos sensibles redactados.
@@ -8,6 +9,16 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
 
     res.on('finish', () => {
         const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+
+        httpRequestDuration.observe(
+            {
+                method: req.method,
+                route: routeLabel(req.baseUrl, req.route?.path),
+                status: String(res.statusCode)
+            },
+            durationMs / 1000
+        );
+
         const entry = {
             requestId: res.locals.requestId,
             traceId: res.locals.traceId,

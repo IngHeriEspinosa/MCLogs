@@ -12,7 +12,9 @@ const handle: RequestHandler = (req, res, next) => {
 
 export const validateLogQuery: Array<ValidationChain | RequestHandler> = [
   query("page").optional().isInt({ min: 1 }).toInt(),
-  query("pageSize").optional().isInt({ min: 1, max: 500 }).toInt(),
+  // 200 es el tope real que aplica el controlador: validarlo aqui evita
+  // aceptar un valor que luego se recorta en silencio.
+  query("pageSize").optional().isInt({ min: 1, max: 200 }).toInt(),
   query("from").optional().isISO8601().toDate(),
   query("to").optional().isISO8601().toDate(),
   query("sort").optional().matches(/^(timestamp|application|level|host|environment):(asc|desc)$/),

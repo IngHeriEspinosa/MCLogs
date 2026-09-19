@@ -1,11 +1,51 @@
-import express, { RequestHandler } from "express";
-import { body } from "express-validator";
-import { login, refresh } from "../services/authService";
-import { validationResult } from "express-validator";
+import express, { RequestHandler, Response } from "express";
+import { body, param, validationResult } from "express-validator";
+import logger from "../config/logger";
+import { login, refresh, logout } from "../services/authService";
+import {
+  PASSWORD_MIN_LENGTH,
+  USER_ROLES,
+  UserServiceError,
+  changeOwnPassword,
+  createUser,
+  deleteUser,
+  getUserById,
+  listUsers,
+  updateUser,
+} from "../services/userService";
 import { setAuthCookies, clearAuthCookies } from "../middlewares/setAuthCookies";
-import { logout } from "../services/authService";
+import { AuthenticatedRequest, requireAuth } from "../middlewares/requireAuth";
+import { requireRole } from "../middlewares/requireRole";
+import { loginLimiter } from "../middlewares/rateLimiters";
 
 const router = express.Router();
+
+const handleValidation: RequestHandler = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ status: "error", errors: errors.mapped() });
+    return;
+  }
+  next();
+};
+
+/** Traduce los errores de negocio a su codigo HTTP; el resto es un 500. */
+const respondWithError = (error: unknown, res: Response, context: string) => {
+  if (error instanceof UserServiceError) {
+    res.status(error.status).json({ error: error.message });
+    return;
+  }
+  logger.error(context, { error });
+  res.status(500).json({ error: context });
+};
+
+const passwordRule = (field: string) =>
+  body(field)
+    .isString()
+    .isLength({ min: PASSWORD_MIN_LENGTH })
+    .withMessage(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
+
+// --- Sesion ---
 
 const loginHandler: RequestHandler = async (req, res) => {
   const errors = validationResult(req);
@@ -43,7 +83,9 @@ const refreshHandler: RequestHandler = async (req, res) => {
   }
 };
 
-router.post("/login", [body("email").isEmail(), body("password").isString().isLength({ min: 6 })], loginHandler);
+// loginLimiter solo cuenta los intentos fallidos, asi que un usuario legitimo
+// que entra bien nunca se autobloquea.
+router.post("/login", loginLimiter, [body("email").isEmail(), body("password").isString().isLength({ min: 6 })], loginHandler);
 // refreshToken es opcional en el body: puede venir en la cookie httpOnly refresh_token
 router.post("/refresh", [body("refreshToken").optional().isString()], refreshHandler);
 router.post("/logout", async (req, res) => {
@@ -52,5 +94,115 @@ router.post("/logout", async (req, res) => {
   clearAuthCookies(res);
   res.json({ ok: true });
 });
+
+// --- Cuenta propia ---
+
+router.get("/me", requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    // Se relee de base de datos en lugar de confiar en el JWT: el rol puede
+    // haber cambiado despues de emitirse el token.
+    const user = req.user ? await getUserById(req.user.id) : null;
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json({ data: user });
+  } catch (error) {
+    respondWithError(error, res, "Error retrieving current user");
+  }
+});
+
+router.patch(
+  "/me/password",
+  requireAuth,
+  [body("currentPassword").isString().notEmpty(), passwordRule("newPassword"), handleValidation],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      await changeOwnPassword(req.user!.id, req.body.currentPassword, req.body.newPassword);
+      // Se han revocado todos los refresh tokens, incluido el de esta sesion.
+      clearAuthCookies(res);
+      logger.info("Password changed", { userId: req.user!.id });
+      res.json({ ok: true, message: "Password updated. Sign in again." });
+    } catch (error) {
+      respondWithError(error, res, "Error changing password");
+    }
+  },
+);
+
+// --- Administracion de usuarios ---
+
+const adminOnly = [requireAuth, requireRole("admin")];
+
+router.get("/users", adminOnly, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    res.json({ data: await listUsers() });
+  } catch (error) {
+    respondWithError(error, res, "Error listing users");
+  }
+});
+
+router.post(
+  "/users",
+  adminOnly,
+  [
+    body("email").isEmail().withMessage("A valid email is required").normalizeEmail(),
+    passwordRule("password"),
+    body("role").optional().isIn(USER_ROLES).withMessage(`role must be one of: ${USER_ROLES.join(", ")}`),
+    handleValidation,
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = await createUser({ email: req.body.email, password: req.body.password, role: req.body.role });
+      logger.info("User created", { id: user.id, email: user.email, role: user.role, by: req.user?.email });
+      res.status(201).json({ data: user });
+    } catch (error) {
+      respondWithError(error, res, "Error creating user");
+    }
+  },
+);
+
+router.patch(
+  "/users/:id",
+  adminOnly,
+  [
+    param("id").isInt({ min: 1 }).toInt(),
+    body("role").optional().isIn(USER_ROLES).withMessage(`role must be one of: ${USER_ROLES.join(", ")}`),
+    body("password").optional().isString().isLength({ min: PASSWORD_MIN_LENGTH }),
+    handleValidation,
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (req.body.role === undefined && req.body.password === undefined) {
+      res.status(400).json({ error: "Nothing to update: provide role or password" });
+      return;
+    }
+    try {
+      const user = await updateUser(Number(req.params.id), { role: req.body.role, password: req.body.password });
+      logger.info("User updated", {
+        id: user.id,
+        roleChanged: req.body.role !== undefined,
+        passwordChanged: req.body.password !== undefined,
+        by: req.user?.email,
+      });
+      res.json({ data: user });
+    } catch (error) {
+      respondWithError(error, res, "Error updating user");
+    }
+  },
+);
+
+router.delete(
+  "/users/:id",
+  adminOnly,
+  [param("id").isInt({ min: 1 }).toInt(), handleValidation],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      await deleteUser(Number(req.params.id), req.user!.id);
+      logger.info("User deleted", { id: Number(req.params.id), by: req.user?.email });
+      res.json({ ok: true });
+    } catch (error) {
+      respondWithError(error, res, "Error deleting user");
+    }
+  },
+);
 
 export default router;
