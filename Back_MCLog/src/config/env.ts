@@ -34,6 +34,8 @@ export const config = {
   // Mantenimiento automatico. RETENTION_DAYS=0 desactiva la purga.
   retentionDays: intAllowingZero(process.env.RETENTION_DAYS, 0),
   schedulerEnabled: boolDefaultTrue(process.env.SCHEDULER_ENABLED),
+  /** Endpoint MCP para asistentes de IA. Activo salvo que se desactive a proposito. */
+  mcpEnabled: boolDefaultTrue(process.env.MCP_ENABLED),
   /** URL publica del dashboard, para construir enlaces en alertas y notificaciones. */
   publicDashboardUrl: process.env.PUBLIC_DASHBOARD_URL?.replace(/\/+$/, "") || "",
 

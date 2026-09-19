@@ -11,6 +11,7 @@ import { prisma } from "./config/prisma";
 import { swaggerSpec } from "./config/swagger";
 import logRoutes from "./routes/logRoutes";
 import apiKeyRoutes from "./routes/apiKeyRoutes";
+import mcpRouter from "./mcp/router";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
 import { errorHandler } from "./middlewares/errorHandler";
@@ -76,6 +77,12 @@ export const createApp = () => {
     res.set("Content-Type", registry.contentType);
     res.send(await registry.metrics());
   });
+
+  // Servidor MCP: permite que un asistente de IA consulte los logs con
+  // herramientas en lugar de construir URLs. Autenticado como cualquier lectura.
+  if (config.mcpEnabled) {
+    app.use("/mcp", mcpRouter);
+  }
 
   // Administración de API keys: solo admin (el propio router aplica auth y rol)
   app.use("/api/keys", apiKeyRoutes);
