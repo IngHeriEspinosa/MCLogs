@@ -20,6 +20,11 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 10. [Observabilidad del propio servicio](#10-observabilidad-del-propio-servicio)
 11. [Protecciones de seguridad](#11-protecciones-de-seguridad)
 12. [Documentación de API interactiva](#12-documentación-de-api-interactiva)
+13. [API keys con permisos](#13-api-keys-con-permisos)
+14. [Gestión de usuarios](#14-gestión-de-usuarios)
+15. [Agrupación de errores](#15-agrupación-de-errores)
+16. [Acceso para IA (MCP)](#16-acceso-para-ia-mcp)
+17. [Mantenimiento automático](#17-mantenimiento-automático)
 
 ---
 
@@ -160,10 +165,11 @@ Dos planos completamente separados, por diseño:
 
 | Plano | Quién | Mecanismo | Puede leer |
 |---|---|---|---|
-| **Ingesta** | Máquinas (NetSuite, scripts, servicios) | `x-api-key` | ❌ No |
-| **Consulta** | Personas (dashboard) | JWT access + refresh | ✅ Sí |
+| **Ingesta** | Máquinas (NetSuite, scripts, servicios) | API key con permiso `ingest` | ❌ No |
+| **Consulta automatizada** | Asistentes de IA, integraciones | API key con permiso `read` | ✅ Solo sus aplicaciones |
+| **Consulta y administración** | Personas (dashboard) | JWT access + refresh | ✅ Sí |
 
-**Consecuencia de seguridad:** si una API key se filtra, el atacante puede *escribir* logs basura, pero **no puede leer** los logs de nadie.
+**Consecuencia de seguridad:** si una clave de ingesta se filtra, el atacante puede *escribir* logs basura, pero **no puede leer** los de nadie. Detalle de los permisos en [13](#13-api-keys-con-permisos).
 
 **Código:** [authService.ts](../Back_MCLog/src/services/authService.ts), [requireAuth.ts](../Back_MCLog/src/middlewares/requireAuth.ts), [authApiKey.ts](../Back_MCLog/src/middlewares/authApiKey.ts)
 
@@ -295,17 +301,133 @@ Quién vigila al vigilante. **Código:** [app.ts](../Back_MCLog/src/app.ts), [lo
 
 ---
 
+---
+
+## 13. API keys con permisos
+
+Credenciales para máquinas, administrables desde el dashboard.
+
+**Quién:** solo `admin`. **Código:** [apiKeyService.ts](../Back_MCLog/src/services/apiKeyService.ts) · [apiKeyRoutes.ts](../Back_MCLog/src/routes/apiKeyRoutes.ts) · [authApiKey.ts](../Back_MCLog/src/middlewares/authApiKey.ts)
+
+| Permiso | Permite |
+|---|---|
+| `ingest` | Enviar logs |
+| `read` | Consultar logs, errores y estadísticas, y usar el servidor MCP |
+| `metrics` | Leer `/metrics` |
+
+Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, caducar en una fecha y revocarse. Se acepta en `x-api-key` o en `Authorization: Bearer`, porque los clientes MCP solo permiten cabeceras estándar.
+
+**Solo se guarda el hash.** El secreto viaja en claro una única vez, al crear la clave. Una filtración de la base de datos no entrega ninguna clave utilizable.
+
+**El aislamiento vale en los dos sentidos.** Una clave acotada a `facturacion` recibe `403` si intenta escribir logs de `ventas`, y al consultar no ve esos registros ni en el listado, ni en las estadísticas, ni pidiendo el log por su id, que responde `404` para no confirmar siquiera que existe.
+
+**Ninguna clave recibe rol `admin`.** Purgar logs o administrar el servicio requiere una sesión de persona.
+
+> La clave única de la variable `API_KEY` sigue funcionando con permisos `ingest` y `metrics`, para no romper los emisores ya desplegados. Está deprecada: no se puede rotar sin cortar el servicio ni acotar por aplicación.
+
+---
+
+## 14. Gestión de usuarios
+
+**Código:** [userService.ts](../Back_MCLog/src/services/userService.ts) · [authRoutes.ts](../Back_MCLog/src/routes/authRoutes.ts)
+
+| Operación | Quién |
+|---|---|
+| `GET /auth/me` | Cualquier sesión. Se relee de base de datos, no del JWT: el rol puede haber cambiado |
+| `PATCH /auth/me/password` | Cada uno la suya. Mínimo 10 caracteres y distinta de la actual |
+| Alta, cambio de rol, reseteo de contraseña y baja | `admin` |
+
+Cambiar la contraseña o el rol de alguien **revoca todos sus refresh tokens**: las sesiones abiertas en otros dispositivos dejan de valer y el nuevo rol se aplica en el siguiente token.
+
+Dos operaciones están bloqueadas para que el servicio no se quede sin administración: nadie puede borrarse a sí mismo, ni eliminar o degradar al último `admin`.
+
+---
+
+## 15. Agrupación de errores
+
+Lo que convierte cuatrocientas líneas iguales en un problema con nombre y conteo.
+
+**Código:** [fingerprint.ts](../Back_MCLog/src/utils/fingerprint.ts) · [analysisService.ts](../Back_MCLog/src/services/analysisService.ts)
+
+### 15.1 Detalle estructurado del error
+
+La ingesta acepta `errorName`, `errorCode` y `errorStack`, o un objeto `error` con `name`, `message`, `code` y `stack` que se reparte en esos campos. Si no se envía `message`, se toma el de la excepción. Un código numérico se guarda como texto, y un stack en array (formato de NetSuite) se une en una cadena.
+
+### 15.2 Huella
+
+Para los niveles `error` y `warn`, el servidor calcula una huella con la parte **estable** del fallo: aplicación, servicio, clase, código, primer marco del stack sin números de línea, y el mensaje normalizado. La normalización sustituye por marcadores lo que cambia entre ocurrencias: números, UUIDs, correos, URLs y cadenas entrecomilladas.
+
+Con eso, «Timeout cobrando el pedido 991» y «Timeout cobrando el pedido 1428» son el mismo grupo. Un emisor puede mandar su propia `fingerprint` si prefiere otro criterio.
+
+### 15.3 Consultas de investigación
+
+| Endpoint | Responde |
+|---|---|
+| `GET /api/logs/errors/groups` | **Qué está fallando**, por frecuencia, con primera y última aparición |
+| `GET /api/logs?fingerprint=…` | Las ocurrencias concretas de un grupo |
+| `GET /api/logs/trace/:traceId` | Una operación completa, aunque cruce aplicaciones |
+| `GET /api/logs/:id/context` | Lo ocurrido justo antes y después de un log |
+| `GET /api/logs/applications` | Qué aplicaciones existen, con sus servicios y errores recientes |
+
+En el dashboard esto son la vista **Errores** y la vista de **Traza**, y en la tabla de logs el filtro por huella con enlaces a la traza y a los errores iguales.
+
+---
+
+## 16. Acceso para IA (MCP)
+
+`POST /mcp` expone un servidor **Model Context Protocol**: un asistente como Claude Code, Cursor o Claude Desktop consulta los logs con herramientas propias en vez de que le peguen fragmentos a mano.
+
+**Quién:** JWT o API key con permiso `read`. **Código:** [mcp/server.ts](../Back_MCLog/src/mcp/server.ts) · [mcp/router.ts](../Back_MCLog/src/mcp/router.ts). Guía completa en [AI_INTEGRATION.md](AI_INTEGRATION.md).
+
+| Herramienta | Para qué |
+|---|---|
+| `list_applications` | Inventario de aplicaciones |
+| `get_error_groups` | Qué está fallando, agrupado por causa |
+| `search_logs` | Búsqueda con filtros y paginación |
+| `get_log` | Registro completo, con stack y metadata |
+| `get_recent_errors` | Últimos errores sin agrupar |
+| `get_trace` | Operación completa por `traceId` |
+| `get_log_context` | Lo ocurrido alrededor de un log |
+| `get_stats` | Totales y serie por hora |
+
+Dos decisiones gobiernan las respuestas: los listados van **recortados y sin metadata**, porque todo lo devuelto consume contexto del modelo y solo `get_log` entrega el registro entero; y cuando hay más resultados de los devueltos **se dice explícitamente**, para que el modelo no concluya que ya lo ha visto todo.
+
+El endpoint es **sin estado**: cada petición se atiende y se cierra, así que el servicio sigue escalando horizontalmente. Los límites de la clave se aplican dentro: una clave acotada no ve otras aplicaciones en ninguna herramienta. Se apaga con `MCP_ENABLED=0`.
+
+---
+
+## 17. Mantenimiento automático
+
+**Código:** [jobs/scheduler.ts](../Back_MCLog/src/jobs/scheduler.ts)
+
+| Trabajo | Cada | Qué hace |
+|---|---|---|
+| Retención | 1 h | Borra los logs más antiguos que `RETENTION_DAYS` |
+| Limpieza de sesiones | 6 h | Elimina los refresh tokens caducados |
+
+La purga va en **lotes de 5000 filas** cediendo el control entre uno y otro: un único `DELETE` sobre millones de filas bloquearía la tabla y competiría con la ingesta. Se ejecuta también al arrancar, para recuperar el mantenimiento pendiente si el servicio estuvo caído.
+
+`RETENTION_DAYS=0` desactiva la purga y la tabla crece sin límite. Con varias instancias detrás de un balanceador, `SCHEDULER_ENABLED=1` debe quedar en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
+
 ## Resumen de endpoints
 
 | Método | Ruta | Auth | Funcionalidad |
 |---|---|---|---|
-| `POST` | `/api/log` | API key o JWT | [1.1](#11-log-individual--post-apilog) |
-| `POST` | `/api/logs/batch` | API key o JWT | [1.2](#12-lote--post-apilogsbatch) |
-| `GET` | `/api/logs` | JWT | [2](#2-consulta-y-búsqueda) · [4](#4-exportación) |
-| `GET` | `/api/logs/stats` | JWT | [3](#3-estadísticas) |
-| `GET` | `/api/logs/:id` | JWT | [2.4](#24-detalle-individual--get-apilogsid) |
+| `POST` | `/api/log` | Clave `ingest` o JWT | [1.1](#11-log-individual--post-apilog) |
+| `POST` | `/api/logs/batch` | Clave `ingest` o JWT | [1.2](#12-lote--post-apilogsbatch) |
+| `GET` | `/api/logs` | Clave `read` o JWT | [2](#2-consulta-y-búsqueda) · [4](#4-exportación) |
+| `GET` | `/api/logs/stats` | Clave `read` o JWT | [3](#3-estadísticas) |
+| `GET` | `/api/logs/:id` | Clave `read` o JWT | [2.4](#24-detalle-individual--get-apilogsid) |
+| `GET` | `/api/logs/errors/groups` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
+| `GET` | `/api/logs/trace/:traceId` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
+| `GET` | `/api/logs/:id/context` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
+| `GET` | `/api/logs/applications` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `DELETE` | `/api/logs` | JWT **admin** | [5](#5-retención-y-purga) |
+| `POST` | `/mcp` | Clave `read` o JWT | [16](#16-acceso-para-ia-mcp) |
+| `GET`/`POST`/`DELETE` | `/api/keys` | JWT **admin** | [13](#13-api-keys-con-permisos) |
+| `GET`/`PATCH` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin** | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/login` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |
 | `GET` | `/health` | — | [10](#10-observabilidad-del-propio-servicio) |
-| `GET` | `/metrics` | API key | [10](#10-observabilidad-del-propio-servicio) |
-| `GET` | `/docs` | — | [12](#12-documentación-de-api-interactiva) |
+| `GET` | `/metrics` | Clave `metrics` | [10](#10-observabilidad-del-propio-servicio) |
+| `GET` | `/docs` · `/openapi.json` | — | [12](#12-documentación-de-api-interactiva) |

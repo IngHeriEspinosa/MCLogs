@@ -30,6 +30,39 @@ await mclog.warn("Cache no disponible, usando fallback");
 await mclog.error("Fallo al procesar pedido", { orderId: 42, error: err.message });
 ```
 
+### Capturar una excepción
+
+```ts
+try {
+  await cobrar(pedido);
+} catch (err) {
+  await mclog.captureException(err, { metadata: { pedidoId: pedido.id } });
+}
+```
+
+Extrae la clase del error, su código y su stack a campos propios. Con eso el
+servicio **agrupa las repeticiones del mismo fallo en un solo error** en lugar de
+en uno por cada pedido: en el dashboard aparece una línea con el número de veces
+que ha ocurrido, no cien líneas iguales.
+
+Acepta cualquier cosa que se haya lanzado, no solo un `Error`: una cadena, un
+objeto con `name`/`message`/`code`/`stack`, o incluso `null`. Nunca rompe la
+aplicación emisora. Con `message` se pone un texto propio y el detalle de la
+excepción se conserva aparte:
+
+```ts
+await mclog.captureException(err, {
+  message: "Fallo al procesar el pedido",
+  metadata: { pedidoId: 42 },
+});
+```
+
+El mismo reparto ocurre si pasas `error` a `send`:
+
+```ts
+await mclog.send({ level: "error", message: "Fallo al facturar", error: err });
+```
+
 ### Entrada completa
 
 ```ts

@@ -10,6 +10,7 @@ Términos en el [Glosario](GLOSSARY.md) · Manual completo en [USER_GUIDE.md](US
 - [Enviar logs](#enviar-logs)
 - [Consultar y buscar](#consultar-y-buscar)
 - [Sesiones y usuarios](#sesiones-y-usuarios)
+- [Acceso para IA](#acceso-para-ia)
 - [Errores concretos](#errores-concretos)
 - [Operación y rendimiento](#operación-y-rendimiento)
 - [Seguridad](#seguridad)
@@ -124,13 +125,15 @@ Las **tarjetas de resumen** sí, cada 60 segundos. La **tabla** no: se recarga c
 ## Sesiones y usuarios
 
 ### ¿Cómo creo usuarios nuevos?
-**No hay endpoint de alta de usuarios todavía.** El admin inicial se crea solo desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`; el resto hay que insertarlos en base de datos con el hash bcrypt. El procedimiento está en [USER_GUIDE.md § C.3](USER_GUIDE.md#c3-crear-usuarios).
+Desde el dashboard, en **Ajustes → Usuarios**, si tu usuario es `admin`. Puedes dar de alta, cambiar el rol, restablecer la contraseña y eliminar. El admin inicial se sigue creando solo al arrancar desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+
+Dos operaciones están bloqueadas a propósito: nadie puede borrarse a sí mismo, ni eliminar o degradar al último administrador. Sin ellas sería posible dejar el servicio sin quien lo administre.
 
 ### ¿Qué roles hay?
 `user` (consultar, buscar, estadísticas, exportar) y `admin` (todo lo anterior más purgar logs). Es el único permiso que distingue a ambos.
 
-### Olvidé la contraseña del admin
-No es recuperable (bcrypt es de una vía). Genera un hash nuevo y actualiza la fila:
+### Olvidé la contraseña de un usuario
+Cualquier administrador puede restablecerla desde **Ajustes → Usuarios**. Si quien la ha perdido es el único administrador, no hay recuperación posible desde la aplicación (bcrypt es de una vía): hay que generar un hash nuevo y actualizar la fila a mano.
 
 ```bash
 node -e "console.log(require('bcryptjs').hashSync('NuevaContraseña', 12))"
@@ -142,11 +145,7 @@ docker compose exec db psql -U postgres -d mclog -c \
 Porque el access token dura 15 minutos pero se **renueva solo** con el refresh token (14 días) mientras sigas usando la aplicación. Solo vuelves al login si dejas de usarla el tiempo suficiente para que caduque también el refresh, o si haces logout.
 
 ### ¿Puedo cerrar la sesión en todos los dispositivos?
-No hay un botón para eso. Se puede hacer a mano borrando los refresh tokens del usuario:
-
-```sql
-DELETE FROM "RefreshToken" WHERE "userId" = <id>;
-```
+Sí: cambia tu contraseña en **Ajustes → Mi cuenta**. Al hacerlo se revocan todos tus refresh tokens, así que las sesiones abiertas en cualquier otro dispositivo dejan de valer. Lo mismo ocurre cuando un administrador cambia la contraseña o el rol de alguien.
 
 ### ¿Por qué el frontend no guarda el token en localStorage?
 Porque cualquier script inyectado podría leerlo. Los tokens viven en **cookies httpOnly**, invisibles para JavaScript. Por eso el frontend nunca manipula tokens directamente.
@@ -201,10 +200,33 @@ Las cookies no se están guardando. Con el dashboard y la API en dominios distin
 
 ---
 
+## Acceso para IA
+
+### ¿Cómo conecto Claude Code (o Cursor) a mis logs?
+Creas una API key con permiso `read` y la registras como servidor MCP. Los pasos, con la configuración de cada cliente, están en [AI_INTEGRATION.md](AI_INTEGRATION.md).
+
+### ¿Qué puede hacer la IA con mis logs?
+Solo leer, y solo lo que alcance su clave. Dispone de ocho herramientas: inventario de aplicaciones, errores agrupados por causa, búsqueda con filtros, detalle de un log, errores recientes, traza completa, contexto alrededor de un log y estadísticas.
+
+### ¿Puede escribir o borrar algo?
+No. Una clave con permiso `read` no puede escribir logs ni purgar nada, y el endpoint MCP nunca asigna rol de administrador, así que las operaciones de administración le quedan fuera aunque las pidiera.
+
+### ¿Por qué los errores aparecen agrupados?
+Porque el mismo fallo casi nunca tiene el mismo mensaje: lleva dentro el id del pedido, un UUID o una hora. MCLog normaliza esa parte variable y calcula una huella, de modo que cuatrocientas ocurrencias de un timeout son un grupo con un 400 al lado en vez de cuatrocientas líneas indistinguibles.
+
+### ¿Tengo que cambiar cómo envío los logs?
+No es obligatorio, pero mejora mucho el resultado mandar la excepción entera en el campo `error` en lugar de solo su mensaje. Con la clase del error y el stack la agrupación es precisa. Ver [AI_INTEGRATION.md § 5](AI_INTEGRATION.md#5-que-los-logs-merezcan-la-pena).
+
+---
+
 ## Operación y rendimiento
 
 ### La base de datos crece sin parar, ¿qué hago?
-Purgar periódicamente. **No hay retención automática**: si nadie borra, la tabla crece indefinidamente. Programa un cron con `DELETE /api/logs?before=<fecha>` — receta completa en [USER_GUIDE.md § C.5](USER_GUIDE.md#c5-retención-de-logs).
+Pon `RETENTION_DAYS` en el `.env`. El servicio purga cada hora los logs más antiguos que esa ventana, en lotes de 5000 filas para no bloquear la tabla ni competir con la ingesta. También limpia los refresh tokens caducados.
+
+`RETENTION_DAYS=0` desactiva la purga y la tabla crece sin límite, que era el comportamiento anterior. Sigue existiendo `DELETE /api/logs?before=<fecha>` para purgas puntuales.
+
+Con varias instancias detrás de un balanceador, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 
 ### ¿Cuántos logs aguanta?
 Con los índices actuales, PostgreSQL maneja cómodamente decenas de millones de filas. A partir de ahí conviene **particionar por rango de `timestamp`**, con la ventaja de que la purga pasa a ser un `DROP PARTITION` instantáneo. La ruta completa de escalado está en [ARCHITECTURE.md](ARCHITECTURE.md#rendimiento-y-escalabilidad).
@@ -221,8 +243,10 @@ Los datos viven en el volumen Docker `pgdata`.
 ### ¿Cómo monitorizo el propio servicio?
 `GET /health` para uptime checks (verifica también la base) y `GET /metrics` con `x-api-key` para Prometheus. Además el servicio escribe una línea JSON por petición con `requestId`, `traceId`, status y duración.
 
-### ¿Puedo cambiar la API key sin cortar el servicio?
-Al cambiarla y reiniciar, los emisores que aún tengan la vieja recibirán `401` hasta que los actualices. No hay soporte para dos claves simultáneas, así que hazlo en una ventana de baja actividad.
+### ¿Puedo rotar una clave sin cortar el servicio?
+Sí, si usas claves creadas desde el dashboard: creas la nueva, actualizas al emisor y revocas la vieja. Durante ese rato las dos funcionan.
+
+La excepción es la clave heredada de la variable `API_KEY`: es única, y cambiarla deja fuera a todos los emisores que aún la usen hasta que los actualices. Es una razón más para migrar a claves con permisos.
 
 ---
 
@@ -246,7 +270,11 @@ Con `LOG_LEVEL=debug` se registra el body de las peticiones, pero **redactando**
 Cuidado con lo que tú mandas: si pones una contraseña o un token en el `message` o en `metadata` de un log tuyo, se guardará tal cual. MCLog no puede adivinar qué es secreto dentro de tu propio contenido.
 
 ### ¿Se puede restringir qué aplicación envía con cada clave?
-No todavía: hay **una sola API key global** para toda la ingesta. Cualquier emisor con la clave puede escribir logs con cualquier `application`. Si necesitas aislamiento por aplicación, hoy la única vía es desplegar instancias separadas.
+Sí. Al crear una clave en **Ajustes → API keys** puedes limitarla a una lista de aplicaciones. La restricción vale en los dos sentidos: esa clave no puede escribir logs de otra aplicación (responde `403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log concreto por su id, que responde `404` para no confirmar siquiera que existe.
+
+Cada clave lleva además permisos: `ingest` para escribir, `read` para consultar y `metrics` para Prometheus. Una clave de ingesta filtrada no expone nada de lo ya almacenado.
+
+La clave única de la variable `API_KEY` sigue funcionando por compatibilidad con los emisores ya desplegados, con permisos de ingesta y métricas.
 
 ---
 
@@ -257,8 +285,8 @@ No todavía: hay **una sola API key global** para toda la ingesta. Cualquier emi
 
 ### ¿Cómo ejecuto los tests?
 ```bash
-cd Back_MCLog && docker compose up -d db && npm test    # 53 tests
-cd Back_MCLog/log-service-lib && npm test               # 34 tests
+cd Back_MCLog && docker compose up -d db && npm test    # 108 tests
+cd Back_MCLog/log-service-lib && npm test               # 42 tests
 ```
 Los del backend necesitan la base real en `localhost:5435` y corren en serie porque la comparten.
 

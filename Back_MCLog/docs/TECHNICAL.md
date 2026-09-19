@@ -109,11 +109,11 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 ## Tests
 
 `npm test` (vitest + supertest, DB real en `localhost:5435` — `docker compose up -d db`).
-**53 tests** en `tests/`: credenciales inválidas, auto-refresh con rotación y cookies, revocación al logout, API key en /metrics, body >3 MB, ingesta JWT y API key, metadata opcional, level inválido, batch, paginación, from+to combinados, search, sort por campo, 401 sin auth y con solo API key en lectura, CSV, stats y purga admin.
+**108 tests** en `tests/`, repartidos en nueve suites: sesiones y seguridad (`auth`), API keys con permisos y aislamiento por aplicación (`apiKeys`), gestión de usuarios y salvaguardas (`users`), ingesta y consulta (`logs`), huella de agrupación (`fingerprint`), análisis de errores, trazas y contexto (`errors`), servidor MCP (`mcp`), retención y limpieza (`scheduler`) y protecciones del borde (`hardening`).
 
 Corren en serie (`--fileParallelism=false --maxWorkers=1`) porque comparten la misma base de datos.
 
-La librería [`log-service-lib/`](../log-service-lib/) tiene su propia suite: `cd log-service-lib && npm test` → **34 tests**.
+La librería [`log-service-lib/`](../log-service-lib/) tiene su propia suite: `cd log-service-lib && npm test` → **42 tests**.
 
 ## Build y ejecución
 

@@ -16,13 +16,18 @@ Plataforma para capturar, consultar y gestionar los logs de **todas tus aplicaci
 
 Desglose completo en [docs/FEATURES.md](docs/FEATURES.md). En resumen:
 
-- **Ingesta** individual y por lotes (hasta 500 por petición), autenticada con API key.
-- **Consulta** con filtros combinables (nivel, entorno, aplicación, servicio, host, traceId, rango de fechas, búsqueda libre), ordenación y paginación.
-- **Estadísticas** en vivo: total, últimas 24 h, por nivel, top de aplicaciones y por entorno.
+- **Ingesta** individual y por lotes (hasta 500 por petición), con captura de excepciones (clase, código y stack).
+- **Agrupación de errores** por huella: las repeticiones del mismo fallo son un grupo con su conteo, no N líneas sueltas.
+- **Acceso para IA** por MCP en `/mcp`: Claude Code, Cursor o Claude Desktop investigan los logs con ocho herramientas propias.
+- **Consulta** con filtros combinables (nivel, entorno, aplicación, servicio, host, traceId, huella, fechas, búsqueda libre).
+- **Traza y contexto**: una operación completa por `traceId` y lo ocurrido alrededor de cualquier log.
+- **Estadísticas** en vivo, con serie por hora y nivel para ver cuándo empezó un incidente.
 - **Exportación** CSV y NDJSON respetando los filtros activos.
-- **Retención** por purga selectiva con fecha y aplicación (solo admin).
+- **API keys con permisos** (`ingest` / `read` / `metrics`), acotables por aplicación, caducables y revocables.
+- **Usuarios y roles** administrables desde el dashboard, con cambio de contraseña y cierre de sesiones.
+- **Retención automática** por días, más purga puntual por fecha y aplicación.
 - **Sesiones** con JWT, refresh rotativo de un solo uso y renovación transparente.
-- **Dashboard** con detalle expandible de metadata y filtros sincronizados con la URL.
+- **Despliegue** con Docker Compose y Caddy, HTTPS automático y copias de seguridad diarias.
 - **Observabilidad** del propio servicio: `/health`, `/metrics` Prometheus y logging estructurado.
 
 ## Inicio rápido (desarrollo local)
@@ -65,6 +70,16 @@ curl -X POST http://localhost:3000/api/log \
   }'
 ```
 
+## Conectar una IA a tus logs
+
+Crea una API key con permiso `read` en el dashboard (Ajustes → API keys) y registra el servidor MCP:
+
+```bash
+claude mcp add --transport http mclog https://mclog.tu-dominio.com/mcp   --header "Authorization: Bearer mclog_xxxxxxxx_tu-clave"
+```
+
+A partir de ahí puedes preguntar «¿qué está fallando en producción hoy?» y el asistente lo averigua solo: agrupa las repeticiones, sigue la traza entre sistemas y mira qué pasó justo antes del error. Configuración para Cursor, VS Code y Claude Desktop en [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md).
+
 ## Cómo integrar tus aplicaciones
 
 - **Cualquier lenguaje (API REST)** → [docs/INTEGRATION.md](docs/INTEGRATION.md) — ejemplos con curl, Node.js, Python y front-end.
@@ -85,6 +100,7 @@ La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del ba
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura, decisiones de diseño y escalabilidad |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Despliegue en producción: VPS, Docker Compose, Caddy, backups |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Guía de integración REST para cualquier aplicación |
+| [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md) | Conectar Claude Code, Cursor o Claude Desktop por MCP |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Glosario de términos |
 | [docs/FAQ.md](docs/FAQ.md) | Preguntas frecuentes y errores concretos |
 | `http://localhost:3000/docs` | Swagger UI interactivo (OpenAPI 3) |
@@ -92,12 +108,12 @@ La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del ba
 ## Tests
 
 ```bash
-# Backend — 53 tests (auth, ingesta, batch, filtros, export, stats, purga)
+# Backend — 108 tests (auth, claves, usuarios, ingesta, huellas, errores, MCP, retención)
 cd Back_MCLog
 docker compose up -d db       # requiere la DB en localhost:5435
 npm test
 
-# Librería — 34 tests
+# Librería — 42 tests
 cd Back_MCLog/log-service-lib
 npm test
 ```

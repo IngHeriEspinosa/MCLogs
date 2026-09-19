@@ -40,5 +40,5 @@ Swagger UI interactivo: `http://localhost:3000/docs`.
 
 ```bash
 docker compose up -d db
-npm test    # 53 tests (vitest + supertest contra DB real)
+npm test    # 108 tests (vitest + supertest contra DB real)
 ```

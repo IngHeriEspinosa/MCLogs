@@ -130,10 +130,243 @@ export const swaggerSpec = swaggerJSDoc({
           },
         },
       },
+      "/api/logs/errors/groups": {
+        get: {
+          tags: ["análisis"],
+          summary: "Errores agrupados por causa, del más frecuente al menos",
+          description:
+            "Las repeticiones del mismo fallo caen en un grupo aunque sus mensajes lleven ids o fechas distintos. El fingerprint devuelto sirve para ver las ocurrencias con GET /api/logs?fingerprint=…",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [
+            { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744, default: 24 } },
+            { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
+            { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
+            { in: "query", name: "application", schema: { type: "string" } },
+            { in: "query", name: "service", schema: { type: "string" } },
+            { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
+            { in: "query", name: "level", schema: { type: "string", enum: ["error", "warn"], default: "error" } },
+            { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
+          ],
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      data: { type: "array", items: { $ref: "#/components/schemas/ErrorGroup" } },
+                      from: { type: "string", format: "date-time" },
+                      to: { type: "string", format: "date-time" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/logs/trace/{traceId}": {
+        get: {
+          tags: ["análisis"],
+          summary: "Todos los logs de una traza, en orden cronológico",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [{ in: "path", name: "traceId", required: true, schema: { type: "string", maxLength: 128 } }],
+          responses: {
+            200: { description: "OK (máximo 1000 registros)" },
+            404: { description: "No hay logs con esa traza" },
+          },
+        },
+      },
+      "/api/logs/{id}/context": {
+        get: {
+          tags: ["análisis"],
+          summary: "Lo ocurrido alrededor de un log, en su misma aplicación y servicio",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [
+            { in: "path", name: "id", required: true, schema: { type: "integer" } },
+            {
+              in: "query",
+              name: "before",
+              schema: { type: "integer", minimum: 1, maximum: 3600, default: 60 },
+              description: "Segundos hacia atrás",
+            },
+            {
+              in: "query",
+              name: "after",
+              schema: { type: "integer", minimum: 1, maximum: 3600, default: 60 },
+              description: "Segundos hacia delante",
+            },
+            { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 200, default: 50 } },
+          ],
+          responses: {
+            200: { description: "OK" },
+            404: { description: "No existe, o queda fuera del alcance de la clave" },
+          },
+        },
+      },
+      "/api/logs/applications": {
+        get: {
+          tags: ["análisis"],
+          summary: "Inventario de aplicaciones con sus servicios, entornos y errores recientes",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          responses: { 200: { description: "OK" } },
+        },
+      },
+      "/api/keys": {
+        get: {
+          tags: ["administración"],
+          summary: "Listar API keys (nunca devuelve el secreto)",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" }, 403: { description: "Requiere rol admin" } },
+        },
+        post: {
+          tags: ["administración"],
+          summary: "Crear una API key",
+          description:
+            "El secreto en claro se devuelve en el campo `key` y no vuelve a mostrarse: en base de datos solo queda su hash.",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name", "scopes"],
+                  properties: {
+                    name: { type: "string", maxLength: 120 },
+                    scopes: { type: "array", items: { type: "string", enum: ["ingest", "read", "metrics"] } },
+                    applications: { type: "array", items: { type: "string" }, description: "Vacío = todas" },
+                    expiresAt: { type: "string", format: "date-time", nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: "Creada; `key` contiene el secreto" },
+            403: { description: "Requiere rol admin" },
+          },
+        },
+      },
+      "/api/keys/{id}": {
+        delete: {
+          tags: ["administración"],
+          summary: "Revocar una API key (inmediato e irreversible)",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: { 200: { description: "Revocada" }, 404: { description: "No existe" } },
+        },
+      },
+      "/auth/me": {
+        get: {
+          tags: ["auth"],
+          summary: "Usuario de la sesión actual",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" }, 401: { description: "Sin sesión" } },
+        },
+      },
+      "/auth/me/password": {
+        patch: {
+          tags: ["auth"],
+          summary: "Cambiar la propia contraseña (revoca todas las sesiones)",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["currentPassword", "newPassword"],
+                  properties: { currentPassword: { type: "string" }, newPassword: { type: "string", minLength: 10 } },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Cambiada" },
+            400: { description: "Contraseña actual incorrecta o nueva inválida" },
+          },
+        },
+      },
+      "/auth/users": {
+        get: {
+          tags: ["administración"],
+          summary: "Listar usuarios",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" }, 403: { description: "Requiere rol admin" } },
+        },
+        post: {
+          tags: ["administración"],
+          summary: "Crear un usuario",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["email", "password"],
+                  properties: {
+                    email: { type: "string", format: "email" },
+                    password: { type: "string", minLength: 10 },
+                    role: { type: "string", enum: ["user", "admin"], default: "user" },
+                  },
+                },
+              },
+            },
+          },
+          responses: { 201: { description: "Creado" }, 409: { description: "Email ya registrado" } },
+        },
+      },
+      "/auth/users/{id}": {
+        patch: {
+          tags: ["administración"],
+          summary: "Cambiar rol o contraseña de un usuario (revoca sus sesiones)",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: {
+            200: { description: "Actualizado" },
+            409: { description: "No se puede degradar al último admin" },
+          },
+        },
+        delete: {
+          tags: ["administración"],
+          summary: "Eliminar un usuario",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: {
+            200: { description: "Eliminado" },
+            409: { description: "No puedes borrarte a ti mismo ni eliminar al último admin" },
+          },
+        },
+      },
+      "/mcp": {
+        post: {
+          tags: ["status"],
+          summary: "Servidor MCP para asistentes de IA (JSON-RPC 2.0)",
+          description:
+            "Expone ocho herramientas de investigación de errores. Sin estado: cada petición se atiende y se cierra. Requiere API key con scope read o JWT. Guía en docs/AI_INTEGRATION.md.",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          responses: {
+            200: { description: "Respuesta JSON-RPC" },
+            401: { description: "Sin credenciales" },
+            403: { description: "La clave no tiene scope read" },
+            405: { description: "GET y DELETE no se admiten: el endpoint es sin estado" },
+          },
+        },
+      },
+      "/openapi.json": {
+        get: {
+          tags: ["status"],
+          summary: "Esta misma especificación, en crudo",
+          responses: { 200: { description: "OK" } },
+        },
+      },
       "/health": {
         get: {
           tags: ["status"],
-          summary: "Health check (incluye conexión a DB)",
+          summary: "Health check (incluye conexión a DB, versión y uptime)",
           responses: { 200: { description: "OK" }, 503: { description: "Degraded" } },
         },
       },
@@ -201,6 +434,42 @@ export const swaggerSpec = swaggerJSDoc({
             traceId: { type: "string", maxLength: 128 },
             spanId: { type: "string", maxLength: 128 },
             metadata: { type: "object", description: "Objeto JSON libre con contexto adicional" },
+            error: {
+              type: "object",
+              description:
+                "Excepción capturada. Se reparte en errorName, errorCode y errorStack, y si falta message se usa el suyo. Es lo que permite agrupar las repeticiones del mismo fallo.",
+              properties: {
+                name: { type: "string", example: "TypeError" },
+                message: { type: "string" },
+                code: { type: "string", example: "ETIMEDOUT", description: "Se acepta también numérico" },
+                stack: { type: "string" },
+              },
+            },
+            errorName: { type: "string", maxLength: 200, description: "Alternativa a error.name" },
+            errorCode: { type: "string", maxLength: 100, description: "Alternativa a error.code" },
+            errorStack: { type: "string", maxLength: 50000, description: "Alternativa a error.stack" },
+            fingerprint: {
+              type: "string",
+              maxLength: 64,
+              description: "Huella de agrupación propia. Si falta, el servidor la calcula para error y warn.",
+            },
+          },
+        },
+        ErrorGroup: {
+          type: "object",
+          description: "Un fallo distinto, con todas sus ocurrencias contadas.",
+          properties: {
+            fingerprint: { type: "string", example: "c6caa3b09384f1e27a5b0d4e8c1f2a39" },
+            application: { type: "string" },
+            service: { type: "string", nullable: true },
+            level: { type: "string", enum: ["error", "warn"] },
+            errorName: { type: "string", nullable: true },
+            errorCode: { type: "string", nullable: true },
+            sampleMessage: { type: "string", description: "Mensaje de la ocurrencia más reciente" },
+            count: { type: "integer", example: 29 },
+            firstSeen: { type: "string", format: "date-time" },
+            lastSeen: { type: "string", format: "date-time" },
+            lastLogId: { type: "integer" },
           },
         },
         Log: {

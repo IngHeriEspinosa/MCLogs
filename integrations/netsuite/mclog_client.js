@@ -50,6 +50,27 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
     };
 
     /**
+     * Reparte una excepción de NetSuite en los campos que MCLog usa para
+     * agrupar errores.
+     *
+     * En un SuiteScriptError el código estable va en `name` (p. ej.
+     * 'INVALID_FLD_VALUE') y el `stack` llega como array de marcos. El `id`
+     * NO se usa como código: es distinto en cada ejecución y convertiría cada
+     * ocurrencia en un grupo propio, que es justo lo contrario de lo que se
+     * busca. Se guarda en metadata, donde sirve para cruzar con el registro
+     * de ejecución de NetSuite.
+     *
+     * @param {Error|Object} e Excepción capturada
+     */
+    const errorFields = (e) => {
+        if (!e) return {};
+        const fields = {};
+        if (e.name) fields.errorName = String(e.name);
+        if (e.stack) fields.errorStack = Array.isArray(e.stack) ? e.stack.join('\n') : String(e.stack);
+        return fields;
+    };
+
+    /**
      * Construye el payload de un log con los campos que exige MCLog.
      * @param {string} level  debug | info | warn | error
      * @param {Object} opts
@@ -59,18 +80,27 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
      * @param {string} [opts.environment] development | staging | production
      * @param {string} [opts.traceId]   Id de correlación entre scripts
      * @param {Object} [opts.metadata]  Datos adicionales (se mezclan con el contexto NS)
+     * @param {Error}  [opts.error]     Excepción capturada; rellena errorName y errorStack
      */
     const buildPayload = (level, opts) => {
         const ctx = nsContext();
+        const extra = opts.error ? errorFields(opts.error) : {};
+        const metadata = Object.assign({}, ctx, opts.metadata || {});
+
+        if (opts.error && opts.error.id) metadata.netsuiteErrorId = String(opts.error.id);
+
         return {
             application: opts.application,
             service: opts.service || ctx.scriptId,
             host: 'netsuite-' + (ctx.accountId || 'unknown'),
             level: level,
             environment: opts.environment || DEFAULT_ENVIRONMENT,
-            message: opts.message,
+            message: opts.message || (opts.error && opts.error.message) || 'Excepción sin mensaje',
             traceId: opts.traceId,
-            metadata: Object.assign({}, ctx, opts.metadata || {})
+            errorName: opts.errorName || extra.errorName,
+            errorCode: opts.errorCode,
+            errorStack: opts.errorStack || extra.errorStack,
+            metadata: metadata
         };
     };
 
@@ -128,9 +158,25 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
             info: wrap('info'),
             warn: wrap('warn'),
             error: wrap('error'),
+            /**
+             * Registra una excepción con su clase y su stack, para que MCLog
+             * agrupe sus repeticiones en un solo error en lugar de en N.
+             *
+             * @example
+             *   try { ... } catch (e) { appLog.exception('Fallo al facturar', e, { recordId: id }); }
+             */
+            exception: (message, error, metadata, extra) =>
+                send(
+                    'error',
+                    Object.assign({}, defaults, extra || {}, {
+                        message: message,
+                        error: error,
+                        metadata: metadata
+                    })
+                ),
             batch: (entries) => sendBatch(entries.map((e) => Object.assign({}, defaults, e)))
         };
     };
 
-    return { send: send, sendBatch: sendBatch, createLogger: createLogger };
+    return { send: send, sendBatch: sendBatch, createLogger: createLogger, errorFields: errorFields };
 });

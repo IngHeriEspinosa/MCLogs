@@ -46,8 +46,31 @@ appLog.debug(mensaje, metadata?);
 appLog.info(mensaje, metadata?);
 appLog.warn(mensaje, metadata?);
 appLog.error(mensaje, metadata?);
+appLog.exception(mensaje, error, metadata?);   // para bloques catch
 appLog.batch([{ level: 'info', message: '...' }, ...]);
 ```
+
+### `exception(mensaje, error, metadata?)` — para los `catch`
+
+```js
+try {
+    // ...
+} catch (e) {
+    appLog.exception('Fallo al crear la factura', e, { recordId: id });
+}
+```
+
+Extrae la clase del error y su stack a campos propios, y con eso MCLog **agrupa
+las repeticiones del mismo fallo en un solo error** en lugar de en uno por cada
+registro procesado. En el dashboard aparece una línea con el número de veces que
+ha ocurrido, en vez de cien líneas iguales.
+
+En un `SuiteScriptError` el código estable está en `name` (`INVALID_FLD_VALUE`,
+`RCRD_DSNT_EXIST`…) y es el que se usa para agrupar. El `stack` de NetSuite llega
+como array de marcos y se une en una cadena. El `id` de la excepción **no** se usa
+para agrupar, porque cambia en cada ejecución y convertiría cada ocurrencia en un
+grupo propio; se guarda en `metadata.netsuiteErrorId`, donde sirve para cruzar con
+el registro de ejecución de NetSuite.
 
 ### `send(level, opts)` — llamada individual
 ```js

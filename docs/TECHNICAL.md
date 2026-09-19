@@ -37,14 +37,26 @@ model Log {
   spanId      String?     @db.VarChar(128)
   metadata    Json?                           // JSONB libre, sin esquema
 
+  errorName   String?     @db.VarChar(200)    // clase de la excepción
+  errorCode   String?     @db.VarChar(100)    // código de la app o del proveedor
+  errorStack  String?
+  fingerprint String?     @db.VarChar(64)     // huella de agrupación
+
   @@index([timestamp]) @@index([application]) @@index([level])
   @@index([environment]) @@index([traceId])
   @@index([application, timestamp]) @@index([level, timestamp])
+  @@index([fingerprint, timestamp]) @@index([environment, level, timestamp])
 }
 
-model User         { id, email @unique, passwordHash, role @default("user"), createdAt, refreshTokens[] }
+model User         { id, email @unique, passwordHash, role @default("user"), createdAt, refreshTokens[], apiKeys[] }
 model RefreshToken { id, token @unique, userId → User (onDelete: Cascade), expiresAt, createdAt, revokedAt? }
+model ApiKey       { id, name, prefix @unique, keyHash @unique, scopes[], applications[],
+                     createdById? → User (onDelete: SetNull), createdAt, expiresAt?, lastUsedAt?, revokedAt? }
 ```
+
+**Por qué una huella.** Dos ocurrencias del mismo fallo casi nunca tienen el mismo mensaje: llevan dentro el id del pedido, un UUID o una hora. `fingerprint` es un sha256 recortado de la parte estable del error (aplicación, servicio, clase, código, primer marco del stack sin números de línea y mensaje normalizado), y es lo que permite responder "qué está fallando" en lugar de solo "qué ha pasado". La calcula el servidor para los niveles `error` y `warn`; un emisor puede enviar la suya para agrupar con otro criterio. Ver [fingerprint.ts](../Back_MCLog/src/utils/fingerprint.ts).
+
+**Por qué solo el hash de las claves.** De una `ApiKey` se guarda `sha256` del secreto y su prefijo público. El secreto en claro se muestra una única vez, al crearla: una filtración de la base de datos no entrega ninguna clave utilizable.
 
 **Por qué esos índices.** Los compuestos `(application, timestamp)` y `(level, timestamp)` cubren los dos patrones dominantes del dashboard —"logs de la app X por fecha" y "errores recientes"— que un índice simple resolvería con un sort posterior. `traceId` está indexado porque es la vía de correlación entre sistemas.
 
@@ -54,7 +66,7 @@ model RefreshToken { id, token @unique, userId → User (onDelete: Cascade), exp
 
 ### Migraciones
 
-`prisma/migrations/`: `0001_init` → `0002_enums_indexes` (recrea `Log` con enums) → `0003_auth` (User/RefreshToken) → `0004_perf_indexes`.
+`prisma/migrations/`: `0001_init` → `0002_enums_indexes` (recrea `Log` con enums) → `0003_auth` (User/RefreshToken) → `0004_perf_indexes` → `0005_api_keys` → `0006_error_fields`.
 
 ```bash
 npx prisma migrate deploy    # aplica las pendientes
@@ -126,15 +138,47 @@ Body `{ "logs": [ ...entradas... ] }`. Array no vacío, máximo `MAX_BATCH_SIZE`
 #### `GET /api/logs/:id`
 `200` con el registro · `400` id no numérico · `404` no existe.
 
+#### `GET /api/logs/errors/groups`
+Errores agrupados por huella, del más frecuente al menos. Query: `hours` (default 24) o `from`/`to`, `application`, `service`, `environment`, `level` (default `error`), `limit` (1–100, default 50).
+
+```json
+{
+  "data": [{
+    "fingerprint": "c6caa3b09384…", "application": "facturacion", "service": "pagos",
+    "level": "error", "errorName": "TypeError", "errorCode": "ETIMEDOUT",
+    "sampleMessage": "Timeout cobrando el pedido 991",
+    "count": 29, "firstSeen": "…", "lastSeen": "…", "lastLogId": 4821
+  }],
+  "from": "…", "to": "…"
+}
+```
+
+Para bajar a las ocurrencias: `GET /api/logs?fingerprint=<huella>`.
+
+#### `GET /api/logs/trace/:traceId`
+Todos los logs de una traza en orden cronológico, máximo 1000. `404` si no hay ninguno.
+
+#### `GET /api/logs/:id/context`
+Lo ocurrido alrededor de un log, en su misma aplicación y servicio. Query: `before` y `after` en segundos (1–3600, default 60) y `limit` (1–200, default 50). Devuelve `{ target, from, to, data, total }`.
+
+#### `GET /api/logs/applications`
+Inventario: por aplicación, sus servicios, entornos, total, última actividad y errores de las últimas 24 h.
+
 #### `GET /api/logs/stats`
+Query opcional: `application`, `environment`, `hours` (default 24) o `from`/`to`, que acotan la serie temporal.
+
 ```json
 {
   "total": 15432, "last24h": 892,
   "byLevel":       [{ "level": "error", "count": 120 }],
   "byApplication": [{ "application": "facturacion", "count": 5300 }],   // top 10
-  "byEnvironment": [{ "environment": "production", "count": 14000 }]
+  "byEnvironment": [{ "environment": "production", "count": 14000 }],
+  "timeline": [{ "bucket": "2026-09-19T18:00:00Z", "error": 12, "warn": 3, "info": 40, "debug": 2 }],
+  "from": "…", "to": "…"
 }
 ```
+
+La serie solo incluye las horas con registros; quien la pinte debe rellenar los huecos o el eje temporal mentirá.
 
 #### `DELETE /api/logs`
 **Auth:** JWT con rol `admin`. Query: `before` (ISO-8601, **obligatorio**) y `application` (opcional). Respuesta `{ "deleted": n }`.
@@ -154,11 +198,27 @@ Credenciales inválidas → `401 { "error": "Invalid credentials" }`.
 | Endpoint | Auth | Respuesta |
 |---|---|---|
 | `GET /` | — | Texto plano de vida |
-| `GET /health` | — | `200 { status: "ok", timestamp }` o `503 { status: "degraded" }` |
-| `GET /metrics` | `x-api-key` | Texto Prometheus |
+| `GET /health` | — | `200 { status, database, version, uptimeSeconds, timestamp }` o `503 degraded` |
+| `GET /metrics` | API key con `metrics` | Texto Prometheus |
 | `GET /docs` | — | Swagger UI |
+| `GET /openapi.json` | — | Especificación OpenAPI en crudo, para generar clientes |
+| `POST /mcp` | JWT o API key con `read` | Servidor MCP (JSON-RPC). Ver [AI_INTEGRATION.md](AI_INTEGRATION.md) |
 
-### 3.5 Formato de errores
+Además de las métricas por defecto del proceso, `/metrics` publica
+`http_request_duration_seconds{method,route,status}` y
+`mclog_logs_ingested_total{application,level}`. La ruta se etiqueta por su patrón
+(`/api/logs/:id`) y no por la URL concreta, que generaría una serie temporal por cada id.
+
+### 3.5 Administración
+
+| Endpoint | Auth | Qué hace |
+|---|---|---|
+| `GET/POST /api/keys`, `DELETE /api/keys/:id` | JWT **admin** | Listar, crear y revocar API keys. El secreto se devuelve una única vez al crear |
+| `GET /auth/me` | JWT | Usuario de la sesión, releído de base de datos |
+| `PATCH /auth/me/password` | JWT | Cambiar la propia contraseña; revoca todas las sesiones |
+| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** | Gestión de usuarios. No se permite borrarse a uno mismo ni dejar el servicio sin admin |
+
+### 3.6 Formato de errores
 
 Validación (`express-validator`) — `400`:
 ```json
@@ -172,12 +232,22 @@ Auth y resto — `4xx/5xx`: `{ "error": "mensaje" }`.
 
 ### 4.1 Dos planos de autenticación
 
-| Plano | Credencial | Endpoints | Lectura |
-|---|---|---|---|
-| Ingesta (M2M) | `x-api-key` | `POST /api/log`, `/api/logs/batch`, `GET /metrics` | ❌ |
-| Usuarios | JWT access + refresh | `GET /api/logs*`, `DELETE /api/logs` | ✅ |
+| Credencial | Permisos | Alcance |
+|---|---|---|
+| API key `ingest` | Escribir logs | `POST /api/log`, `/api/logs/batch` |
+| API key `read` | Consultar | `GET /api/logs*`, `POST /mcp` |
+| API key `metrics` | Métricas | `GET /metrics` |
+| JWT de usuario | Todo lo de lectura | Además `DELETE /api/logs` y administración si el rol es `admin` |
 
-`requireApiKeyOrJwt` deja pasar la ingesta con cualquiera de los dos. **Una API key comprometida no puede leer nada.**
+Una clave lleva los permisos que se le den al crearla, y puede acotarse además a una lista de aplicaciones. La restricción vale en los dos sentidos: no puede escribir logs de otra aplicación (`403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log por id, que responde `404` para no confirmar que existe.
+
+**Una clave de ingesta comprometida no puede leer nada.** Es la razón de separar los permisos en lugar de tener una clave que lo haga todo.
+
+Las claves se aceptan en `x-api-key` y también en `Authorization: Bearer mclog_…`, porque los clientes MCP solo permiten cabeceras estándar. Un `Bearer` que no tenga forma de clave MCLog se trata como JWT.
+
+**Ninguna API key recibe rol `admin`.** Aunque tenga todos los permisos, las operaciones de administración le quedan fuera.
+
+La clave única de la variable `API_KEY` sigue funcionando con permisos `ingest` y `metrics`, por compatibilidad con los emisores ya desplegados. Está **deprecada**: no se puede rotar sin cortar el servicio ni acotar por aplicación.
 
 ### 4.2 Ciclo de vida de los tokens
 
@@ -249,6 +319,11 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 | `COOKIE_SAMESITE` | `lax` | `lax\|strict\|none` |
 | `COOKIE_DOMAIN` | — | Para compartir cookie entre subdominios |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | Si están, se crea el admin al arrancar |
+| `LOGIN_RATE_LIMIT_WINDOW_MS` / `LOGIN_RATE_LIMIT_MAX` | 900000 / 10 | Solo `POST /auth/login`; cuenta únicamente los intentos fallidos |
+| `RETENTION_DAYS` | `0` | Días de logs a conservar. `0` no purga nunca y la tabla crece sin límite |
+| `SCHEDULER_ENABLED` | `1` | Mantenimiento periódico. Con varias instancias, dejarlo activo en una sola |
+| `MCP_ENABLED` | `1` | Expone el servidor MCP en `/mcp` |
+| `PUBLIC_DASHBOARD_URL` | — | URL del dashboard, para enlaces en notificaciones |
 
 ### Frontend (`frontend_mclog/.env.local`)
 
@@ -326,7 +401,7 @@ Separar los entry points es lo que permite que un emisor puro no arrastre Expres
 
 ```bash
 npm run build      # tsc → dist/ con .d.ts y source maps
-npm test           # vitest — 34 tests
+npm test           # vitest — 42 tests
 npm pack           # tarball de publicación
 ```
 
@@ -336,8 +411,8 @@ npm pack           # tarball de publicación
 
 | Suite | Comando | Cobertura |
 |---|---|---|
-| Backend | `cd Back_MCLog && npm test` | **53 tests** (vitest + supertest contra PostgreSQL real) |
-| Librería | `cd Back_MCLog/log-service-lib && npm test` | **34 tests** (cliente con fetch inyectado + middleware con supertest) |
+| Backend | `cd Back_MCLog && npm test` | **108 tests** (vitest + supertest contra PostgreSQL real) |
+| Librería | `cd Back_MCLog/log-service-lib && npm test` | **42 tests** (cliente con fetch inyectado + middleware con supertest) |
 
 El backend requiere la base levantada:
 ```bash

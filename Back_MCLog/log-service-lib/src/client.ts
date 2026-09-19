@@ -18,6 +18,16 @@ export type MCLogEntry = {
     traceId?: string;
     spanId?: string;
     metadata?: Record<string, unknown>;
+    /** Clase de la excepción, p. ej. "TypeError". */
+    errorName?: string;
+    /** Código de error de la aplicación o del proveedor, p. ej. "ECONNRESET". */
+    errorCode?: string;
+    errorStack?: string;
+    /**
+     * Huella de agrupación. Si no se envía, el servidor la calcula para los
+     * niveles `error` y `warn`. Mandarla permite agrupar con criterio propio.
+     */
+    fingerprint?: string;
 };
 
 /**
@@ -27,6 +37,13 @@ export type MCLogEntry = {
  */
 export type MCLogInput = { [K in keyof MCLogEntry]?: MCLogEntry[K] | undefined } & {
     message: string;
+    /**
+     * Excepción capturada. Acepta un `Error` nativo o cualquier objeto con
+     * `name`, `message`, `code` o `stack`, y se reparte en los campos
+     * `errorName`, `errorCode` y `errorStack`. Los campos que se hayan puesto
+     * a mano tienen prioridad.
+     */
+    error?: unknown;
 };
 
 export type MCLogClientOptions = {
@@ -61,15 +78,63 @@ export type MCLogClientOptions = {
     fetch?: typeof globalThis.fetch | undefined;
 };
 
+/** Opciones de `captureException`, todas opcionales. */
+export type MCLogCaptureOptions = Omit<Partial<MCLogEntry>, 'message'> & {
+    /** Mensaje propio. Por defecto se usa el de la excepción. */
+    message?: string | undefined;
+};
+
 export type MCLogClient = {
     /** Envía una entrada. Resuelve a true si el servicio la aceptó. */
     send: (entry: MCLogInput) => Promise<boolean>;
     /** Envía un lote, troceado en peticiones de `maxBatchSize`. True si todos los trozos fueron aceptados. */
     sendBatch: (entries: MCLogInput[]) => Promise<boolean>;
+    /**
+     * Registra una excepción con su clase, código y stack, de modo que el
+     * servicio pueda agrupar sus repeticiones. Es el atajo para un `catch`:
+     *
+     *   try { ... } catch (err) { await mclog.captureException(err); }
+     */
+    captureException: (error: unknown, options?: MCLogCaptureOptions) => Promise<boolean>;
     debug: (message: string, metadata?: Record<string, unknown>) => Promise<boolean>;
     info: (message: string, metadata?: Record<string, unknown>) => Promise<boolean>;
     warn: (message: string, metadata?: Record<string, unknown>) => Promise<boolean>;
     error: (message: string, metadata?: Record<string, unknown>) => Promise<boolean>;
+};
+
+/** Campos que se pueden sacar de una excepción capturada. */
+type ExtractedError = {
+    errorName?: string;
+    errorCode?: string;
+    errorStack?: string;
+    message?: string;
+};
+
+/**
+ * Reparte una excepción en campos planos.
+ *
+ * Acepta un `Error` nativo, un objeto suelto con esa forma o una cadena, que
+ * es lo que suele llegar a un `catch` en JavaScript, donde se puede lanzar
+ * cualquier cosa.
+ */
+export const extractError = (error: unknown): ExtractedError => {
+    if (error === null || error === undefined) return {};
+    if (typeof error === 'string') return { message: error };
+    if (typeof error !== 'object') return { message: String(error) };
+
+    const source = error as Record<string, unknown>;
+    const extracted: ExtractedError = {};
+
+    if (typeof source.name === 'string') extracted.errorName = source.name;
+    if (typeof source.message === 'string') extracted.message = source.message;
+    if (typeof source.code === 'string' || typeof source.code === 'number') {
+        extracted.errorCode = String(source.code);
+    }
+    // Algunos entornos (NetSuite) entregan el stack como array de marcos.
+    if (typeof source.stack === 'string') extracted.errorStack = source.stack;
+    else if (Array.isArray(source.stack)) extracted.errorStack = source.stack.join('\n');
+
+    return extracted;
 };
 
 const chunk = <T>(items: T[], size: number): T[][] => {
@@ -145,26 +210,48 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
                 ? { ...options.defaultMetadata, ...entry.metadata }
                 : undefined;
 
+        // La excepción completa los campos de error; lo escrito a mano manda.
+        const fromError = entry.error !== undefined ? extractError(entry.error) : {};
+
         const merged: MCLogEntry = {
             application: entry.application ?? options.application ?? 'unknown-app',
             environment: entry.environment ?? options.environment ?? 'development',
             level: entry.level ?? 'info',
-            message: entry.message,
+            message: entry.message ?? fromError.message ?? '',
         };
 
         const service = entry.service ?? options.service;
         const host = entry.host ?? options.host;
+        const errorName = entry.errorName ?? fromError.errorName;
+        const errorCode = entry.errorCode ?? fromError.errorCode;
+        const errorStack = entry.errorStack ?? fromError.errorStack;
+
         if (service !== undefined) merged.service = service;
         if (host !== undefined) merged.host = host;
         if (entry.timestamp !== undefined) merged.timestamp = entry.timestamp;
         if (entry.traceId !== undefined) merged.traceId = entry.traceId;
         if (entry.spanId !== undefined) merged.spanId = entry.spanId;
         if (metadata !== undefined) merged.metadata = metadata;
+        if (errorName !== undefined) merged.errorName = errorName;
+        if (errorCode !== undefined) merged.errorCode = errorCode;
+        if (errorStack !== undefined) merged.errorStack = errorStack;
+        if (entry.fingerprint !== undefined) merged.fingerprint = entry.fingerprint;
 
         return merged;
     };
 
     const send = (entry: MCLogInput) => post('/api/log', withDefaults(entry));
+
+    const captureException = (error: unknown, captureOptions: MCLogCaptureOptions = {}) => {
+        const extracted = extractError(error);
+        const { message, ...rest } = captureOptions;
+        return send({
+            ...rest,
+            level: captureOptions.level ?? 'error',
+            message: message ?? extracted.message ?? 'Unhandled exception',
+            error,
+        });
+    };
 
     const sendBatch = async (entries: MCLogInput[]): Promise<boolean> => {
         if (!Array.isArray(entries) || entries.length === 0) return true;
@@ -183,6 +270,7 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
     return {
         send,
         sendBatch,
+        captureException,
         debug: level('debug'),
         info: level('info'),
         warn: level('warn'),

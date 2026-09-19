@@ -24,8 +24,10 @@ define(['/SuiteScripts/lib/mclog_client'], (mclog) => {
             // ... tu lógica de negocio ...
 
         } catch (e) {
-            appLog.error(`Fallo en afterSubmit de factura: ${e.message}`, {
-                stack: e.stack,
+            // exception() extrae la clase del error y su stack a campos propios,
+            // de modo que MCLog agrupe las repeticiones de este mismo fallo en
+            // un solo error en lugar de en uno por cada factura.
+            appLog.exception('Fallo en afterSubmit de factura', e, {
                 recordId: context.newRecord && context.newRecord.id
             });
             throw e; // re-lanza si quieres que NetSuite marque el error

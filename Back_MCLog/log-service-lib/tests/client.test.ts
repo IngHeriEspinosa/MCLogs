@@ -203,3 +203,95 @@ describe('createMCLogClient — errores', () => {
         await expect(c.info('m')).rejects.toMatchObject({ cause });
     });
 });
+
+describe('createMCLogClient — captura de excepciones', () => {
+    it('reparte un Error nativo en clase, mensaje y stack', async () => {
+        const f = fakeFetch();
+        const error = new TypeError('no se puede leer token');
+        await make({}, f.impl).captureException(error);
+
+        const body = bodyOf(f.calls[0]);
+        expect(body.level).toBe('error');
+        expect(body.message).toBe('no se puede leer token');
+        expect(body.errorName).toBe('TypeError');
+        expect(body.errorStack).toContain('TypeError');
+    });
+
+    it('recoge el codigo de errores del sistema', async () => {
+        const f = fakeFetch();
+        const error = Object.assign(new Error('conexion cerrada'), { code: 'ECONNRESET' });
+        await make({}, f.impl).captureException(error);
+
+        expect(bodyOf(f.calls[0]).errorCode).toBe('ECONNRESET');
+    });
+
+    it('convierte a texto un codigo numerico', async () => {
+        const f = fakeFetch();
+        await make({}, f.impl).captureException(Object.assign(new Error('x'), { code: 502 }));
+        expect(bodyOf(f.calls[0]).errorCode).toBe('502');
+    });
+
+    it('permite un mensaje propio y metadata sin perder el detalle del error', async () => {
+        const f = fakeFetch();
+        await make({}, f.impl).captureException(new RangeError('indice invalido'), {
+            message: 'Fallo al procesar el pedido',
+            metadata: { pedido: 42 },
+        });
+
+        const body = bodyOf(f.calls[0]);
+        expect(body.message).toBe('Fallo al procesar el pedido');
+        expect(body.errorName).toBe('RangeError');
+        expect(body.metadata).toEqual({ pedido: 42 });
+    });
+
+    it('acepta lo que sea que se haya lanzado, no solo Error', async () => {
+        const f = fakeFetch();
+        const client = make({}, f.impl);
+
+        await client.captureException('algo fallo');
+        expect(bodyOf(f.calls[0]).message).toBe('algo fallo');
+
+        await client.captureException({ name: 'SuiteScriptError', message: 'INVALID_FLD', code: 'USER_ERROR' });
+        expect(bodyOf(f.calls[1]).errorName).toBe('SuiteScriptError');
+
+        // Ni siquiera con null debe romper la aplicacion emisora.
+        await client.captureException(null);
+        expect(bodyOf(f.calls[2]).message).toBe('Unhandled exception');
+    });
+
+    it('une el stack en array, como lo entrega NetSuite', async () => {
+        const f = fakeFetch();
+        await make({}, f.impl).captureException({
+            name: 'SuiteScriptError',
+            message: 'fallo',
+            stack: ['crear(/SuiteScripts/factura.js:88)', 'afterSubmit(/SuiteScripts/factura.js:12)'],
+        });
+
+        expect(bodyOf(f.calls[0]).errorStack).toBe(
+            'crear(/SuiteScripts/factura.js:88)\nafterSubmit(/SuiteScripts/factura.js:12)',
+        );
+    });
+
+    it('send acepta tambien el campo error, y lo escrito a mano gana', async () => {
+        const f = fakeFetch();
+        await make({}, f.impl).send({
+            level: 'error',
+            message: 'mio',
+            error: new TypeError('de la excepcion'),
+            errorName: 'NombrePropio',
+        });
+
+        const body = bodyOf(f.calls[0]);
+        expect(body.message).toBe('mio');
+        expect(body.errorName).toBe('NombrePropio');
+        expect(body.errorStack).toContain('TypeError');
+        // El objeto no viaja: ya se ha repartido en campos planos.
+        expect(body).not.toHaveProperty('error');
+    });
+
+    it('respeta una huella enviada a mano', async () => {
+        const f = fakeFetch();
+        await make({}, f.impl).send({ level: 'error', message: 'x', fingerprint: 'mi-huella' });
+        expect(bodyOf(f.calls[0]).fingerprint).toBe('mi-huella');
+    });
+});

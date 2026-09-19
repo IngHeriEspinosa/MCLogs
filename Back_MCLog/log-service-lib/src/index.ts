@@ -5,8 +5,9 @@
  * para no obligar a instalar express en proyectos que solo emiten logs.
  */
 
-export { createMCLogClient } from './client';
+export { createMCLogClient, extractError } from './client';
 export type {
+    MCLogCaptureOptions,
     MCLogClient,
     MCLogClientOptions,
     MCLogEntry,

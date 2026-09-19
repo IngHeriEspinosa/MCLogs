@@ -9,6 +9,7 @@
 | **Nuevo en el proyecto** | [FEATURES.md](FEATURES.md) — qué hace el sistema, funcionalidad por funcionalidad |
 | **Usuario del dashboard** | [USER_GUIDE.md § Parte A](USER_GUIDE.md#parte-a--consultar-logs-dashboard) — cómo buscar e investigar |
 | **Integrando una app** | [INTEGRATION.md](INTEGRATION.md) — contrato REST y ejemplos por lenguaje |
+| **Conectando una IA** | [AI_INTEGRATION.md](AI_INTEGRATION.md) — servidor MCP para Claude Code, Cursor y Claude Desktop |
 | **Desarrollando el sistema** | [TECHNICAL.md](TECHNICAL.md) y [ARCHITECTURE.md](ARCHITECTURE.md) |
 | **Desplegando en producción** | [DEPLOYMENT.md](DEPLOYMENT.md) — VPS, Docker Compose, Caddy, backups |
 | **Operando el servicio** | [USER_GUIDE.md § Parte C](USER_GUIDE.md#parte-c--administrar-el-servicio) — retención, usuarios, mantenimiento |
@@ -24,6 +25,7 @@
 | [DEPLOYMENT.md](DEPLOYMENT.md) | **Despliegue en producción**: VPS con Docker Compose y Caddy, copias de seguridad, escalado |
 | [USER_GUIDE.md](USER_GUIDE.md) | **Manual de usuario**: consultar (A), enviar logs (B), administrar (C) |
 | [INTEGRATION.md](INTEGRATION.md) | Guía de integración REST con ejemplos en curl, Node, Python y NetSuite |
+| [AI_INTEGRATION.md](AI_INTEGRATION.md) | **Conectar un asistente de IA** por MCP: claves, clientes, herramientas y buenas prácticas |
 | [GLOSSARY.md](GLOSSARY.md) | **Glosario** de todos los términos del proyecto |
 | [FAQ.md](FAQ.md) | **Preguntas frecuentes** y errores concretos con su solución |
 
