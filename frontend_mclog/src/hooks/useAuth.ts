@@ -13,6 +13,20 @@ export type LogEntry = {
   traceId?: string | null;
   spanId?: string | null;
   metadata?: Record<string, unknown> | null;
+  errorName?: string | null;
+  errorCode?: string | null;
+  errorStack?: string | null;
+  /** Huella de agrupacion: identifica ocurrencias del mismo fallo. */
+  fingerprint?: string | null;
+};
+
+/** Un punto de la serie por hora que devuelve /api/logs/stats. */
+export type TimelineBucket = {
+  bucket: string;
+  error: number;
+  warn: number;
+  info: number;
+  debug: number;
 };
 
 export type LogsResponse = {
@@ -29,6 +43,9 @@ export type LogStats = {
   byLevel: { level: string; count: number }[];
   byApplication: { application: string; count: number }[];
   byEnvironment: { environment: string; count: number }[];
+  timeline: TimelineBucket[];
+  from: string;
+  to: string;
 };
 
 export type CurrentUser = {
@@ -88,6 +105,7 @@ export type LogsParams = {
   search?: string;
   from?: string;
   to?: string;
+  fingerprint?: string;
 };
 
 const cleanParams = (params: LogsParams) =>

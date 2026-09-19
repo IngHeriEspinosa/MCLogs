@@ -10,6 +10,7 @@ type NavItem = { href: string; label: string; adminOnly?: boolean };
 
 const NAV: NavItem[] = [
   { href: "/", label: "Logs" },
+  { href: "/errors", label: "Errores" },
   { href: "/settings/api-keys", label: "API keys", adminOnly: true },
   { href: "/settings/users", label: "Usuarios", adminOnly: true },
   { href: "/settings/password", label: "Mi cuenta" },

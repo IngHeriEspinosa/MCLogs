@@ -8,6 +8,7 @@ import { DownloadActions } from "@/components/molecules/DownloadActions";
 import { StatsCards } from "@/components/molecules/StatsCards";
 import { downloadLogs } from "@/common/api/download";
 import { Skeleton } from "@/components/atoms/Skeleton";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type SortField = "timestamp" | "application" | "level" | "host" | "environment";
@@ -34,6 +35,8 @@ function LogsDashboard() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">(searchParams.get("sortDir") === "asc" ? "asc" : "desc");
   const [sortField, setSortField] = useState<SortField>(sanitizeSortField(searchParams.get("sortField")));
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // Se llega aqui desde la vista de errores agrupados, con la huella en la URL.
+  const [fingerprint, setFingerprint] = useState<string>(searchParams.get("fingerprint") ?? "");
 
   const debouncedSearch = useDebounce(search);
   const debouncedApplication = useDebounce(application);
@@ -43,6 +46,7 @@ function LogsDashboard() {
     environment,
     application: debouncedApplication,
     search: debouncedSearch,
+    fingerprint: fingerprint || undefined,
     from: from ? new Date(from).toISOString() : undefined,
     to: to ? new Date(to).toISOString() : undefined,
     sort: `${sortField}:${sortDir}`,
@@ -68,6 +72,7 @@ function LogsDashboard() {
           search: search || undefined,
           from: from || undefined,
           to: to || undefined,
+          fingerprint: fingerprint || undefined,
           sortField,
           sortDir,
           ...updates,
@@ -85,7 +90,7 @@ function LogsDashboard() {
         });
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       },
-    [application, environment, from, level, page, pageSize, pathname, router, search, searchParams, sortDir, sortField, to]
+    [application, environment, fingerprint, from, level, page, pageSize, pathname, router, search, searchParams, sortDir, sortField, to]
   );
 
   const resetToFirstPage = (updates: Record<string, string | number | undefined>) => {
@@ -110,6 +115,28 @@ function LogsDashboard() {
       }
     >
       <StatsCards stats={stats.data} loading={stats.isLoading} />
+
+      {fingerprint && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-900">
+          <span>
+            Mostrando solo las ocurrencias del error{" "}
+            <code className="font-mono text-xs">{fingerprint.slice(0, 12)}…</code>
+          </span>
+          <button
+            type="button"
+            className="rounded-md border border-primary-300 px-2 py-0.5 text-xs font-semibold hover:bg-white"
+            onClick={() => {
+              setFingerprint("");
+              resetToFirstPage({ fingerprint: undefined });
+            }}
+          >
+            Quitar filtro
+          </button>
+          <Link href="/errors" className="text-xs font-semibold underline">
+            Volver a los errores agrupados
+          </Link>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <select
@@ -274,8 +301,57 @@ function LogsDashboard() {
                         <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
                           <p><span className="font-semibold">Host:</span> {log.host ?? "—"}</p>
                           <p><span className="font-semibold">TraceId:</span> {log.traceId ?? "—"}</p>
+                          {log.errorName && (
+                            <p>
+                              <span className="font-semibold">Error:</span> {log.errorName}
+                              {log.errorCode ? ` (${log.errorCode})` : ""}
+                            </p>
+                          )}
+                          {log.fingerprint && (
+                            <p>
+                              <span className="font-semibold">Huella:</span>{" "}
+                              <code className="font-mono">{log.fingerprint.slice(0, 12)}…</code>
+                            </p>
+                          )}
                           <p className="sm:col-span-2"><span className="font-semibold">Mensaje completo:</span> {log.message}</p>
                         </div>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {log.traceId && (
+                            <Link
+                              href={`/trace/${encodeURIComponent(log.traceId)}`}
+                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Ver traza completa
+                            </Link>
+                          )}
+                          {log.fingerprint && log.fingerprint !== fingerprint && (
+                            <button
+                              type="button"
+                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              onClick={() => {
+                                const huella = log.fingerprint!;
+                                setFingerprint(huella);
+                                resetToFirstPage({ fingerprint: huella });
+                              }}
+                            >
+                              Ver errores iguales
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            onClick={() => navigator.clipboard?.writeText(JSON.stringify(log, null, 2))}
+                          >
+                            Copiar JSON
+                          </button>
+                        </div>
+
+                        {log.errorStack && (
+                          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">
+                            {log.errorStack}
+                          </pre>
+                        )}
                         {log.metadata && (
                           <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">
                             {JSON.stringify(log.metadata, null, 2)}
