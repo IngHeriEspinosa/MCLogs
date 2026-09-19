@@ -10,7 +10,8 @@
 | **Usuario del dashboard** | [USER_GUIDE.md § Parte A](USER_GUIDE.md#parte-a--consultar-logs-dashboard) — cómo buscar e investigar |
 | **Integrando una app** | [INTEGRATION.md](INTEGRATION.md) — contrato REST y ejemplos por lenguaje |
 | **Desarrollando el sistema** | [TECHNICAL.md](TECHNICAL.md) y [ARCHITECTURE.md](ARCHITECTURE.md) |
-| **Operando el servicio** | [USER_GUIDE.md § Parte C](USER_GUIDE.md#parte-c--administrar-el-servicio) — despliegue, retención, backups |
+| **Desplegando en producción** | [DEPLOYMENT.md](DEPLOYMENT.md) — VPS, Docker Compose, Caddy, backups |
+| **Operando el servicio** | [USER_GUIDE.md § Parte C](USER_GUIDE.md#parte-c--administrar-el-servicio) — retención, usuarios, mantenimiento |
 | **Buscando una respuesta rápida** | [FAQ.md](FAQ.md) · [GLOSSARY.md](GLOSSARY.md) |
 
 ## Documentación general
@@ -19,7 +20,8 @@
 |---|---|
 | [FEATURES.md](FEATURES.md) | **Desglose funcional completo**: cada funcionalidad, quién la usa, dónde vive en el código |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Arquitectura, flujo de datos, decisiones de diseño y ruta de escalabilidad |
-| [TECHNICAL.md](TECHNICAL.md) | **Documentación técnica** del sistema: modelo de datos, referencia de API, seguridad, configuración, despliegue |
+| [TECHNICAL.md](TECHNICAL.md) | **Documentación técnica** del sistema: modelo de datos, referencia de API, seguridad, configuración |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | **Despliegue en producción**: VPS con Docker Compose y Caddy, copias de seguridad, escalado |
 | [USER_GUIDE.md](USER_GUIDE.md) | **Manual de usuario**: consultar (A), enviar logs (B), administrar (C) |
 | [INTEGRATION.md](INTEGRATION.md) | Guía de integración REST con ejemplos en curl, Node, Python y NetSuite |
 | [GLOSSARY.md](GLOSSARY.md) | **Glosario** de todos los términos del proyecto |

@@ -1,0 +1,34 @@
+# Caddy obtiene y renueva el certificado de Let's Encrypt por su cuenta:
+# basta con que el dominio apunte al VPS y los puertos 80 y 443 esten abiertos.
+{$MCLOG_DOMAIN} {
+	encode zstd gzip
+
+	# Rutas servidas por la API. El resto va al dashboard.
+	@api path /api/* /auth/* /mcp /mcp/* /health /metrics /docs /docs/* /openapi.json
+
+	handle @api {
+		reverse_proxy api:3000 {
+			# Desactiva el buffer de respuesta. Sin esto, el stream de logs en
+			# tiempo real (SSE) se acumularia en el proxy y no llegaria nada
+			# hasta cerrar la conexion.
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy web:3001
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

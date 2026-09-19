@@ -22,9 +22,6 @@ logs/
 # Cobertura de tests
 coverage/
 
-# Backups de base de datos
-deploy/backups/
-
 # Sistema operativo
 .DS_Store
 Thumbs.db

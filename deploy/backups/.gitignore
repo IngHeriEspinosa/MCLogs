@@ -1,0 +1,3 @@
+# Las copias de seguridad no se versionan.
+*
+!.gitignore

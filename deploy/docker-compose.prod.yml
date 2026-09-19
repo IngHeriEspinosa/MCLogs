@@ -1,0 +1,101 @@
+# Despliegue de produccion de MCLog en un VPS.
+#
+#   cd deploy
+#   cp .env.example .env     # y rellenar los secretos
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Docker Compose lee automaticamente el fichero .env de este directorio, tanto
+# para interpolar las variables de abajo como para pasarselas a los servicios.
+#
+# Solo Caddy publica puertos al exterior: la base de datos, la API y el
+# dashboard quedan en la red interna y son inalcanzables desde fuera del host.
+name: mclog
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mclog}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-mclog}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mclog} -d ${POSTGRES_DB:-mclog}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      # Contexto relativo a este fichero. Resuelve porque backend, frontend y
+      # despliegue viven en el mismo repositorio.
+      context: ../Back_MCLog
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Se construye aqui para que la contrasena de la base viva en un unico
+      # sitio y no haya que repetirla dentro de una URL en .env.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mclog}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mclog}?schema=public
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    command: ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+
+  web:
+    build:
+      context: ../frontend_mclog
+      args:
+        # Vacio a proposito: Caddy sirve dashboard y API bajo el mismo dominio,
+        # asi que el navegador llama a rutas relativas.
+        NEXT_PUBLIC_API_URL: ""
+    restart: unless-stopped
+    depends_on:
+      - api
+    expose:
+      - "3001"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      MCLOG_DOMAIN: ${MCLOG_DOMAIN:?Define MCLOG_DOMAIN en deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+  # Copia de seguridad diaria de la base de datos. Sin esto, perder el volumen
+  # pgdata significa perder todos los logs.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-mclog}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-mclog}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "while true; do /scripts/backup.sh || true; sleep 86400; done"]
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

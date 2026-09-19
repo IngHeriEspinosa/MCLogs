@@ -83,6 +83,7 @@ La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del ba
 | [docs/TECHNICAL.md](docs/TECHNICAL.md) | Documentación técnica del sistema (API, datos, seguridad, despliegue) |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Manual de usuario: consultar, enviar logs y administrar |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura, decisiones de diseño y escalabilidad |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Despliegue en producción: VPS, Docker Compose, Caddy, backups |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Guía de integración REST para cualquier aplicación |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Glosario de términos |
 | [docs/FAQ.md](docs/FAQ.md) | Preguntas frecuentes y errores concretos |
