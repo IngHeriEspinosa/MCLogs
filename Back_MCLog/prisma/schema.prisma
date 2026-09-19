@@ -12,47 +12,72 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model Log {
-    id           Int           @id @default(autoincrement())
-    timestamp    DateTime      @default(now())
-    application  String
-    service      String?
-    host         String?
-    level        LogLevel
-    environment  Environment
-    message      String
-    traceId      String?       @db.VarChar(128)
-    spanId       String?       @db.VarChar(128)
-    metadata     Json?
 
-    @@index([timestamp])
-    @@index([application])
-    @@index([level])
-    @@index([environment])
-    @@index([traceId])
-    @@index([application, timestamp])
-    @@index([level, timestamp])
+model Log {
+  id          Int         @id @default(autoincrement())
+  timestamp   DateTime    @default(now())
+  application String
+  service     String?
+  host        String?
+  level       LogLevel
+  environment Environment
+  message     String
+  traceId     String?     @db.VarChar(128)
+  spanId      String?     @db.VarChar(128)
+  metadata    Json?
+
+  @@index([timestamp])
+  @@index([application])
+  @@index([level])
+  @@index([environment])
+  @@index([traceId])
+  @@index([application, timestamp])
+  @@index([level, timestamp])
 }
 
 model User {
-    id            Int             @id @default(autoincrement())
-    email         String          @unique
-    passwordHash  String
-    role          String          @default("user")
-    createdAt     DateTime        @default(now())
-    refreshTokens RefreshToken[]
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  passwordHash  String
+  role          String         @default("user")
+  createdAt     DateTime       @default(now())
+  refreshTokens RefreshToken[]
+  apiKeys       ApiKey[]
 }
 
 model RefreshToken {
-    id        Int      @id @default(autoincrement())
-    token     String   @unique
-    userId    Int
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    expiresAt DateTime
-    createdAt DateTime @default(now())
-    revokedAt DateTime?
+  id        Int       @id @default(autoincrement())
+  token     String    @unique
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
 
-    @@index([token])
+  @@index([token])
+}
+
+/// Clave de API con permisos acotados. Solo se guarda el hash del secreto:
+/// el valor en claro se muestra una unica vez, al crearla.
+model ApiKey {
+  id           Int       @id @default(autoincrement())
+  name         String    @db.VarChar(120)
+  /// Parte publica de la clave ("mclog_ab12cd34"), usada para localizarla sin exponer el secreto.
+  prefix       String    @unique @db.VarChar(32)
+  /// sha256 hex del secreto completo.
+  keyHash      String    @unique @db.VarChar(64)
+  /// Permisos: "ingest" (escribir logs), "read" (consultar), "metrics" (Prometheus).
+  scopes       String[]
+  /// Aplicaciones a las que queda limitada. Vacio = sin restriccion.
+  applications String[]
+  createdById  Int?
+  createdBy    User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime?
+  lastUsedAt   DateTime?
+  revokedAt    DateTime?
+
+  @@index([revokedAt])
 }
 
 enum LogLevel {

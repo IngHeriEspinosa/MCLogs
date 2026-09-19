@@ -9,6 +9,7 @@ import logger from "./config/logger";
 import { prisma } from "./config/prisma";
 import { swaggerSpec } from "./config/swagger";
 import logRoutes from "./routes/logRoutes";
+import apiKeyRoutes from "./routes/apiKeyRoutes";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
 import { errorHandler } from "./middlewares/errorHandler";
@@ -61,10 +62,13 @@ export const createApp = () => {
     }
   });
 
-  app.get("/metrics", requireApiKey, async (_req: Request, res: Response) => {
+  app.get("/metrics", requireApiKey("metrics"), async (_req: Request, res: Response) => {
     res.set("Content-Type", registry.contentType);
     res.send(await registry.metrics());
   });
+
+  // Administración de API keys: solo admin (el propio router aplica auth y rol)
+  app.use("/api/keys", apiKeyRoutes);
 
   // Auth y rate limiting se aplican por ruta dentro de logRoutes
   // (la ingesta usa API key + límite alto; las consultas usan JWT + límite estándar)

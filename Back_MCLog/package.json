@@ -6,7 +6,7 @@
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
-    "test": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5434/mclog?schema=public vitest run --pool=threads --maxWorkers=1 --fileParallelism=false"
+    "test": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5435/mclog?schema=public vitest run --pool=threads --maxWorkers=1 --fileParallelism=false"
   },
   "keywords": [],
   "author": "",

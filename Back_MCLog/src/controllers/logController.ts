@@ -2,6 +2,7 @@ import { Environment, LogLevel } from '@prisma/client';
 import { Request, Response } from 'express';
 import logger from '../config/logger';
 import { config } from '../config/env';
+import type { AuthenticatedRequest } from '../middlewares/requireAuth';
 import {
     CreateLogInput,
     createLog,
@@ -15,6 +16,30 @@ import {
 
 type SortField = 'timestamp' | 'level' | 'application' | 'host' | 'environment';
 const allowedSortFields: readonly SortField[] = ['timestamp', 'level', 'application', 'host', 'environment'];
+
+/**
+ * Aplicaciones a las que esta limitada la peticion, si se autentico con una
+ * API key acotada. `undefined` = sin restriccion.
+ */
+const allowedApplications = (req: Request): string[] | undefined => {
+    const applications = (req as AuthenticatedRequest).apiKey?.applications;
+    return applications && applications.length > 0 ? applications : undefined;
+};
+
+/**
+ * Rechaza la peticion si intenta escribir logs de una aplicacion fuera del
+ * alcance de la clave. Devuelve true si ya se ha respondido.
+ */
+const rejectedByScope = (applications: string[] | undefined, candidates: unknown[], res: Response): boolean => {
+    if (!applications) return false;
+    const forbidden = candidates.find((value) => typeof value === 'string' && !applications.includes(value));
+    if (forbidden === undefined) return false;
+    res.status(403).json({
+        error: `API key not allowed for application "${String(forbidden)}"`,
+        allowedApplications: applications
+    });
+    return true;
+};
 
 const toCreateInput = (body: Record<string, unknown>, req: Request, res: Response): CreateLogInput => {
     const { application, service, host, level, environment, message, timestamp, traceId, spanId, metadata } = body as any;
@@ -33,6 +58,7 @@ const toCreateInput = (body: Record<string, unknown>, req: Request, res: Respons
 };
 
 export const log = async (req: Request, res: Response) => {
+    if (rejectedByScope(allowedApplications(req), [req.body?.application], res)) return;
     try {
         const newLog = await createLog(toCreateInput(req.body, req, res));
         res.status(201).json(newLog);
@@ -48,6 +74,7 @@ export const logBatch = async (req: Request, res: Response) => {
         res.status(400).json({ error: `Batch too large (max ${config.maxBatchSize} logs)` });
         return;
     }
+    if (rejectedByScope(allowedApplications(req), logs.map((item) => item.application), res)) return;
     try {
         const inputs = logs.map((item) => toCreateInput(item, req, res));
         const count = await createLogsBatch(inputs);
@@ -74,7 +101,8 @@ const parseFilters = (req: Request) => {
         host: host as string | undefined,
         traceId: traceId as string | undefined,
         from: from ? new Date(from as string) : undefined,
-        to: to ? new Date(to as string) : undefined
+        to: to ? new Date(to as string) : undefined,
+        applicationsIn: allowedApplications(req)
     };
 };
 
@@ -133,7 +161,9 @@ export const getLog = async (req: Request, res: Response) => {
 
     try {
         const logEntry = await getLogById(id);
-        if (!logEntry) {
+        const applications = allowedApplications(req);
+        // Fuera de alcance se responde 404, no 403: un 403 confirmaria que el log existe.
+        if (!logEntry || (applications && !applications.includes(logEntry.application))) {
             res.status(404).json({ error: 'Log not found' });
             return;
         }
@@ -144,9 +174,9 @@ export const getLog = async (req: Request, res: Response) => {
     }
 };
 
-export const stats = async (_req: Request, res: Response) => {
+export const stats = async (req: Request, res: Response) => {
     try {
-        res.json(await getLogStats());
+        res.json(await getLogStats({ applicationsIn: allowedApplications(req) }));
     } catch (error) {
         logger.error('Error retrieving log stats', { error });
         res.status(500).json({ error: 'Error retrieving stats' });

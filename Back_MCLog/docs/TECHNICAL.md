@@ -108,7 +108,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 
 ## Tests
 
-`npm test` (vitest + supertest, DB real en `localhost:5434` — `docker compose up -d db`).
+`npm test` (vitest + supertest, DB real en `localhost:5435` — `docker compose up -d db`).
 **53 tests** en `tests/`: credenciales inválidas, auto-refresh con rotación y cookies, revocación al logout, API key en /metrics, body >3 MB, ingesta JWT y API key, metadata opcional, level inválido, batch, paginación, from+to combinados, search, sort por campo, 401 sin auth y con solo API key en lectura, CSV, stats y purga admin.
 
 Corren en serie (`--fileParallelism=false --maxWorkers=1`) porque comparten la misma base de datos.

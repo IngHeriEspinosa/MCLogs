@@ -18,6 +18,8 @@ export const config = {
   rateLimitMax: int(process.env.RATE_LIMIT_MAX, 600),
   ingestRateLimitWindowMs: int(process.env.INGEST_RATE_LIMIT_WINDOW_MS, 60 * 1000),
   ingestRateLimitMax: int(process.env.INGEST_RATE_LIMIT_MAX, 2000),
+  loginRateLimitWindowMs: int(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
+  loginRateLimitMax: int(process.env.LOGIN_RATE_LIMIT_MAX, 10),
 
   maxBatchSize: int(process.env.MAX_BATCH_SIZE, 500),
   maxExportRows: int(process.env.MAX_EXPORT_ROWS, 10000),

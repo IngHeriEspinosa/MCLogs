@@ -2,9 +2,16 @@ import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { config } from "../config/env";
 import { refresh } from "../services/authService";
+import type { ApiKeyPrincipal } from "../services/apiKeyService";
 import { setAuthCookies } from "./setAuthCookies";
 
-export type AuthenticatedRequest = Request & { user?: { id: number; email: string; role: string } };
+export type AuthenticatedUser = { id: number; email: string; role: string };
+
+export type AuthenticatedRequest = Request & {
+  user?: AuthenticatedUser;
+  /** Presente cuando la peticion se autentico con API key en lugar de JWT. */
+  apiKey?: ApiKeyPrincipal;
+};
 
 export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const header = req.headers.authorization;

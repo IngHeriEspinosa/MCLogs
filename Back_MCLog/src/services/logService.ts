@@ -25,7 +25,7 @@ export const createLogsBatch = async (inputs: CreateLogInput[]) => {
     return result.count;
 };
 
-type LogFilters = {
+export type LogFilters = {
     application?: string;
     level?: string;
     environment?: string;
@@ -35,6 +35,12 @@ type LogFilters = {
     traceId?: string;
     from?: Date;
     to?: Date;
+    /**
+     * Restriccion de visibilidad, no un filtro del usuario: limita la consulta a
+     * estas aplicaciones exactas. La imponen las API keys acotadas y se combina
+     * con el resto de filtros mediante AND, de modo que no se puede eludir.
+     */
+    applicationsIn?: string[];
 };
 
 type Pagination = {
@@ -48,13 +54,13 @@ type Sort = {
 };
 
 const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
-    const { application, level, environment, search, service, host, traceId, from, to } = filters;
+    const { application, level, environment, search, service, host, traceId, from, to, applicationsIn } = filters;
 
     // from y to comparten la misma clave "timestamp": deben combinarse en un solo objeto
     const timestamp: Prisma.DateTimeFilter | undefined =
         from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
 
-    return {
+    const where: Prisma.LogWhereInput = {
         ...(application && { application: { contains: application, mode: 'insensitive' } }),
         ...(service && { service: { contains: service, mode: 'insensitive' } }),
         ...(host && { host: { contains: host, mode: 'insensitive' } }),
@@ -72,6 +78,13 @@ const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
             ]
         })
     };
+
+    // La restriccion por aplicacion va en un AND aparte: la clave "application"
+    // ya puede estar ocupada por el filtro parcial del usuario.
+    if (applicationsIn?.length) {
+        return { AND: [where, { application: { in: applicationsIn } }] };
+    }
+    return where;
 };
 
 export const listLogs = async (filters: LogFilters, pagination: Pagination, sort: Sort) => {
@@ -110,19 +123,23 @@ export const getLogById = async (id: number) => {
     return prisma.log.findUnique({ where: { id } });
 };
 
-export const getLogStats = async () => {
+export const getLogStats = async (filters: LogFilters = {}) => {
     const since24h = new Date(Date.now() - 24 * 3600 * 1000);
+    const where = buildWhere(filters);
+    const where24h: Prisma.LogWhereInput = { AND: [where, { timestamp: { gte: since24h } }] };
+
     const [total, last24h, byLevel, byApplication, byEnvironment] = await Promise.all([
-        prisma.log.count(),
-        prisma.log.count({ where: { timestamp: { gte: since24h } } }),
-        prisma.log.groupBy({ by: ['level'], _count: { _all: true }, orderBy: { level: 'asc' } }),
+        prisma.log.count({ where }),
+        prisma.log.count({ where: where24h }),
+        prisma.log.groupBy({ by: ['level'], where, _count: { _all: true }, orderBy: { level: 'asc' } }),
         prisma.log.groupBy({
             by: ['application'],
+            where,
             _count: { _all: true },
             orderBy: { _count: { application: 'desc' } },
             take: 10
         }),
-        prisma.log.groupBy({ by: ['environment'], _count: { _all: true }, orderBy: { environment: 'asc' } })
+        prisma.log.groupBy({ by: ['environment'], where, _count: { _all: true }, orderBy: { environment: 'asc' } })
     ]);
 
     return {

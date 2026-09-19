@@ -260,13 +260,13 @@ No todavía: hay **una sola API key global** para toda la ingesta. Cualquier emi
 cd Back_MCLog && docker compose up -d db && npm test    # 53 tests
 cd Back_MCLog/log-service-lib && npm test               # 34 tests
 ```
-Los del backend necesitan la base real en `localhost:5434` y corren en serie porque la comparten.
+Los del backend necesitan la base real en `localhost:5435` y corren en serie porque la comparten.
 
-### ¿Por qué el puerto de PostgreSQL es 5434 y no 5432?
-Para no chocar con otra instancia de PostgreSQL en tu máquina. Dentro de Docker el puerto sigue siendo 5432; el 5434 es solo el mapeo al host.
+### ¿Por qué el puerto de PostgreSQL es 5435 y no 5432?
+Para no chocar con otra instancia de PostgreSQL en tu máquina. Dentro de Docker el puerto sigue siendo 5432; el 5435 es solo el mapeo al host.
 
 ### ¿Por qué `DATABASE_URL` es distinta dentro y fuera de Docker?
-Dentro de la red de Compose los contenedores se ven por nombre de servicio: `db:5432`. Desde tu máquina hay que usar el puerto publicado: `localhost:5434`. Por eso el comando de migraciones en local lleva la `DATABASE_URL` por delante.
+Dentro de la red de Compose los contenedores se ven por nombre de servicio: `db:5432`. Desde tu máquina hay que usar el puerto publicado: `localhost:5435`. Por eso el comando de migraciones en local lleva la `DATABASE_URL` por delante.
 
 ### ¿Dónde está la documentación de la API para probarla?
 En `http://localhost:3000/docs` — Swagger UI, con los endpoints ejecutables desde el navegador.

@@ -7,7 +7,7 @@ Manual para operar el servicio MCLog en desarrollo y producción.
 ## Prerrequisitos
 
 - Node.js 20+ y Docker Desktop (para la base de datos).
-- Puertos libres: 3000 (API), 5434 (PostgreSQL en el host), 3001 (dashboard).
+- Puertos libres: 3000 (API), 5435 (PostgreSQL en el host), 3001 (dashboard).
 
 ## Puesta en marcha local
 
@@ -16,7 +16,7 @@ cd Back_MCLog
 docker compose up -d db
 npm install
 cp .env.example .env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5434/mclog?schema=public" npx prisma migrate deploy
+npx prisma migrate deploy
 npm run dev
 ```
 

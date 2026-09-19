@@ -119,9 +119,12 @@ describe("Logs API", () => {
     expect(res.status).toBe(401);
   });
 
-  it("rejects query endpoints with API key only", async () => {
+  it("rejects query endpoints with an ingest-only API key", async () => {
+    // 403 y no 401: la clave es valida, lo que le falta es el scope "read".
+    // La garantia sigue siendo la misma: una clave de ingesta jamas lee logs.
     const res = await request(app).get("/api/logs").set("x-api-key", config.apiKey);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(403);
+    expect(res.body).not.toHaveProperty("data");
   });
 
   it("returns csv when requested", async () => {

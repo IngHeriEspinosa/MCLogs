@@ -10,10 +10,10 @@ API REST de captura y consulta centralizada de logs.
 ## Arranque rápido
 
 ```bash
-docker compose up -d db        # PostgreSQL en localhost:5434
+docker compose up -d db        # PostgreSQL en localhost:5435
 npm install
 cp .env.example .env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5434/mclog?schema=public" npx prisma migrate deploy
+npx prisma migrate deploy
 npm run dev                    # http://localhost:3000
 ```
 

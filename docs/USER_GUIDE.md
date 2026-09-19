@@ -161,7 +161,7 @@ Sube el módulo de [integrations/netsuite/](../integrations/netsuite/) al File C
 
 ## C.1 Arranque local
 
-Requisitos: Node.js 20+ y Docker Desktop. Puertos libres: 3000, 3001 y 5434.
+Requisitos: Node.js 20+ y Docker Desktop. Puertos libres: 3000, 3001 y 5435.
 
 ```bash
 # 1. Base de datos
@@ -171,7 +171,7 @@ docker compose up -d db
 # 2. Backend
 npm install
 cp .env.example .env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5434/mclog?schema=public" npx prisma migrate deploy
+npx prisma migrate deploy
 npm run dev                    # http://localhost:3000
 
 # 3. Dashboard (otra terminal)

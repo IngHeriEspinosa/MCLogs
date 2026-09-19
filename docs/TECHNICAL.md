@@ -17,7 +17,7 @@ Referencia técnica **del sistema completo**. Para el detalle interno de cada co
 | Dashboard | [frontend_mclog/](../frontend_mclog/) | Next.js 14 App Router · React 18 · React Query v5 · axios · Tailwind | 3001 |
 | Librería Node | [Back_MCLog/log-service-lib/](../Back_MCLog/log-service-lib/) | TypeScript · sin dependencias runtime | — |
 | Librería NetSuite | [integrations/netsuite/](../integrations/netsuite/) | SuiteScript 2.1 | — |
-| Base de datos | (Docker) | PostgreSQL 16-alpine | 5434 → 5432 |
+| Base de datos | (Docker) | PostgreSQL 16-alpine | 5435 → 5432 |
 
 ---
 
@@ -345,7 +345,7 @@ cd Back_MCLog && docker compose up -d db
 npm test
 ```
 
-Los tests del backend usan `DATABASE_URL` apuntando a `localhost:5434` y corren en serie (`--fileParallelism=false`) porque comparten la base.
+Los tests del backend usan `DATABASE_URL` apuntando a `localhost:5435` y corren en serie (`--fileParallelism=false`) porque comparten la base.
 
 ---
 

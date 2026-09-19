@@ -30,14 +30,14 @@ Desglose completo en [docs/FEATURES.md](docs/FEATURES.md). En resumen:
 Requisitos: Node.js 20+, Docker Desktop.
 
 ```bash
-# 1. Base de datos (PostgreSQL en el puerto 5434 del host)
+# 1. Base de datos (PostgreSQL en el puerto 5435 del host)
 cd Back_MCLog
 docker compose up -d db
 
 # 2. Backend (puerto 3000)
 npm install
 cp .env.example .env          # revisa los valores; para local ya funcionan
-DATABASE_URL="postgresql://postgres:postgres@localhost:5434/mclog?schema=public" npx prisma migrate deploy
+npx prisma migrate deploy
 npm run dev                   # o: npm run build && npm start
 
 # 3. Frontend (puerto 3001)
@@ -48,7 +48,7 @@ npm run dev
 
 Abre **http://localhost:3001** e inicia sesión con el usuario admin definido en `Back_MCLog/.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`, por defecto `admin@example.com` / `ChangeMe123!`).
 
-> Nota: en desarrollo local el backend corre fuera de Docker, por eso `DATABASE_URL` apunta a `localhost:5434`. Dentro de `docker compose up api` la URL usa el host `db` (ya configurado).
+> Nota: en desarrollo local el backend corre fuera de Docker y `.env` apunta a `localhost:5435`. Dentro de `docker compose up api` el contenedor usa su propia URL interna (`db:5432`), definida en `docker-compose.yml`.
 
 ### Enviar tu primer log
 
@@ -93,7 +93,7 @@ La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del ba
 ```bash
 # Backend — 53 tests (auth, ingesta, batch, filtros, export, stats, purga)
 cd Back_MCLog
-docker compose up -d db       # requiere la DB en localhost:5434
+docker compose up -d db       # requiere la DB en localhost:5435
 npm test
 
 # Librería — 34 tests
