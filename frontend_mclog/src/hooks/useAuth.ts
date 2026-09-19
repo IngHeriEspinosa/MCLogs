@@ -31,6 +31,34 @@ export type LogStats = {
   byEnvironment: { environment: string; count: number }[];
 };
 
+export type CurrentUser = {
+  id: number;
+  email: string;
+  role: "user" | "admin";
+  createdAt: string;
+};
+
+/**
+ * Usuario de la sesion actual.
+ *
+ * Se consulta al backend en lugar de leer el JWT porque el token vive en una
+ * cookie httpOnly que el navegador no puede leer, y porque el rol puede haber
+ * cambiado despues de emitirse.
+ */
+export const useMe = () =>
+  useQuery<CurrentUser>({
+    queryKey: ["me"],
+    queryFn: async () => (await client.get("/auth/me")).data.data,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+export const useChangePassword = () =>
+  useMutation({
+    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
+      client.patch("/auth/me/password", data),
+  });
+
 export const useLogin = () => {
   const qc = useQueryClient();
   return useMutation({

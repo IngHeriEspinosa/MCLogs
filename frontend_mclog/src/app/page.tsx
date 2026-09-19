@@ -1,9 +1,8 @@
 "use client";
 import React, { Suspense, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
-import { useLogs, useLogout, useLogStats, LogEntry } from "@/hooks/useAuth";
+import { useLogs, useLogStats, LogEntry } from "@/hooks/useAuth";
 import { useDebounce } from "@/hooks/useDebounce";
-import { PrimaryButton } from "@/components/atoms/PrimaryButton";
 import { LevelBadge } from "@/components/atoms/LevelBadge";
 import { DownloadActions } from "@/components/molecules/DownloadActions";
 import { StatsCards } from "@/components/molecules/StatsCards";
@@ -55,7 +54,6 @@ function LogsDashboard() {
     ...activeFilters,
   });
   const stats = useLogStats();
-  const logout = useLogout();
 
   const updateUrl = useMemo(
     () =>
@@ -105,13 +103,10 @@ function LogsDashboard() {
     <DashboardLayout
       title="Logs recientes"
       actions={
-        <div className="flex gap-2">
-          <DownloadActions
-            onCsv={() => downloadLogs("csv", activeFilters)}
-            onNdjson={() => downloadLogs("ndjson", activeFilters)}
-          />
-          <PrimaryButton onClick={() => logout.mutateAsync()}>Cerrar sesión</PrimaryButton>
-        </div>
+        <DownloadActions
+          onCsv={() => downloadLogs("csv", activeFilters)}
+          onNdjson={() => downloadLogs("ndjson", activeFilters)}
+        />
       }
     >
       <StatsCards stats={stats.data} loading={stats.isLoading} />
