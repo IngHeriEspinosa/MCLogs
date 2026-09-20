@@ -177,6 +177,14 @@ instalados en tu proyecto (son *peer dependencies* opcionales):
 npm install express express-validator
 ```
 
+**Si usas TypeScript**, añade también los tipos de Express. Express 4 no trae los
+suyos, y estas cadenas se tipan como `RequestHandler`, así que sin ellos el
+subpath `/express` no compila:
+
+```bash
+npm install -D @types/express
+```
+
 ```ts
 import express from "express";
 import { validateLog } from "@enviromentmc/mclog/express";
