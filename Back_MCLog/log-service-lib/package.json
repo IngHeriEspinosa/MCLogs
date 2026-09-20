@@ -12,14 +12,14 @@
     "typescript"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/EricColladoG/Logs_Service#readme",
+  "homepage": "https://github.com/IngHeriEspinosa/MCLogs/tree/main/Back_MCLog/log-service-lib#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/EricColladoG/Logs_Service.git",
-    "directory": "log-service-lib"
+    "url": "git+https://github.com/IngHeriEspinosa/MCLogs.git",
+    "directory": "Back_MCLog/log-service-lib"
   },
   "bugs": {
-    "url": "https://github.com/EricColladoG/Logs_Service/issues"
+    "url": "https://github.com/IngHeriEspinosa/MCLogs/issues"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

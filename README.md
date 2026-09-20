@@ -119,3 +119,7 @@ npm test
 cd Back_MCLog/log-service-lib
 npm test
 ```
+
+## Licencia
+
+MIT. Ver [LICENSE](LICENSE).
