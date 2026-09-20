@@ -29,6 +29,15 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
     const ENDPOINT_BATCH = '/api/logs/batch';
 
     /**
+     * Tope de entradas por peticion. Debe coincidir con el MAX_BATCH_SIZE del
+     * servidor (500 por defecto): si se pasa, responde 400 y rechaza el lote
+     * entero. En un Map/Reduce con muchos fallos se acumula una entrada por
+     * clave, asi que pasar de 500 es de lo mas normal, y sin trocear se perdian
+     * todos los logs de la ejecucion en la que mas falta hacian.
+     */
+    const MAX_BATCH_SIZE = 500;
+
+    /**
      * Contexto estándar de NetSuite que se adjunta a cada log como metadata.
      */
     const nsContext = () => {
@@ -66,6 +75,10 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
         if (!e) return {};
         const fields = {};
         if (e.name) fields.errorName = String(e.name);
+        // Un SuiteScriptError no trae `code`, pero si lo traen los errores de
+        // N/https, los de un modulo de terceros y los Error nativos de una
+        // llamada anidada. Perderlo dejaba el campo vacio sin motivo.
+        if (typeof e.code === 'string' || typeof e.code === 'number') fields.errorCode = String(e.code);
         if (e.stack) fields.errorStack = Array.isArray(e.stack) ? e.stack.join('\n') : String(e.stack);
         return fields;
     };
@@ -98,7 +111,7 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
             message: opts.message || (opts.error && opts.error.message) || 'Excepción sin mensaje',
             traceId: opts.traceId,
             errorName: opts.errorName || extra.errorName,
-            errorCode: opts.errorCode,
+            errorCode: opts.errorCode || extra.errorCode,
             errorStack: opts.errorStack || extra.errorStack,
             metadata: metadata
         };
@@ -133,14 +146,35 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
     const send = (level, opts) => post(ENDPOINT_SINGLE, buildPayload(level, opts));
 
     /**
-     * Envía varios logs en una sola petición (recomendado en Map/Reduce y Scheduled
-     * para ahorrar governance: 1 llamada https en lugar de N).
+     * Envía varios logs agrupados (recomendado en Map/Reduce y Scheduled para
+     * ahorrar governance: una llamada https por cada MAX_BATCH_SIZE entradas en
+     * lugar de una por entrada).
+     *
+     * Se trocea porque el servidor rechaza con 400 el lote que pase de su
+     * MAX_BATCH_SIZE, y lo rechaza entero: sin trocear, un summarize con mas de
+     * 500 errores no registraba ninguno.
+     *
+     * Ojo al governance: cada https.post cuesta 10 unidades, asi que N entradas
+     * salen por ceil(N / 500) * 10. Un Map/Reduce con 10 000 entradas gasta 200.
+     *
      * @param {Array<{level: string} & Object>} entries  Cada entrada: { level, application, message, ... }
+     * @returns {boolean} true solo si todos los trozos fueron aceptados
      */
     const sendBatch = (entries) => {
         if (!entries || !entries.length) return true;
+
         const logs = entries.map((e) => buildPayload(e.level || 'info', e));
-        return post(ENDPOINT_BATCH, { logs });
+        let allOk = true;
+
+        for (let i = 0; i < logs.length; i += MAX_BATCH_SIZE) {
+            // No se corta al primer fallo: los trozos son independientes y
+            // abandonar perderia los que si habrian entrado.
+            if (!post(ENDPOINT_BATCH, { logs: logs.slice(i, i + MAX_BATCH_SIZE) })) {
+                allOk = false;
+            }
+        }
+
+        return allOk;
     };
 
     /**

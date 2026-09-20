@@ -315,6 +315,7 @@ La clave única de la variable `API_KEY` sigue funcionando por compatibilidad co
 ```bash
 cd Back_MCLog && docker compose up -d db && npm test    # 150 tests
 cd packages/mclog && npm test               # 83 tests
+node integrations/netsuite/test_mclog_client.js         # 32 comprobaciones
 ```
 Los del backend necesitan la base real en `localhost:5435` y corren en serie porque la comparten.
 

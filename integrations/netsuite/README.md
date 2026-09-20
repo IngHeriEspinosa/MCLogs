@@ -9,6 +9,7 @@ Envía los logs de todos tus scripts de NetSuite al servicio centralizado MCLog 
 | `mclog_client.js` | Módulo SuiteScript 2.1 reutilizable (el único que necesitas subir) |
 | `ejemplo_user_event.js` | Ejemplo de uso en un User Event Script |
 | `ejemplo_map_reduce.js` | Ejemplo de uso en Map/Reduce con envío en lote |
+| `test_mclog_client.js` | Pruebas del módulo fuera de NetSuite (`node test_mclog_client.js`) |
 
 ## Instalación (5 minutos)
 
@@ -84,8 +85,12 @@ mclog.send('error', {
 });
 ```
 
-### `sendBatch(entries)` — lote (hasta 500 logs por llamada)
-Ideal en **Map/Reduce** y **Scheduled Scripts**: acumula los logs en un array y envíalos con una sola llamada HTTPS en `summarize` — consume 1 unidad de governance en lugar de N.
+### `sendBatch(entries)` — lote
+Ideal en **Map/Reduce** y **Scheduled Scripts**: acumula los logs en un array y envíalos en `summarize` en lugar de uno a uno.
+
+Se trocea solo en lotes de 500, que es el `MAX_BATCH_SIZE` del servidor. Importa: el servidor rechaza con `400` el lote que pase de ese tope, y lo rechaza **entero**. Un `summarize` que acumula una entrada por clave fallida pasa de 500 con facilidad, y sin trocear se perdían todos los logs de esa ejecución.
+
+El coste de governance va por peticiones, no por entradas: `ceil(N / 500) × 10` unidades. 10 000 entradas son 200 unidades.
 
 ## Contexto automático
 
@@ -94,8 +99,19 @@ Cada log incluye automáticamente en `metadata`: `scriptId`, `deploymentId`, `ex
 ## Garantías de diseño
 
 - **Nunca rompe tu script**: los errores de red/API se capturan y se registran con `N/log`; la función devuelve `false` y tu lógica de negocio continúa.
-- **Governance**: `https.post` cuesta 10 unidades por llamada en la mayoría de scripts. Usa `sendBatch`/`appLog.batch` en procesos masivos.
+- **Governance**: `https.post` cuesta 10 unidades por llamada en la mayoría de scripts. Usa `sendBatch`/`appLog.batch` en procesos masivos: agrupa de 500 en 500 en lugar de una llamada por log.
+- **Sin reintento**: una respuesta `429` del limitador de ingesta se registra con `N/log` y se pierde ese lote. SuiteScript no tiene forma de esperar sin quemar governance, así que reintentar aquí costaría más de lo que salva. Si lo ves a menudo, sube `INGEST_RATE_LIMIT_MAX` en el servidor.
 - **Client Scripts (navegador)**: `N/https` no está disponible del lado cliente para dominios externos sin CORS. Para logs desde Client Scripts, expón MCLog con CORS habilitado para tu dominio de NetSuite o registra vía un Suitelet proxy.
+
+## Pruebas
+
+```bash
+node integrations/netsuite/test_mclog_client.js
+```
+
+Simula `define()` y los módulos `N/https`, `N/log` y `N/runtime`, y comprueba el payload que saldría por el cable: troceo de lotes, reparto de excepciones y contexto automático. No necesita dependencias ni una cuenta de NetSuite, y corre en CI.
+
+Lo que no cubre: todo lo que dependa del runtime real (governance, límites de `https`, comportamiento de un `SuiteScriptError` de verdad). Eso solo se ve en una cuenta.
 
 ## Requisitos del lado MCLog
 

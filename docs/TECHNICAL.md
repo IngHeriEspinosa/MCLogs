@@ -418,6 +418,7 @@ npm pack           # tarball de publicación
 |---|---|---|
 | Backend | `cd Back_MCLog && npm test` | **150 tests** (vitest + supertest contra PostgreSQL real) |
 | Librería | `cd packages/mclog && npm test` | **83 tests** (cliente con fetch inyectado + middleware con supertest) |
+| Cliente NetSuite | `node integrations/netsuite/test_mclog_client.js` | **32 comprobaciones** (arnés que simula `define()` y los módulos `N/`, sin dependencias) |
 
 El backend requiere la base levantada:
 ```bash

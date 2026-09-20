@@ -83,6 +83,22 @@ jobs:
       - run: npm run build
       - run: npm test
 
+  netsuite:
+    name: Cliente NetSuite
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Sin npm ci: el arnes simula define() y los modulos N/ a mano, asi que
+      # no hay dependencias que instalar ni package-lock que cachear.
+      - name: Tests
+        run: node integrations/netsuite/test_mclog_client.js
+
   frontend:
     name: Dashboard
     runs-on: ubuntu-latest
