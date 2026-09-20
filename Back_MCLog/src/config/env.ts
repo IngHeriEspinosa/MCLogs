@@ -36,6 +36,19 @@ export const config = {
   schedulerEnabled: boolDefaultTrue(process.env.SCHEDULER_ENABLED),
   /** Endpoint MCP para asistentes de IA. Activo salvo que se desactive a proposito. */
   mcpEnabled: boolDefaultTrue(process.env.MCP_ENABLED),
+  /** Tope de conexiones simultaneas al stream en vivo, por instancia. */
+  sseMaxConnections: int(process.env.SSE_MAX_CONNECTIONS, 50),
+  // Servidor SMTP para los avisos por correo. Sin SMTP_HOST, ese canal falla
+  // con un mensaje claro en lugar de quedarse colgado.
+  smtp: {
+    host: process.env.SMTP_HOST || "",
+    port: int(process.env.SMTP_PORT, 587),
+    secure: bool(process.env.SMTP_SECURE),
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS || "",
+    from: process.env.SMTP_FROM || "MCLog <no-reply@localhost>",
+  },
+
   /** URL publica del dashboard, para construir enlaces en alertas y notificaciones. */
   publicDashboardUrl: process.env.PUBLIC_DASHBOARD_URL?.replace(/\/+$/, "") || "",
 

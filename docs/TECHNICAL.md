@@ -203,6 +203,7 @@ Credenciales inválidas → `401 { "error": "Invalid credentials" }`.
 | `GET /docs` | — | Swagger UI |
 | `GET /openapi.json` | — | Especificación OpenAPI en crudo, para generar clientes |
 | `POST /mcp` | JWT o API key con `read` | Servidor MCP (JSON-RPC). Ver [AI_INTEGRATION.md](AI_INTEGRATION.md) |
+| `GET /api/logs/stream` | JWT o API key con `read` | Stream de logs en vivo (SSE). Filtros: `level`, `application`, `environment` |
 
 Además de las métricas por defecto del proceso, `/metrics` publica
 `http_request_duration_seconds{method,route,status}` y
@@ -214,6 +215,7 @@ Además de las métricas por defecto del proceso, `/metrics` publica
 | Endpoint | Auth | Qué hace |
 |---|---|---|
 | `GET/POST /api/keys`, `DELETE /api/keys/:id` | JWT **admin** | Listar, crear y revocar API keys. El secreto se devuelve una única vez al crear |
+| `/api/alerts/channels`, `/api/alerts/rules`, `/api/alerts/events` | JWT **admin** | Canales, reglas e historial de avisos. `POST /channels/:id/test` envía un aviso de prueba |
 | `GET /auth/me` | JWT | Usuario de la sesión, releído de base de datos |
 | `PATCH /auth/me/password` | JWT | Cambiar la propia contraseña; revoca todas las sesiones |
 | `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** | Gestión de usuarios. No se permite borrarse a uno mismo ni dejar el servicio sin admin |
@@ -323,6 +325,9 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 | `RETENTION_DAYS` | `0` | Días de logs a conservar. `0` no purga nunca y la tabla crece sin límite |
 | `SCHEDULER_ENABLED` | `1` | Mantenimiento periódico. Con varias instancias, dejarlo activo en una sola |
 | `MCP_ENABLED` | `1` | Expone el servidor MCP en `/mcp` |
+| `SSE_MAX_CONNECTIONS` | `50` | Conexiones simultáneas al stream en vivo, **por instancia** |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | — / 587 / `0` | Servidor de correo para el canal de alertas por email |
+| `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — | Credenciales y remitente del correo |
 | `PUBLIC_DASHBOARD_URL` | — | URL del dashboard, para enlaces en notificaciones |
 
 ### Frontend (`frontend_mclog/.env.local`)
@@ -411,7 +416,7 @@ npm pack           # tarball de publicación
 
 | Suite | Comando | Cobertura |
 |---|---|---|
-| Backend | `cd Back_MCLog && npm test` | **108 tests** (vitest + supertest contra PostgreSQL real) |
+| Backend | `cd Back_MCLog && npm test` | **130 tests** (vitest + supertest contra PostgreSQL real) |
 | Librería | `cd Back_MCLog/log-service-lib && npm test` | **42 tests** (cliente con fetch inyectado + middleware con supertest) |
 
 El backend requiere la base levantada:

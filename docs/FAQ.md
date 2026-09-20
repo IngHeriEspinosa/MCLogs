@@ -10,6 +10,7 @@ Términos en el [Glosario](GLOSSARY.md) · Manual completo en [USER_GUIDE.md](US
 - [Enviar logs](#enviar-logs)
 - [Consultar y buscar](#consultar-y-buscar)
 - [Sesiones y usuarios](#sesiones-y-usuarios)
+- [Alertas](#alertas)
 - [Acceso para IA](#acceso-para-ia)
 - [Errores concretos](#errores-concretos)
 - [Operación y rendimiento](#operación-y-rendimiento)
@@ -118,7 +119,9 @@ curl -s "https://tu-api/api/logs?level=error&pageSize=50" -H "Authorization: Bea
 ```
 
 ### ¿Se actualiza solo el dashboard?
-Las **tarjetas de resumen** sí, cada 60 segundos. La **tabla** no: se recarga cuando cambias un filtro o la página. No hay streaming en vivo.
+Las **tarjetas de resumen** se refrescan cada 60 segundos. La **tabla** tiene un botón **En vivo**: al activarlo, los logs nuevos aparecen arriba resaltados según llegan, sin recargar.
+
+Solo se puede activar en la primera página y con el orden por fecha descendente. En cualquier otra vista, anteponer filas nuevas mentiría sobre lo que estás mirando.
 
 ---
 
@@ -197,6 +200,31 @@ El `.sql` se guardó en UTF-16 (le pasa a PowerShell con `>` y `Out-File`). Vuel
 
 ### La sesión se cae constantemente en producción
 Las cookies no se están guardando. Con el dashboard y la API en dominios distintos necesitas HTTPS, `COOKIE_SECURE=1` y `COOKIE_SAMESITE=none`. Si comparten dominio raíz, `COOKIE_DOMAIN=.tu-dominio.com`.
+
+---
+
+## Alertas
+
+### ¿Cómo me entero de que algo falla sin estar mirando el dashboard?
+Con una **regla** de alerta y un **canal**, en Ajustes → Alertas. Las reglas se comprueban cada minuto.
+
+### ¿Qué puede dispararse?
+Dos cosas: que se acumulen N coincidencias en una ventana (**umbral**), o que aparezca un error **que no se había visto nunca**. La segunda es la más útil justo después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".
+
+### ¿Por dónde avisa?
+Webhook (vale para Slack, Discord, Teams o n8n), correo y Telegram. Una regla puede usar varios a la vez, y hay un botón de envío de prueba en cada canal.
+
+### ¿Cómo sé que un webhook viene de MCLog?
+Pon un **secreto** al crear el canal: cada aviso viaja firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`. El receptor recalcula la firma sobre el cuerpo y compara.
+
+### Me va a inundar de avisos
+Para eso está el **silencio tras avisar** de cada regla. Tras dispararse, calla el tiempo que indiques; sin él, un incidente de una hora generaría sesenta avisos idénticos. El silencio arranca aunque el envío falle, a propósito.
+
+### Un canal ha fallado, ¿me entero?
+Sí. En Ajustes → Alertas → Historial cada disparo muestra a cuántos canales se entregó y el motivo de los que fallaron. Un canal caído no impide avisar por los demás.
+
+### ¿Hace falta configurar algo para el correo?
+Solo para ese canal: las variables `SMTP_*` del backend. Webhook y Telegram se configuran enteros desde el dashboard.
 
 ---
 
@@ -285,7 +313,7 @@ La clave única de la variable `API_KEY` sigue funcionando por compatibilidad co
 
 ### ¿Cómo ejecuto los tests?
 ```bash
-cd Back_MCLog && docker compose up -d db && npm test    # 108 tests
+cd Back_MCLog && docker compose up -d db && npm test    # 130 tests
 cd Back_MCLog/log-service-lib && npm test               # 42 tests
 ```
 Los del backend necesitan la base real en `localhost:5435` y corren en serie porque la comparten.

@@ -341,6 +341,127 @@ export const swaggerSpec = swaggerJSDoc({
           },
         },
       },
+      "/api/logs/stream": {
+        get: {
+          tags: ["análisis"],
+          summary: "Stream de logs en vivo (Server-Sent Events)",
+          description:
+            "Emite los logs según se ingieren. La conexión queda abierta; el navegador la reconecta solo. El bus es por instancia: con varias réplicas, cada cliente ve los logs que entraron por la suya.",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [
+            { in: "query", name: "level", schema: { type: "string", enum: ["debug", "info", "warn", "error"] } },
+            { in: "query", name: "application", schema: { type: "string" } },
+            { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
+          ],
+          responses: {
+            200: { description: "Flujo text/event-stream con eventos `ready` y `log`" },
+            503: { description: "Se alcanzó SSE_MAX_CONNECTIONS" },
+          },
+        },
+      },
+      "/api/alerts/channels": {
+        get: {
+          tags: ["alertas"],
+          summary: "Listar canales (los secretos llegan enmascarados)",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" }, 403: { description: "Requiere rol admin" } },
+        },
+        post: {
+          tags: ["alertas"],
+          summary: "Crear un canal de aviso",
+          description:
+            "La forma de `config` depende del tipo: webhook `{ url, secret? }`, email `{ to: [] }`, telegram `{ botToken, chatId }`.",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name", "type", "config"],
+                  properties: {
+                    name: { type: "string", maxLength: 120 },
+                    type: { type: "string", enum: ["webhook", "email", "telegram"] },
+                    config: { type: "object" },
+                    enabled: { type: "boolean", default: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: { 201: { description: "Creado" }, 400: { description: "Configuración incompleta para ese tipo" } },
+        },
+      },
+      "/api/alerts/channels/{id}/test": {
+        post: {
+          tags: ["alertas"],
+          summary: "Enviar un aviso de prueba",
+          description: "Responde 200 también cuando el canal falla: el resultado del envío es el dato que se pide.",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: { 200: { description: "Resultado del envío (`ok` y, si falla, `error`)" } },
+        },
+      },
+      "/api/alerts/rules": {
+        get: {
+          tags: ["alertas"],
+          summary: "Listar reglas con sus canales",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" } },
+        },
+        post: {
+          tags: ["alertas"],
+          summary: "Crear una regla",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name"],
+                  properties: {
+                    name: { type: "string", maxLength: 120 },
+                    type: {
+                      type: "string",
+                      enum: ["threshold", "new_error_group"],
+                      default: "threshold",
+                      description: "threshold: N coincidencias en la ventana. new_error_group: una huella nunca vista.",
+                    },
+                    application: { type: "string", nullable: true },
+                    service: { type: "string", nullable: true },
+                    environment: { type: "string", enum: ["development", "staging", "production"], nullable: true },
+                    level: { type: "string", enum: ["debug", "info", "warn", "error"], default: "error" },
+                    threshold: { type: "integer", minimum: 1, default: 1 },
+                    windowMinutes: { type: "integer", minimum: 1, maximum: 1440, default: 10 },
+                    cooldownMinutes: {
+                      type: "integer",
+                      minimum: 0,
+                      maximum: 1440,
+                      default: 30,
+                      description: "Silencio tras avisar. Arranca aunque el envío falle.",
+                    },
+                    channelIds: { type: "array", items: { type: "integer" } },
+                  },
+                },
+              },
+            },
+          },
+          responses: { 201: { description: "Creada" } },
+        },
+      },
+      "/api/alerts/events": {
+        get: {
+          tags: ["alertas"],
+          summary: "Historial de disparos, con el resultado por canal",
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { in: "query", name: "ruleId", schema: { type: "integer" } },
+            { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 200, default: 50 } },
+          ],
+          responses: { 200: { description: "OK" } },
+        },
+      },
       "/mcp": {
         post: {
           tags: ["status"],

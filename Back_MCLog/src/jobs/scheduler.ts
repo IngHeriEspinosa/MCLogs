@@ -2,12 +2,16 @@ import { config } from "../config/env";
 import logger from "../config/logger";
 import { prisma } from "../config/prisma";
 import { deleteLogsOlderThanInBatches } from "../services/logService";
+import { evaluateRules } from "../alerts/evaluator";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 const RETENTION_INTERVAL_MS = HOUR_MS;
 const REFRESH_TOKEN_CLEANUP_INTERVAL_MS = 6 * HOUR_MS;
+// Cada minuto: es la resolucion mas fina que tiene sentido para un aviso, y el
+// cooldown de cada regla evita que eso se traduzca en ruido.
+const ALERTS_INTERVAL_MS = 60 * 1000;
 
 /**
  * Trabajos en ejecucion. Una purga sobre una tabla grande puede durar mas que
@@ -88,6 +92,7 @@ export const startScheduler = () => {
 
   schedule("retention", RETENTION_INTERVAL_MS, runRetentionNow);
   schedule("refreshTokenCleanup", REFRESH_TOKEN_CLEANUP_INTERVAL_MS, runRefreshTokenCleanupNow);
+  schedule("alerts", ALERTS_INTERVAL_MS, () => evaluateRules());
 
   logger.info("Scheduler started", {
     retentionDays: config.retentionDays,

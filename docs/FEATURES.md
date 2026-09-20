@@ -25,6 +25,8 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 15. [Agrupación de errores](#15-agrupación-de-errores)
 16. [Acceso para IA (MCP)](#16-acceso-para-ia-mcp)
 17. [Mantenimiento automático](#17-mantenimiento-automático)
+18. [Alertas](#18-alertas)
+19. [Logs en vivo](#19-logs-en-vivo)
 
 ---
 
@@ -409,6 +411,66 @@ La purga va en **lotes de 5000 filas** cediendo el control entre uno y otro: un 
 
 `RETENTION_DAYS=0` desactiva la purga y la tabla crece sin límite. Con varias instancias detrás de un balanceador, `SCHEDULER_ENABLED=1` debe quedar en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 
+---
+
+## 18. Alertas
+
+Avisar sin que nadie tenga que estar mirando el dashboard.
+
+**Quién:** solo `admin`. **Código:** [evaluator.ts](../Back_MCLog/src/alerts/evaluator.ts) · [notifiers/](../Back_MCLog/src/alerts/notifiers/) · [alertRoutes.ts](../Back_MCLog/src/routes/alertRoutes.ts)
+
+### 18.1 Reglas
+
+Una **regla** define cuándo avisar. Se comprueban todas cada minuto.
+
+| Tipo | Dispara cuando |
+|---|---|
+| `threshold` | Hay N o más coincidencias en la ventana |
+| `new_error_group` | Aparece una huella de error **vista por primera vez** en la ventana |
+
+La segunda es la señal más accionable tras un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".
+
+Cada regla filtra por aplicación, servicio, entorno y nivel mínimo (`error`, o `warn` y `error`), y lleva un **cooldown**: tras avisar se calla el tiempo indicado. Sin él, un incidente de una hora generaría sesenta avisos idénticos.
+
+### 18.2 Canales
+
+Un **canal** define por dónde avisar. Una regla puede usar varios.
+
+| Tipo | Configuración | Notas |
+|---|---|---|
+| `webhook` | `url` y `secret` opcional | Sirve para Slack, Discord, Teams o n8n. Con `secret`, cada aviso va firmado con HMAC-SHA256 en `x-mclog-signature` |
+| `email` | `to` (lista) | El servidor SMTP se configura con las variables `SMTP_*` |
+| `telegram` | `botToken` y `chatId` | Mensaje en MarkdownV2 |
+
+Los secretos **se guardan pero no se devuelven**: al listar llegan enmascarados, y reenviar la máscara al editar conserva el valor original.
+
+Hay un botón de **envío de prueba** por canal. Un canal que falla responde `200` con `ok: false` y el motivo: el fallo es justo el dato que se está pidiendo.
+
+### 18.3 Entrega e historial
+
+Cada disparo queda registrado con su conteo, una muestra de los logs que lo provocaron y el resultado por canal. Un canal caído no impide avisar por los demás ni frena la evaluación de las otras reglas, y **el cooldown arranca aunque el envío falle**: reintentar cada minuto contra un canal caído solo multiplica el ruido cuando vuelva.
+
+El aviso incluye un enlace al dashboard con los filtros de la regla puestos, si hay `PUBLIC_DASHBOARD_URL` configurada.
+
+---
+
+## 19. Logs en vivo
+
+`GET /api/logs/stream` emite los logs según se ingieren, por Server-Sent Events. En el dashboard es el botón **En vivo** de la tabla, que antepone las filas nuevas resaltadas.
+
+**Código:** [logEvents.ts](../Back_MCLog/src/events/logEvents.ts) · [streamController.ts](../Back_MCLog/src/controllers/streamController.ts)
+
+Se eligió SSE y no WebSocket porque el flujo es de un solo sentido: el servidor empuja y el cliente no habla. SSE va sobre HTTP normal, el navegador lo reconecta solo y atraviesa los proxys sin nada especial, siempre que el proxy no acumule la respuesta (en el Caddyfile de producción está resuelto).
+
+Acepta los mismos filtros de nivel, aplicación y entorno, y respeta el alcance de la API key. El stream lleva solo la cabecera del log, sin metadata ni stack: para el detalle se pide el registro.
+
+**Dos límites que conviene conocer:**
+
+- El bus de eventos es **por instancia**. Con varias réplicas, cada cliente ve solo los logs que entraron por la suya. Hacerlo global pide `LISTEN/NOTIFY` de PostgreSQL o un Redis, y a esta escala no compensa.
+- Hay un tope de conexiones simultáneas (`SSE_MAX_CONNECTIONS`, 50 por defecto); al superarlo se responde `503`.
+
+El modo en vivo solo se activa en la primera página y con el orden por fecha descendente: en cualquier otra vista, anteponer filas nuevas mentiría sobre lo que se está mirando.
+
 ## Resumen de endpoints
 
 | Método | Ruta | Auth | Funcionalidad |
@@ -424,6 +486,8 @@ La purga va en **lotes de 5000 filas** cediendo el control entre uno y otro: un 
 | `GET` | `/api/logs/applications` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `DELETE` | `/api/logs` | JWT **admin** | [5](#5-retención-y-purga) |
 | `POST` | `/mcp` | Clave `read` o JWT | [16](#16-acceso-para-ia-mcp) |
+| `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **admin** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **admin** | [13](#13-api-keys-con-permisos) |
 | `GET`/`PATCH` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin** | [14](#14-gestión-de-usuarios) |

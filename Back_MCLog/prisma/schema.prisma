@@ -91,6 +91,74 @@ model ApiKey {
   @@index([revokedAt])
 }
 
+/// Destino al que se envía un aviso. La forma de `config` depende del tipo:
+/// webhook `{ url, secret? }`, email `{ to: string[] }`, telegram `{ botToken, chatId }`.
+model AlertChannel {
+  id        Int              @id @default(autoincrement())
+  name      String           @db.VarChar(120)
+  type      AlertChannelType
+  config    Json
+  enabled   Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  rules     AlertRule[]
+}
+
+/// Condición que dispara un aviso.
+model AlertRule {
+  id      Int           @id @default(autoincrement())
+  name    String        @db.VarChar(120)
+  type    AlertRuleType @default(threshold)
+  enabled Boolean       @default(true)
+
+  /// Filtros. Nulo = cualquiera.
+  application String?      @db.VarChar(120)
+  service     String?      @db.VarChar(120)
+  environment Environment?
+  level       LogLevel     @default(error)
+
+  /// Se dispara con `threshold` o más coincidencias en `windowMinutes`.
+  threshold       Int @default(1)
+  windowMinutes   Int @default(10)
+  /// Silencio tras dispararse, para no repetir el mismo aviso cada minuto.
+  cooldownMinutes Int @default(30)
+
+  lastTriggeredAt DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  channels        AlertChannel[]
+  events          AlertEvent[]
+
+  @@index([enabled])
+}
+
+/// Registro de un disparo, con el resultado del envío a cada canal.
+model AlertEvent {
+  id           Int       @id @default(autoincrement())
+  ruleId       Int
+  rule         AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  triggeredAt  DateTime  @default(now())
+  count        Int
+  /// Muestra de logs que provocaron el disparo.
+  sampleLogIds Int[]
+  /// [{ channelId, channelName, ok, error? }]
+  deliveries   Json
+
+  @@index([ruleId, triggeredAt])
+}
+
+enum AlertChannelType {
+  webhook
+  email
+  telegram
+}
+
+enum AlertRuleType {
+  /// N o más coincidencias en la ventana.
+  threshold
+  /// Una huella de error vista por primera vez dentro de la ventana.
+  new_error_group
+}
+
 enum LogLevel {
   debug
   info

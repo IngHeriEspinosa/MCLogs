@@ -25,6 +25,8 @@ Desglose completo en [docs/FEATURES.md](docs/FEATURES.md). En resumen:
 - **Exportación** CSV y NDJSON respetando los filtros activos.
 - **API keys con permisos** (`ingest` / `read` / `metrics`), acotables por aplicación, caducables y revocables.
 - **Usuarios y roles** administrables desde el dashboard, con cambio de contraseña y cierre de sesiones.
+- **Alertas** por webhook firmado, correo y Telegram, con reglas de umbral o de error nuevo y silencio configurable.
+- **Logs en vivo** en el dashboard por Server-Sent Events.
 - **Retención automática** por días, más purga puntual por fecha y aplicación.
 - **Sesiones** con JWT, refresh rotativo de un solo uso y renovación transparente.
 - **Despliegue** con Docker Compose y Caddy, HTTPS automático y copias de seguridad diarias.
@@ -108,7 +110,7 @@ La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del ba
 ## Tests
 
 ```bash
-# Backend — 108 tests (auth, claves, usuarios, ingesta, huellas, errores, MCP, retención)
+# Backend — 130 tests (auth, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
 cd Back_MCLog
 docker compose up -d db       # requiere la DB en localhost:5435
 npm test

@@ -1,6 +1,7 @@
 import { Environment, LogLevel, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { logsIngested } from '../config/metrics';
+import { emitLogCreated } from '../events/logEvents';
 
 export type CreateLogInput = {
     application: string;
@@ -20,9 +21,25 @@ export type CreateLogInput = {
     fingerprint?: string;
 };
 
+/** Forma que viaja por el stream en vivo: sin metadata ni stack, que ahi no aportan. */
+const toEvent = (input: CreateLogInput, id?: number) => ({
+    ...(id !== undefined ? { id } : {}),
+    timestamp: (input.timestamp ?? new Date()).toISOString(),
+    application: input.application,
+    service: input.service ?? null,
+    host: input.host ?? null,
+    level: input.level as string,
+    environment: input.environment as string,
+    message: input.message,
+    traceId: input.traceId ?? null,
+    errorName: input.errorName ?? null,
+    fingerprint: input.fingerprint ?? null
+});
+
 export const createLog = async (input: CreateLogInput) => {
     const created = await prisma.log.create({ data: input });
     logsIngested.inc({ application: input.application, level: input.level });
+    emitLogCreated(toEvent(input, created.id));
     return created;
 };
 
@@ -32,6 +49,8 @@ export const createLogsBatch = async (inputs: CreateLogInput[]) => {
     if (result.count === inputs.length) {
         for (const input of inputs) {
             logsIngested.inc({ application: input.application, level: input.level });
+            // Sin id: createMany no devuelve las filas creadas.
+            emitLogCreated(toEvent(input));
         }
     }
     return result.count;

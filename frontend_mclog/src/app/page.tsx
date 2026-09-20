@@ -1,8 +1,10 @@
 "use client";
-import React, { Suspense, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { useLogs, useLogStats, LogEntry } from "@/hooks/useAuth";
 import { useDebounce } from "@/hooks/useDebounce";
+import { BufferedLog, useLogStream } from "@/hooks/useLogStream";
 import { LevelBadge } from "@/components/atoms/LevelBadge";
 import { DownloadActions } from "@/components/molecules/DownloadActions";
 import { StatsCards } from "@/components/molecules/StatsCards";
@@ -38,8 +40,18 @@ function LogsDashboard() {
   // Se llega aqui desde la vista de errores agrupados, con la huella en la URL.
   const [fingerprint, setFingerprint] = useState<string>(searchParams.get("fingerprint") ?? "");
 
+  const [live, setLive] = useState(false);
+
   const debouncedSearch = useDebounce(search);
   const debouncedApplication = useDebounce(application);
+
+  /**
+   * El modo en vivo antepone los logs que llegan al principio de la tabla, así
+   * que solo tiene sentido en la primera página y con el orden por defecto
+   * (más recientes primero). En cualquier otra vista se desactiva solo.
+   */
+  const liveAllowed = page === 1 && sortField === "timestamp" && sortDir === "desc";
+  const liveOn = live && liveAllowed;
 
   const activeFilters = {
     level,
@@ -58,6 +70,33 @@ function LogsDashboard() {
     ...activeFilters,
   });
   const stats = useLogStats();
+
+  const stream = useLogStream(
+    liveOn,
+    { level, environment, application: debouncedApplication },
+    pageSize,
+  );
+
+  // Mientras hay conexión en vivo se refresca la tabla cada 15 s y se vacía el
+  // buffer: así las filas recién llegadas se sustituyen por las del servidor,
+  // que traen id y metadata completos.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!liveOn) return;
+    const temporizador = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: ["logs"] });
+      stream.clear();
+    }, 15_000);
+    return () => clearInterval(temporizador);
+  }, [liveOn, queryClient, stream]);
+
+  /**
+   * Filas a pintar. En vivo, las del stream van delante y se recorta al tamaño
+   * de página para que la tabla no crezca sin fin.
+   */
+  const rows: Array<LogEntry | (BufferedLog & { streamKey: string })> = liveOn
+    ? [...stream.logs, ...(data?.data ?? [])].slice(0, pageSize)
+    : (data?.data ?? []);
 
   const updateUrl = useMemo(
     () =>
@@ -236,6 +275,37 @@ function LogsDashboard() {
             {sortDir === "desc" ? "↓ desc" : "↑ asc"}
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setLive((valor) => !valor)}
+          disabled={!liveAllowed}
+          aria-pressed={liveOn}
+          title={
+            liveAllowed
+              ? "Muestra los logs según van llegando"
+              : "Disponible en la primera página y con el orden por fecha descendente"
+          }
+          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition disabled:opacity-40 ${
+            liveOn
+              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          <span
+            aria-hidden
+            className={`inline-block h-2 w-2 rounded-full ${
+              stream.status === "live"
+                ? "animate-pulse bg-emerald-500"
+                : stream.status === "connecting"
+                  ? "bg-amber-400"
+                  : stream.status === "error"
+                    ? "bg-red-500"
+                    : "bg-slate-300"
+            }`}
+          />
+          {liveOn ? (stream.status === "error" ? "Reconectando" : "En vivo") : "En vivo"}
+        </button>
       </div>
 
       {isLoading && (
@@ -276,11 +346,15 @@ function LogsDashboard() {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((log: LogEntry) => (
-                <React.Fragment key={log.id}>
+              {rows.map((log) => {
+                const enVivo = "streamKey" in log;
+                return (
+                <React.Fragment key={enVivo ? log.streamKey : log.id}>
                   <tr
-                    className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
-                    onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                    className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${
+                      enVivo ? "bg-primary-50/60" : ""
+                    }`}
+                    onClick={() => log.id !== undefined && setExpandedId(expandedId === log.id ? null : log.id)}
                   >
                     <td className="whitespace-nowrap py-2 pr-4 text-slate-600">
                       {new Date(log.timestamp).toLocaleString()}
@@ -295,7 +369,7 @@ function LogsDashboard() {
                       {log.message}
                     </td>
                   </tr>
-                  {expandedId === log.id && (
+                  {log.id !== undefined && expandedId === log.id && !enVivo && (
                     <tr className="border-b border-slate-100 bg-slate-50/70">
                       <td colSpan={6} className="px-4 py-3">
                         <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
@@ -361,11 +435,14 @@ function LogsDashboard() {
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
-              {data.data.length === 0 && (
+                );
+              })}
+              {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-sm text-slate-500">
-                    No hay registros que coincidan con tu búsqueda.
+                    {liveOn
+                      ? "Sin registros todavía. Los nuevos aparecerán aquí en cuanto lleguen."
+                      : "No hay registros que coincidan con tu búsqueda."}
                   </td>
                 </tr>
               )}

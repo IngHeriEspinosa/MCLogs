@@ -1,6 +1,7 @@
 import express from 'express';
 import { getLog, getLogs, log, logBatch, purgeLogs, stats } from '../controllers/logController';
 import { applications, errorGroups, logContext, trace } from '../controllers/analysisController';
+import { streamLogs } from '../controllers/streamController';
 import { validateLog, validateLogBatch } from '../middlewares/validateLog';
 import {
     validateErrorGroups,
@@ -27,6 +28,9 @@ router.post('/logs/batch', ingestLimiter, requireIngest, validateLogBatch, logBa
 // "stats" o "applications" como si fueran un id.
 router.get('/logs/stats', queryLimiter, requireAuthOrReadKey, validateStatsQuery, stats);
 router.get('/logs/applications', queryLimiter, requireAuthOrReadKey, applications);
+// Stream en vivo (SSE). Sin queryLimiter: es una conexion larga, no una rafaga
+// de peticiones, y su tope propio es SSE_MAX_CONNECTIONS.
+router.get('/logs/stream', requireAuthOrReadKey, streamLogs);
 router.get('/logs/errors/groups', queryLimiter, requireAuthOrReadKey, validateErrorGroups, errorGroups);
 router.get('/logs/trace/:traceId', queryLimiter, requireAuthOrReadKey, validateTrace, trace);
 router.get('/logs/:id/context', queryLimiter, requireAuthOrReadKey, validateLogContext, logContext);

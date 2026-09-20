@@ -109,7 +109,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 ## Tests
 
 `npm test` (vitest + supertest, DB real en `localhost:5435` — `docker compose up -d db`).
-**108 tests** en `tests/`, repartidos en nueve suites: sesiones y seguridad (`auth`), API keys con permisos y aislamiento por aplicación (`apiKeys`), gestión de usuarios y salvaguardas (`users`), ingesta y consulta (`logs`), huella de agrupación (`fingerprint`), análisis de errores, trazas y contexto (`errors`), servidor MCP (`mcp`), retención y limpieza (`scheduler`) y protecciones del borde (`hardening`).
+**130 tests** en `tests/`, repartidos en once suites: sesiones y seguridad (`auth`), API keys con permisos y aislamiento por aplicación (`apiKeys`), gestión de usuarios y salvaguardas (`users`), ingesta y consulta (`logs`), huella de agrupación (`fingerprint`), análisis de errores, trazas y contexto (`errors`), servidor MCP (`mcp`), retención y limpieza (`scheduler`), protecciones del borde (`hardening`), alertas (`alerts`) y stream en vivo (`stream`).
 
 Corren en serie (`--fileParallelism=false --maxWorkers=1`) porque comparten la misma base de datos.
 

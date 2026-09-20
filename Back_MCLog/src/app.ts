@@ -11,6 +11,7 @@ import { prisma } from "./config/prisma";
 import { swaggerSpec } from "./config/swagger";
 import logRoutes from "./routes/logRoutes";
 import apiKeyRoutes from "./routes/apiKeyRoutes";
+import alertRoutes from "./routes/alertRoutes";
 import mcpRouter from "./mcp/router";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
@@ -86,6 +87,9 @@ export const createApp = () => {
 
   // Administración de API keys: solo admin (el propio router aplica auth y rol)
   app.use("/api/keys", apiKeyRoutes);
+
+  // Alertas: canales, reglas e historial. Solo admin.
+  app.use("/api/alerts", alertRoutes);
 
   // Auth y rate limiting se aplican por ruta dentro de logRoutes
   // (la ingesta usa API key + límite alto; las consultas usan JWT + límite estándar)
