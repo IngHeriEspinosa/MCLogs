@@ -313,8 +313,8 @@ La clave única de la variable `API_KEY` sigue funcionando por compatibilidad co
 
 ### ¿Cómo ejecuto los tests?
 ```bash
-cd Back_MCLog && docker compose up -d db && npm test    # 130 tests
-cd packages/mclog && npm test               # 42 tests
+cd Back_MCLog && docker compose up -d db && npm test    # 143 tests
+cd packages/mclog && npm test               # 83 tests
 ```
 Los del backend necesitan la base real en `localhost:5435` y corren en serie porque la comparten.
 

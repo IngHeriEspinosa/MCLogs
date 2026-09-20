@@ -17,7 +17,7 @@ src/
     prisma.ts           PrismaClient singleton
     swagger.ts          Especificación OpenAPI 3 servida en /docs
   middlewares/
-    authApiKey.ts       requireApiKey (tiempo constante) y requireApiKeyOrJwt (ingesta)
+    authApiKey.ts       requireApiKey (por scope), requireIngest y requireAuthOrReadKey
     requireAuth.ts      JWT Bearer/cookie con auto-refresh transparente
     requireRole.ts      Autorización por rol (admin para purga)
     rateLimiters.ts     queryLimiter (600/15min) e ingestLimiter (2000/min) — configurables
@@ -28,15 +28,27 @@ src/
     setAuthCookies.ts   Cookies httpOnly access_token / refresh_token
     enforceHttps.ts     Rechaza HTTP si FORCE_HTTPS=1
     errorHandler.ts     Handler central de errores
-  routes/               authRoutes (/auth/*), logRoutes (/api/*)
-  controllers/          logController: parseo HTTP, formatos json/csv/ndjson
-  services/             logService (Prisma), authService (tokens, rotación de refresh)
+  routes/               authRoutes (/auth/*), logRoutes (/api/*),
+                        apiKeyRoutes (/api/keys), alertRoutes (/api/alerts)
+  controllers/          logController (parseo HTTP, formatos json/csv/ndjson),
+                        analysisController, streamController (SSE)
+  services/             logService (Prisma), authService (tokens, rotación de refresh),
+                        userService, apiKeyService, analysisService
+  alerts/               evaluator + notificadores (webhook, correo, Telegram)
+  events/               logEvents: bus en memoria que alimenta el stream en vivo
+  jobs/                 scheduler: purga por retención (RETENTION_DAYS)
+  mcp/                  server + router: herramientas MCP para asistentes de IA
+  utils/                fingerprint: huella de agrupación de errores
 ```
 
 ## Autenticación
 
 ### Ingesta (máquina-a-máquina)
-`POST /api/log` y `POST /api/logs/batch` aceptan **`x-api-key: <API_KEY>`** (comparación en tiempo constante) **o** un JWT válido. La API key no da acceso a lectura.
+`POST /api/log` y `POST /api/logs/batch` aceptan una **API key con scope `ingest`** o un JWT válido.
+
+La clave viaja en `x-api-key` o en `Authorization: Bearer mclog_...` (los clientes MCP solo permiten cabeceras estándar). Las claves se crean en `/api/keys` con scopes (`ingest`, `read`, `metrics`) y, opcionalmente, acotadas a ciertas aplicaciones: escribir el log de una aplicación fuera de su alcance devuelve `403` con la lista permitida. Una API key nunca recibe rol `admin`, por muchos scopes que tenga, así que jamás puede purgar logs ni administrar el servicio.
+
+La `API_KEY` única heredada de la variable de entorno sigue viva para no romper emisores ya desplegados (NetSuite, scripts): se compara en tiempo constante y equivale a los scopes `ingest` y `metrics`, nunca `read`.
 
 ### Usuarios (dashboard)
 - `POST /auth/login` → `accessToken` (TTL `JWT_ACCESS_TTL`, default 15m) y `refreshToken` (TTL `JWT_REFRESH_TTL`, default 14d), devueltos en el body, en headers `x-access-token`/`x-refresh-token` y como cookies httpOnly.
@@ -50,15 +62,33 @@ src/
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| POST | `/api/log` | API key o JWT | Crea un log |
-| POST | `/api/logs/batch` | API key o JWT | Crea hasta `MAX_BATCH_SIZE` (500) logs en un `createMany` |
-| GET | `/api/logs` | JWT | Lista paginada con filtros, orden y formatos |
-| GET | `/api/logs/stats` | JWT | total, últimas 24h, por nivel, top-10 apps, por entorno |
-| GET | `/api/logs/:id` | JWT | Log individual |
+| POST | `/api/log` | API key `ingest` o JWT | Crea un log |
+| POST | `/api/logs/batch` | API key `ingest` o JWT | Crea hasta `MAX_BATCH_SIZE` (500) logs en un `createMany` |
+| GET | `/api/logs` | JWT o API key `read` | Lista paginada con filtros, orden y formatos |
+| GET | `/api/logs/:id` | JWT o API key `read` | Log individual |
+| GET | `/api/logs/:id/context` | JWT o API key `read` | Logs vecinos en el tiempo, para ver qué pasaba alrededor |
+| GET | `/api/logs/stats` | JWT o API key `read` | total, últimas 24h, por nivel, top-10 apps, por entorno |
+| GET | `/api/logs/applications` | JWT o API key `read` | Aplicaciones distintas vistas |
+| GET | `/api/logs/stream` | JWT o API key `read` | Logs en vivo por SSE (`SSE_MAX_CONNECTIONS`) |
+| GET | `/api/logs/errors/groups` | JWT o API key `read` | Errores agrupados por huella, con recuento y primera/última vez |
+| GET | `/api/logs/trace/:traceId` | JWT o API key `read` | Traza completa de una petición |
 | DELETE | `/api/logs?before=ISO[&application=X]` | JWT rol admin | Purga logs anteriores a la fecha |
+| GET · POST | `/api/keys` | JWT rol admin | Lista y crea API keys con scopes y alcance por aplicación |
+| DELETE | `/api/keys/:id` | JWT rol admin | Revoca una API key |
+| GET · POST | `/api/alerts/channels` | JWT | Canales de aviso (webhook, correo, Telegram) |
+| PATCH · DELETE | `/api/alerts/channels/:id` | JWT | Edita o elimina un canal |
+| POST | `/api/alerts/channels/:id/test` | JWT | Envía un aviso de prueba |
+| GET · POST | `/api/alerts/rules` | JWT | Reglas de alerta |
+| PATCH · DELETE | `/api/alerts/rules/:id` | JWT | Edita o elimina una regla |
+| GET | `/api/alerts/events` | JWT | Historial de alertas disparadas |
 | POST | `/auth/login` `/auth/refresh` `/auth/logout` | — | Ciclo de sesión |
+| GET | `/auth/me` | JWT | Usuario de la sesión |
+| PATCH | `/auth/me/password` | JWT | Cambio de contraseña propia (cierra las demás sesiones) |
+| GET · POST | `/auth/users` | JWT rol admin | Lista y alta de usuarios |
+| PATCH · DELETE | `/auth/users/:id` | JWT rol admin | Edita o elimina un usuario |
+| POST | `/mcp` | JWT o API key `read` | Servidor MCP para asistentes de IA (`MCP_ENABLED`) |
 | GET | `/health` | — | Estado del servidor + DB |
-| GET | `/metrics` | API key | Métricas Prometheus |
+| GET | `/metrics` | API key `metrics` | Métricas Prometheus |
 | GET | `/docs` | — | Swagger UI |
 
 ### Parámetros de `GET /api/logs`
@@ -72,15 +102,19 @@ Respuesta JSON: `{ data, page, pageSize, total, totalPages }`.
 
 ### Contrato del log (ingesta)
 
-Obligatorios: `application` (≤120), `level` (`debug|info|warn|error`), `environment` (`development|staging|production`), `message` (≤100 000).
-Opcionales: `service`, `host`, `timestamp` (ISO-8601), `traceId`, `spanId`, `metadata` (objeto JSON libre).
-Defaults del servidor: `service`=application, `host`=hostname de la petición, `traceId`=generado (uuid), `timestamp`=ahora.
+Obligatorios: `application` (≤120), `level` (`debug|info|warn|error`), `environment` (`development|staging|production`), `message` (≤100 000, o el `message` del objeto `error`).
+Opcionales: `service` (≤120), `host` (≤255), `timestamp` (ISO-8601), `traceId` (≤128), `spanId` (≤128), `metadata` (objeto JSON libre).
+Detalle del error: `errorName` (≤200), `errorCode` (string o número, ≤100), `errorStack` (≤50 000) y `fingerprint` (≤64).
+Atajo `error`: un `Error` o cualquier objeto con `name`/`message`/`code`/`stack` se reparte en esos campos planos (`normalizeErrorFields`) y aporta el `message` si no viene ninguno; los campos puestos a mano tienen prioridad. El `stack` como array de marcos se une con saltos de línea (NetSuite).
+Defaults del servidor: `service`=application, `host`=hostname de la petición, `traceId`=generado (uuid), `timestamp`=ahora, `fingerprint`=calculada para `error` y `warn`.
+
+Las mismas reglas se publican como middleware Express en `@enviromentmc/mclog/express` (`validateLog`, `validateLogBatch`). Si tocas una, actualiza la otra.
 
 ## Modelo de datos e índices
 
 Ver `prisma/schema.prisma`. Índices simples en `timestamp`, `application`, `level`, `environment`, `traceId` y compuestos `(application, timestamp)` y `(level, timestamp)` (migración `0004_perf_indexes`).
 
-Migraciones (`prisma/migrations/`): `0001_init` → `0002_enums_indexes` (recrea Log con enums) → `0003_auth` (User/RefreshToken) → `0004_perf_indexes`. Aplicar con `npx prisma migrate deploy`. **Deben guardarse en UTF-8** (UTF-16 rompe el motor de migraciones con "string contains embedded null").
+Migraciones (`prisma/migrations/`): `0001_init` → `0002_enums_indexes` (recrea Log con enums) → `0003_auth` (User/RefreshToken) → `0004_perf_indexes` → `0005_api_keys` → `0006_error_fields` (errorName/errorCode/errorStack/fingerprint) → `0007_alerts` (canales, reglas y eventos). Aplicar con `npx prisma migrate deploy`. **Deben guardarse en UTF-8** (UTF-16 rompe el motor de migraciones con "string contains embedded null").
 
 ## Variables de entorno
 
@@ -96,7 +130,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 | `JWT_ACCESS_TTL` | 15m | El auto-refresh hace transparente el TTL corto |
 | `TRUST_PROXY` | 0 | Poner 1 detrás de load balancer (afecta rate-limit e IPs) |
 
-**En producción** (`NODE_ENV=production`) el arranque falla si `API_KEY`, `JWT_ACCESS_SECRET` o `JWT_REFRESH_SECRET` conservan valores por defecto o si `CORS_ORIGINS` está vacío.
+**En producción** (`NODE_ENV=production`) el arranque falla si `API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` o `ADMIN_PASSWORD` conservan valores de ejemplo, o si `CORS_ORIGINS` está vacío. El mensaje enumera todos los problemas a la vez.
 
 ## Seguridad
 
@@ -109,11 +143,11 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 ## Tests
 
 `npm test` (vitest + supertest, DB real en `localhost:5435` — `docker compose up -d db`).
-**130 tests** en `tests/`, repartidos en once suites: sesiones y seguridad (`auth`), API keys con permisos y aislamiento por aplicación (`apiKeys`), gestión de usuarios y salvaguardas (`users`), ingesta y consulta (`logs`), huella de agrupación (`fingerprint`), análisis de errores, trazas y contexto (`errors`), servidor MCP (`mcp`), retención y limpieza (`scheduler`), protecciones del borde (`hardening`), alertas (`alerts`) y stream en vivo (`stream`).
+**143 tests** en `tests/`, repartidos en doce suites: sesiones y seguridad (`auth`), API keys con permisos y aislamiento por aplicación (`apiKeys`), gestión de usuarios y salvaguardas (`users`), ingesta y consulta (`logs`), huella de agrupación (`fingerprint`), análisis de errores, trazas y contexto (`errors`), servidor MCP (`mcp`), retención y limpieza (`scheduler`), protecciones del borde (`hardening`), alertas (`alerts`), stream en vivo (`stream`) y guardia de configuración de producción (`config`).
 
 Corren en serie (`--fileParallelism=false --maxWorkers=1`) porque comparten la misma base de datos.
 
-La librería [`packages/mclog/`](../../packages/mclog/) tiene su propia suite: `cd packages/mclog && npm test` → **42 tests**.
+La librería [`packages/mclog/`](../../packages/mclog/) tiene su propia suite: `cd packages/mclog && npm test` → **83 tests**.
 
 ## Build y ejecución
 

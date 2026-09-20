@@ -406,7 +406,7 @@ Separar los entry points es lo que permite que un emisor puro no arrastre Expres
 
 ```bash
 npm run build      # tsc → dist/ con .d.ts y source maps
-npm test           # vitest — 42 tests
+npm test           # vitest — 83 tests
 npm pack           # tarball de publicación
 ```
 
@@ -416,8 +416,8 @@ npm pack           # tarball de publicación
 
 | Suite | Comando | Cobertura |
 |---|---|---|
-| Backend | `cd Back_MCLog && npm test` | **130 tests** (vitest + supertest contra PostgreSQL real) |
-| Librería | `cd packages/mclog && npm test` | **42 tests** (cliente con fetch inyectado + middleware con supertest) |
+| Backend | `cd Back_MCLog && npm test` | **143 tests** (vitest + supertest contra PostgreSQL real) |
+| Librería | `cd packages/mclog && npm test` | **83 tests** (cliente con fetch inyectado + middleware con supertest) |
 
 El backend requiere la base levantada:
 ```bash

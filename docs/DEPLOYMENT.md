@@ -68,7 +68,7 @@ openssl rand -hex 32
 | `POSTGRES_PASSWORD` | Contraseña larga y aleatoria |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Dos valores **distintos** de `openssl rand -hex 32` |
 | `API_KEY` | Aleatoria. Es la clave heredada; lo normal es no repartirla y crear claves con scopes desde el dashboard |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del primer administrador |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del primer administrador. El valor de `.env.example` es público: el arranque lo rechaza en producción |
 | `CORS_ORIGINS` / `PUBLIC_DASHBOARD_URL` | `https://<tu dominio>`, exacto y sin barra final |
 | `RETENTION_DAYS` | Días de logs a conservar. `0` desactiva la purga y la tabla crecerá sin límite |
 
@@ -87,7 +87,7 @@ curl https://<tu dominio>/health
 
 `/health` debe responder `{"status":"ok","database":"up",...}`. Entra en `https://<tu dominio>` con las credenciales de administrador y **cambia la contraseña** desde Ajustes.
 
-> **El arranque falla a propósito** si `NODE_ENV=production` y quedan secretos de desarrollo o `CORS_ORIGINS` vacío. El mensaje dice exactamente qué falta. Es la guardia de configuración, no un error.
+> **El arranque falla a propósito** si `NODE_ENV=production` y quedan secretos de desarrollo, `CORS_ORIGINS` vacío o el `ADMIN_PASSWORD` de ejemplo. El mensaje lista de una vez todo lo que falta. Es la guardia de configuración, no un error.
 
 ---
 
@@ -164,7 +164,7 @@ Cambiar `JWT_ACCESS_SECRET` o `JWT_REFRESH_SECRET` invalida todas las sesiones a
 | Síntoma | Causa habitual |
 |---|---|
 | Caddy no consigue certificado | El DNS no apunta todavía al VPS, o el puerto 80 está cerrado. Mira `logs caddy` |
-| La API no arranca y habla de configuración insegura | Quedan secretos de desarrollo o `CORS_ORIGINS` vacío en `deploy/.env` |
+| La API no arranca y habla de configuración insegura | Quedan secretos de desarrollo, `CORS_ORIGINS` vacío o el `ADMIN_PASSWORD` de ejemplo en `deploy/.env` |
 | `/health` responde `503 degraded` | La API vive pero no alcanza PostgreSQL. Revisa `logs db` y `POSTGRES_PASSWORD` |
 | La sesión se cae al navegar | `CORS_ORIGINS` o `PUBLIC_DASHBOARD_URL` no coinciden **exactamente** con el dominio, o falta `TRUST_PROXY=1` |
 | El disco se llena | `RETENTION_DAYS=0` o demasiado alto. Mira el tamaño con `docker compose exec db psql -U mclog -d mclog -c "\dt+"` |

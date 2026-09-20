@@ -64,6 +64,12 @@ export const config = {
   cookieSameSite: (process.env.COOKIE_SAMESITE as "lax" | "strict" | "none") || "lax",
 };
 
+/**
+ * Valores de ejemplo que viajan en `.env.example`, y por tanto son publicos.
+ * Arrancar en produccion con cualquiera de ellos equivale a no tener secreto.
+ */
+const PLACEHOLDER_ADMIN_PASSWORDS = new Set(["ChangeMe123!", "changeme", "admin", "password"]);
+
 export const assertProductionConfig = () => {
   if (config.nodeEnv !== "production") return;
   const problems: string[] = [];
@@ -73,6 +79,13 @@ export const assertProductionConfig = () => {
   if (config.jwtAccessSecret === "dev-access-secret") problems.push("JWT_ACCESS_SECRET sigue con el valor por defecto");
   if (config.jwtRefreshSecret === "dev-refresh-secret") problems.push("JWT_REFRESH_SECRET sigue con el valor por defecto");
   if (!config.corsOrigins?.length) problems.push("CORS_ORIGINS no está definido (en producción no se permite cualquier origen)");
+  // ensureAdminUser() corre justo despues de esta comprobacion y da de alta al
+  // administrador con lo que haya aqui. Sin este control, quien copiase
+  // .env.example y rotase solo lo que se le exigia arriba acababa con una cuenta
+  // de administrador cuya contrasena esta publicada en el repositorio.
+  if (process.env.ADMIN_PASSWORD && PLACEHOLDER_ADMIN_PASSWORDS.has(process.env.ADMIN_PASSWORD)) {
+    problems.push("ADMIN_PASSWORD sigue con un valor de ejemplo");
+  }
   if (problems.length) {
     throw new Error(`Configuración insegura para producción:\n - ${problems.join("\n - ")}`);
   }
