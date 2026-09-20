@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/config/prisma";
 import { config } from "../src/config/env";
 import { runRefreshTokenCleanupNow, runRetentionNow } from "../src/jobs/scheduler";
 import { deleteLogsOlderThanInBatches } from "../src/services/logService";
@@ -8,7 +8,7 @@ import { ensureAdminUser } from "../src/services/authService";
 process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const retentionDaysOriginal = config.retentionDays;

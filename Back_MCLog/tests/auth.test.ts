@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
 import { config } from "../src/config/env";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 let adminAccessToken: string;
 let adminRefreshToken: string;

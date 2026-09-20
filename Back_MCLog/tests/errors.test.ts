@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import request from "supertest";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
 import { config } from "../src/config/env";
@@ -8,7 +8,7 @@ import { config } from "../src/config/env";
 process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 let token: string;
 
 const auth = () => ({ Authorization: `Bearer ${token}` });

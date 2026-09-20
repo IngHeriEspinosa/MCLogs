@@ -4,8 +4,12 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY tsconfig.json ./
+COPY prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
+
+# prisma generate carga prisma.config.ts y exige DATABASE_URL, pero no conecta.
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mclog?schema=public
 
 RUN npm ci
 RUN npx prisma generate
@@ -19,6 +23,7 @@ ENV NODE_ENV=production
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/dist ./dist
 
