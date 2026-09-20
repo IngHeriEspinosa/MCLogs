@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-white text-slate-900 font-body antialiased;
+}
+
+/* Que un anclaje no deje el encabezado debajo de la cabecera fija. */
+[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Documentacion: estilos del HTML generado desde los .md. Se escriben a mano
+   en lugar de usar @tailwindcss/typography para no anadir otra dependencia y
+   poder ajustar tablas y bloques de codigo, que es lo que mas aparece.
+   ------------------------------------------------------------------------- */
+.prose {
+  @apply text-slate-700 leading-7;
+}
+
+.prose > * + * {
+  @apply mt-4;
+}
+
+.prose h2 {
+  @apply font-heading text-2xl font-bold text-slate-900 mt-12 mb-4 pb-2 border-b border-slate-200 scroll-mt-20;
+}
+
+.prose h3 {
+  @apply font-heading text-lg font-semibold text-slate-900 mt-8 mb-3 scroll-mt-20;
+}
+
+.prose h4 {
+  @apply font-heading text-base font-semibold text-slate-900 mt-6 mb-2;
+}
+
+/* El '#' junto al titulo solo aparece al pasar por encima. */
+.prose .anchor {
+  @apply float-left -ml-5 pr-1 text-slate-300 no-underline opacity-0 transition-opacity;
+}
+
+.prose h2:hover .anchor,
+.prose h3:hover .anchor,
+.prose .anchor:focus {
+  @apply opacity-100;
+}
+
+.prose a {
+  @apply text-primary-600 underline underline-offset-2 hover:text-primary-700;
+}
+
+.prose strong {
+  @apply font-semibold text-slate-900;
+}
+
+.prose ul {
+  @apply list-disc pl-6 space-y-2;
+}
+
+.prose ol {
+  @apply list-decimal pl-6 space-y-2;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-primary-200 bg-primary-50/50 py-3 px-4 rounded-r text-slate-600;
+}
+
+.prose blockquote > * + * {
+  @apply mt-2;
+}
+
+/* Codigo dentro de un parrafo. */
+.prose :not(pre) > code {
+  @apply bg-slate-100 text-slate-800 rounded px-1.5 py-0.5 text-[0.875em] font-mono;
+}
+
+.prose pre {
+  @apply bg-slate-900 text-slate-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed;
+}
+
+.prose pre code {
+  @apply bg-transparent p-0 text-inherit font-mono;
+}
+
+.prose .table-wrap {
+  @apply overflow-x-auto rounded-lg border border-slate-200;
+}
+
+.prose table {
+  @apply w-full text-sm border-collapse;
+}
+
+.prose thead {
+  @apply bg-slate-50;
+}
+
+.prose th {
+  @apply text-left font-semibold text-slate-900 px-4 py-2.5 border-b border-slate-200 whitespace-nowrap;
+}
+
+.prose td {
+  @apply px-4 py-2.5 border-b border-slate-100 align-top;
+}
+
+.prose tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.prose hr {
+  @apply my-10 border-slate-200;
+}
+
+.prose img {
+  @apply rounded-lg border border-slate-200;
+}

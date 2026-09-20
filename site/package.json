@@ -1,0 +1,31 @@
+{
+  "name": "mclog-site",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Landing y documentacion publica de MCLog (sitio estatico para GitHub Pages)",
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "npx serve out -l 3002",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "highlight.js": "^11.10.0",
+    "marked": "^12.0.2",
+    "marked-highlight": "^2.1.3",
+    "next": "^14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.2.67",
+    "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.18",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.1.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.6.2"
+  }
+}

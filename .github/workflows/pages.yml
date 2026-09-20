@@ -1,0 +1,69 @@
+name: Sitio publico
+
+# Publica la landing y la documentacion en GitHub Pages. El dashboard y la API
+# no entran aqui: siguen desplegandose en la instancia privada.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un despliegue a la vez, sin cancelar el que ya esta publicando.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Compilar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Instalar dependencias
+        working-directory: site
+        run: npm ci
+
+      - name: Comprobacion de tipos
+        working-directory: site
+        run: npx tsc --noEmit
+
+      # El build lee los .md de docs/ en la raiz del repositorio, por eso se
+      # compila con el checkout completo y no solo con la carpeta site/.
+      - name: Compilar sitio estatico
+        working-directory: site
+        run: npm run build
+
+      - name: Subir artefacto
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/out
+
+  deploy:
+    name: Publicar
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Desplegar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
