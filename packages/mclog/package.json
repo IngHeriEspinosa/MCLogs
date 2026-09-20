@@ -12,11 +12,11 @@
     "typescript"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/IngHeriEspinosa/MCLogs/tree/main/Back_MCLog/log-service-lib#readme",
+  "homepage": "https://github.com/IngHeriEspinosa/MCLogs/tree/main/packages/mclog#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/IngHeriEspinosa/MCLogs.git",
-    "directory": "Back_MCLog/log-service-lib"
+    "directory": "packages/mclog"
   },
   "bugs": {
     "url": "https://github.com/IngHeriEspinosa/MCLogs/issues"

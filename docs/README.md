@@ -35,7 +35,7 @@
 |---|---|
 | **Backend** [`Back_MCLog/`](../Back_MCLog/) | [README](../Back_MCLog/docs/README.md) · [Técnico](../Back_MCLog/docs/TECHNICAL.md) · [Operación](../Back_MCLog/docs/USER_GUIDE.md) |
 | **Dashboard** [`frontend_mclog/`](../frontend_mclog/) | [README](../frontend_mclog/README.md) · [Técnico](../frontend_mclog/docs/TECHNICAL.md) · [Manual](../frontend_mclog/docs/USER_GUIDE.md) |
-| **Librería npm** [`log-service-lib/`](../Back_MCLog/log-service-lib/) | [README](../Back_MCLog/log-service-lib/README.md) |
+| **Librería npm** [`packages/mclog/`](../packages/mclog/) | [README](../packages/mclog/README.md) |
 | **NetSuite** [`integrations/netsuite/`](../integrations/netsuite/) | [README](../integrations/netsuite/README.md) |
 
 > Los documentos centrales (`docs/`) describen el **sistema completo** y son la referencia autoritativa. Los documentos por componente entran en el detalle interno de cada uno.

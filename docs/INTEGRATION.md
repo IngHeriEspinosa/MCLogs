@@ -108,7 +108,7 @@ Los errores de red **no rompen tu aplicación**: la función devuelve `false` y 
 
 `sendBatch` **trocea automáticamente** al tamaño máximo del servidor, así que puedes pasarle un array de cualquier longitud.
 
-Referencia completa de opciones: [Back_MCLog/log-service-lib/README.md](../Back_MCLog/log-service-lib/README.md).
+Referencia completa de opciones: [packages/mclog/README.md](../packages/mclog/README.md).
 
 ## Node.js (fetch puro, sin dependencias)
 

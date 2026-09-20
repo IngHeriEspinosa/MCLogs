@@ -4,7 +4,7 @@ Referencia técnica **del sistema completo**. Para el detalle interno de cada co
 
 - Backend en profundidad → [Back_MCLog/docs/TECHNICAL.md](../Back_MCLog/docs/TECHNICAL.md)
 - Frontend en profundidad → [frontend_mclog/docs/TECHNICAL.md](../frontend_mclog/docs/TECHNICAL.md)
-- Librería npm → [Back_MCLog/log-service-lib/README.md](../Back_MCLog/log-service-lib/README.md)
+- Librería npm → [packages/mclog/README.md](../packages/mclog/README.md)
 - Decisiones de arquitectura y escalabilidad → [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ---
@@ -15,7 +15,7 @@ Referencia técnica **del sistema completo**. Para el detalle interno de cada co
 |---|---|---|---|
 | API REST | [Back_MCLog/](../Back_MCLog/) | Node 20 · Express 4 · TypeScript strict · Prisma 6 · PostgreSQL 16 | 3000 |
 | Dashboard | [frontend_mclog/](../frontend_mclog/) | Next.js 14 App Router · React 18 · React Query v5 · axios · Tailwind | 3001 |
-| Librería Node | [Back_MCLog/log-service-lib/](../Back_MCLog/log-service-lib/) | TypeScript · sin dependencias runtime | — |
+| Librería Node | [packages/mclog/](../packages/mclog/) | TypeScript · sin dependencias runtime | — |
 | Librería NetSuite | [integrations/netsuite/](../integrations/netsuite/) | SuiteScript 2.1 | — |
 | Base de datos | (Docker) | PostgreSQL 16-alpine | 5435 → 5432 |
 
@@ -395,7 +395,7 @@ src/
 
 ## 8. Librería `@enviromentmc/mclog`
 
-Referencia completa en su [README](../Back_MCLog/log-service-lib/README.md).
+Referencia completa en su [README](../packages/mclog/README.md).
 
 | Entry point | Exporta | Dependencias |
 |---|---|---|
@@ -417,7 +417,7 @@ npm pack           # tarball de publicación
 | Suite | Comando | Cobertura |
 |---|---|---|
 | Backend | `cd Back_MCLog && npm test` | **130 tests** (vitest + supertest contra PostgreSQL real) |
-| Librería | `cd Back_MCLog/log-service-lib && npm test` | **42 tests** (cliente con fetch inyectado + middleware con supertest) |
+| Librería | `cd packages/mclog && npm test` | **42 tests** (cliente con fetch inyectado + middleware con supertest) |
 
 El backend requiere la base levantada:
 ```bash

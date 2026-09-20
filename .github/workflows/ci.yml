@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Back_MCLog/log-service-lib
+        working-directory: packages/mclog
 
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +77,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: Back_MCLog/log-service-lib/package-lock.json
+          cache-dependency-path: packages/mclog/package-lock.json
 
       - run: npm ci
       - run: npm run build

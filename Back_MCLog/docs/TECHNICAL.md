@@ -113,7 +113,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 
 Corren en serie (`--fileParallelism=false --maxWorkers=1`) porque comparten la misma base de datos.
 
-La librería [`log-service-lib/`](../log-service-lib/) tiene su propia suite: `cd log-service-lib && npm test` → **42 tests**.
+La librería [`packages/mclog/`](../../packages/mclog/) tiene su propia suite: `cd packages/mclog && npm test` → **42 tests**.
 
 ## Build y ejecución
 

@@ -111,5 +111,5 @@
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
   },
   "include": ["src/**/*", "prisma/**/*"],
-  "exclude": ["node_modules", "dist", "log-service-lib", "tests"]
+  "exclude": ["node_modules", "dist", "tests"]
 }

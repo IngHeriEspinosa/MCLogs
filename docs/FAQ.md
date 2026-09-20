@@ -31,7 +31,7 @@ Cualquiera que pueda hacer una petición HTTP: NetSuite/SuiteScript, servicios N
 No, lo complementa. Sigue escribiendo tus logs locales; MCLog es la capa **centralizada** para lo que quieres poder consultar y correlacionar desde fuera. No mandes todo: manda lo que investigarías después.
 
 ### ¿Necesito instalar alguna librería?
-No. Un `POST` HTTP basta. Hay dos clientes listos por comodidad —[`@enviromentmc/mclog`](../Back_MCLog/log-service-lib/README.md) para Node y el [módulo SuiteScript](../integrations/netsuite/) para NetSuite— pero son opcionales.
+No. Un `POST` HTTP basta. Hay dos clientes listos por comodidad —[`@enviromentmc/mclog`](../packages/mclog/README.md) para Node y el [módulo SuiteScript](../integrations/netsuite/) para NetSuite— pero son opcionales.
 
 ### ¿Se puede usar en producción?
 Sí. Tiene guardias de configuración que impiden arrancar con secretos por defecto, rate limiting, HTTPS forzable y validación estricta. Lo que **debes** añadir tú: un cron de [purga](#la-base-de-datos-crece-sin-parar-qué-hago) y backups.
@@ -314,7 +314,7 @@ La clave única de la variable `API_KEY` sigue funcionando por compatibilidad co
 ### ¿Cómo ejecuto los tests?
 ```bash
 cd Back_MCLog && docker compose up -d db && npm test    # 130 tests
-cd Back_MCLog/log-service-lib && npm test               # 42 tests
+cd packages/mclog && npm test               # 42 tests
 ```
 Los del backend necesitan la base real en `localhost:5435` y corren en serie porque la comparten.
 
@@ -338,7 +338,7 @@ Antes de hacerlo, considera si te basta con meterlo en `metadata`: no requiere m
 
 ### ¿Cómo publico una versión nueva de la librería?
 ```bash
-cd Back_MCLog/log-service-lib
+cd packages/mclog
 npm version patch          # o minor / major
 npm publish                # prepublishOnly ejecuta build + tests
 ```

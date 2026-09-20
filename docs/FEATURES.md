@@ -244,7 +244,7 @@ No hace falta ningún cliente —basta un `POST` HTTP— pero hay dos listos par
 
 ### 9.1 Librería Node.js — `@enviromentmc/mclog`
 
-**Código:** [Back_MCLog/log-service-lib/](../Back_MCLog/log-service-lib/)
+**Código:** [packages/mclog/](../packages/mclog/)
 
 Paquete npm publicable, con **cero dependencias en runtime** (usa `fetch` nativo, Node ≥18):
 

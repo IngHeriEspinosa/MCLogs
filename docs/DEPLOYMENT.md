@@ -109,7 +109,7 @@ Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nad
 
 - Cualquier lenguaje → [INTEGRATION.md](INTEGRATION.md)
 - NetSuite → [../integrations/netsuite/README.md](../integrations/netsuite/README.md)
-- Node.js → [../Back_MCLog/log-service-lib/README.md](../Back_MCLog/log-service-lib/README.md)
+- Node.js → [../packages/mclog/README.md](../packages/mclog/README.md)
 
 ---
 
