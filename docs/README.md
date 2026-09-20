@@ -2,6 +2,8 @@
 
 Índice completo de la documentación del proyecto.
 
+> Estos mismos documentos se publican en web en **<https://inghieriespinosa.github.io/MCLogs/docs>**. Se generan desde los `.md` de esta carpeta, así que para corregir un texto se edita el `.md` y el sitio se actualiza solo.
+
 ## Empieza por aquí
 
 | Si eres… | Lee |
@@ -37,6 +39,7 @@
 | **Dashboard** [`frontend_mclog/`](../frontend_mclog/) | [README](../frontend_mclog/README.md) · [Técnico](../frontend_mclog/docs/TECHNICAL.md) · [Manual](../frontend_mclog/docs/USER_GUIDE.md) |
 | **Librería npm** [`packages/mclog/`](../packages/mclog/) | [README](../packages/mclog/README.md) |
 | **NetSuite** [`integrations/netsuite/`](../integrations/netsuite/) | [README](../integrations/netsuite/README.md) |
+| **Sitio publico** [`site/`](../site/) | [README](../site/README.md) |
 
 > Los documentos centrales (`docs/`) describen el **sistema completo** y son la referencia autoritativa. Los documentos por componente entran en el detalle interno de cada uno.
 

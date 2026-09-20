@@ -10,6 +10,7 @@ Plataforma para capturar, consultar y gestionar los logs de **todas tus aplicaci
 | [`frontend_mclog/`](frontend_mclog/) | Dashboard web de monitoreo | Next.js 14 (App Router) · React Query · Tailwind |
 | [`packages/mclog/`](packages/mclog/) | Librería npm `@enviromentmc/mclog` para apps Node.js | TypeScript · sin dependencias runtime |
 | [`integrations/netsuite/`](integrations/netsuite/) | Librería SuiteScript 2.1 + ejemplos para NetSuite | SuiteScript 2.1 |
+| [`site/`](site/) | Landing y documentación pública ([sitio](https://inghieriespinosa.github.io/MCLogs)) | Next.js 14 (static export) · GitHub Pages |
 | [`docs/`](docs/) | Documentación completa del proyecto | — |
 
 ## Qué hace

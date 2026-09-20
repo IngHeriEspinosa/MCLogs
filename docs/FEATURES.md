@@ -157,7 +157,7 @@ Ignora la paginación y devuelve hasta `MAX_EXPORT_ROWS` (10 000 por defecto) fi
 
 `before` es obligatorio y debe ser ISO-8601 — no existe forma de borrar "todo" por accidente. Devuelve `{ "deleted": n }` y deja constancia de la operación en los logs del servicio.
 
-> La tabla `Log` **crece sin límite** si no se purga. Esta operación está pensada para ejecutarse desde un cron. Ver [USER_GUIDE.md](USER_GUIDE.md#c5-retención-de-logs).
+> La tabla `Log` **crece sin límite** si no se purga. Esta operación está pensada para ejecutarse desde un cron. Ver [USER_GUIDE.md](USER_GUIDE.md#c7-retención-de-logs).
 
 ---
 
