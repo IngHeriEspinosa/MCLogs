@@ -151,11 +151,178 @@ describe('createMCLogClient — sendBatch', () => {
         expect(f.calls).toHaveLength(0);
     });
 
-    it('devuelve false si algún trozo falla', async () => {
+    it('devuelve false si algún trozo falla sin remedio', async () => {
         let n = 0;
-        const impl = vi.fn(async () => new Response('', { status: ++n === 2 ? 500 : 201 }));
+        // 400: el servidor rechaza el cuerpo, repetirlo daría lo mismo.
+        const impl = vi.fn(async () => new Response('', { status: ++n === 2 ? 400 : 201 }));
         const c = make({ maxBatchSize: 1 }, impl as unknown as typeof globalThis.fetch);
         expect(await c.sendBatch([{ message: 'a' }, { message: 'b' }])).toBe(false);
+    });
+
+    it('sigue con los demás trozos aunque uno falle', async () => {
+        let n = 0;
+        const impl = vi.fn(async () => new Response('', { status: ++n === 1 ? 400 : 201 }));
+        const c = make({ maxBatchSize: 1 }, impl as unknown as typeof globalThis.fetch);
+        await c.sendBatch([{ message: 'a' }, { message: 'b' }, { message: 'c' }]);
+        // Descartar los dos siguientes por el fallo del primero perdería logs
+        // que el servicio sí habría aceptado.
+        expect(impl).toHaveBeenCalledTimes(3);
+    });
+
+    it('envía los trozos en serie por defecto', async () => {
+        let enVuelo = 0;
+        let maxSimultaneos = 0;
+        const impl = vi.fn(async () => {
+            enVuelo += 1;
+            maxSimultaneos = Math.max(maxSimultaneos, enVuelo);
+            await new Promise((r) => setTimeout(r, 5));
+            enVuelo -= 1;
+            return new Response('', { status: 201 });
+        });
+        const c = make({ maxBatchSize: 1 }, impl as unknown as typeof globalThis.fetch);
+        await c.sendBatch([{ message: 'a' }, { message: 'b' }, { message: 'c' }]);
+        expect(maxSimultaneos).toBe(1);
+    });
+
+    it('respeta batchConcurrency cuando se sube', async () => {
+        let enVuelo = 0;
+        let maxSimultaneos = 0;
+        const impl = vi.fn(async () => {
+            enVuelo += 1;
+            maxSimultaneos = Math.max(maxSimultaneos, enVuelo);
+            await new Promise((r) => setTimeout(r, 5));
+            enVuelo -= 1;
+            return new Response('', { status: 201 });
+        });
+        const c = make(
+            { maxBatchSize: 1, batchConcurrency: 3 },
+            impl as unknown as typeof globalThis.fetch,
+        );
+        await c.sendBatch([{ message: 'a' }, { message: 'b' }, { message: 'c' }]);
+        expect(maxSimultaneos).toBe(3);
+    });
+});
+
+/**
+ * El limitador de ingesta del servidor devuelve 429 justo cuando más logs se
+ * están produciendo. Sin reintento, esa entrada se perdía en silencio: es la
+ * forma más probable de perder datos en produccion.
+ */
+describe('reintentos', () => {
+    it('reintenta un 429 y acaba entregando', async () => {
+        let n = 0;
+        const impl = vi.fn(async () => new Response('', { status: ++n === 1 ? 429 : 201 }));
+        const c = make({ retryBaseMs: 1 }, impl as unknown as typeof globalThis.fetch);
+        expect(await c.info('hola')).toBe(true);
+        expect(impl).toHaveBeenCalledTimes(2);
+    });
+
+    it('reintenta un 500 y un fallo de red', async () => {
+        for (const primero of [
+            async () => new Response('', { status: 503 }),
+            async () => {
+                throw new Error('ECONNRESET');
+            },
+        ]) {
+            let n = 0;
+            const impl = vi.fn(async () =>
+                ++n === 1 ? primero() : new Response('', { status: 201 }),
+            );
+            const c = make({ retryBaseMs: 1 }, impl as unknown as typeof globalThis.fetch);
+            expect(await c.info('hola')).toBe(true);
+            expect(impl).toHaveBeenCalledTimes(2);
+        }
+    });
+
+    it.each([400, 401, 403, 404, 413])('no reintenta un %i', async (status) => {
+        const impl = vi.fn(async () => new Response('', { status }));
+        const c = make({ retryBaseMs: 1 }, impl as unknown as typeof globalThis.fetch);
+        expect(await c.info('hola')).toBe(false);
+        expect(impl).toHaveBeenCalledTimes(1);
+    });
+
+    it('se rinde tras maxRetries y devuelve false', async () => {
+        const impl = vi.fn(async () => new Response('', { status: 429 }));
+        const c = make({ retryBaseMs: 1, maxRetries: 2 }, impl as unknown as typeof globalThis.fetch);
+        expect(await c.info('hola')).toBe(false);
+        expect(impl).toHaveBeenCalledTimes(3); // 1 intento + 2 reintentos
+    });
+
+    it('maxRetries: 0 desactiva el reintento', async () => {
+        const impl = vi.fn(async () => new Response('', { status: 429 }));
+        const c = make({ maxRetries: 0 }, impl as unknown as typeof globalThis.fetch);
+        expect(await c.info('hola')).toBe(false);
+        expect(impl).toHaveBeenCalledTimes(1);
+    });
+
+    it('espera lo que diga Retry-After en segundos', async () => {
+        let n = 0;
+        const impl = vi.fn(async () =>
+            ++n === 1
+                ? new Response('', { status: 429, headers: { 'retry-after': '0.05' } })
+                : new Response('', { status: 201 }),
+        );
+        const espera: number[] = [];
+        const c = make(
+            { retryBaseMs: 10000, onRetry: (i) => espera.push(i.delayMs) },
+            impl as unknown as typeof globalThis.fetch,
+        );
+        expect(await c.info('hola')).toBe(true);
+        // Manda la cabecera, no el backoff exponencial de 10 s.
+        expect(espera[0]).toBe(50);
+    });
+
+    it('entiende Retry-After como fecha HTTP', async () => {
+        let n = 0;
+        const cuando = new Date(Date.now() + 60000).toUTCString();
+        const impl = vi.fn(async () =>
+            ++n === 1
+                ? new Response('', { status: 429, headers: { 'retry-after': cuando } })
+                : new Response('', { status: 201 }),
+        );
+        const espera: number[] = [];
+        const c = make(
+            { maxRetries: 0, onRetry: (i) => espera.push(i.delayMs) },
+            impl as unknown as typeof globalThis.fetch,
+        );
+        await c.info('hola');
+        expect(impl).toHaveBeenCalledTimes(1); // maxRetries 0: no llega a esperar
+    });
+
+    it('avisa por onRetry y solo llama a onError al rendirse', async () => {
+        const impl = vi.fn(async () => new Response('', { status: 429 }));
+        const reintentos: number[] = [];
+        const errores: Error[] = [];
+        const c = make(
+            {
+                retryBaseMs: 1,
+                maxRetries: 2,
+                onRetry: (i) => reintentos.push(i.attempt),
+                onError: (e) => errores.push(e),
+            },
+            impl as unknown as typeof globalThis.fetch,
+        );
+        await c.info('hola');
+        expect(reintentos).toEqual([1, 2]);
+        expect(errores).toHaveLength(1);
+    });
+
+    it('lanza tras agotar los reintentos si throwOnError', async () => {
+        const impl = vi.fn(async () => new Response('', { status: 429 }));
+        const c = make(
+            { retryBaseMs: 1, maxRetries: 1, throwOnError: true },
+            impl as unknown as typeof globalThis.fetch,
+        );
+        await expect(c.info('hola')).rejects.toThrow('MCLog HTTP 429');
+        expect(impl).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+        ['maxRetries', { maxRetries: -1 }],
+        ['retryBaseMs', { retryBaseMs: -1 }],
+        ['batchConcurrency', { batchConcurrency: 0 }],
+    ])('rechaza un %s inválido al construir', (campo, opts) => {
+        expect(() => make(opts)).toThrow(campo);
     });
 });
 

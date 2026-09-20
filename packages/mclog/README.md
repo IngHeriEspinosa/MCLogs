@@ -4,6 +4,7 @@ Cliente oficial del servicio de logs centralizados **MCLog**, para Node.js.
 
 - **Cero dependencias en runtime** — usa `fetch` nativo (Node >= 18).
 - **A prueba de fallos** — si MCLog no responde, tu aplicación no se cae.
+- **Reintento ante saturación** — un `429` o un `5xx` no descarta el log en silencio.
 - **Tipado completo** — TypeScript de primera clase, con declaraciones `.d.ts`.
 - **Middleware Express opcional** — en un entry point aparte, para no arrastrar Express si no lo usas.
 
@@ -99,10 +100,40 @@ await mclog.sendBatch(
 | `defaultMetadata` | `Record<string, unknown>` | — | Metadata mezclada en toda entrada; la de cada llamada gana. |
 | `throwOnError` | `boolean` | `false` | Si `true`, los fallos se lanzan en vez de silenciarse. |
 | `timeoutMs` | `number` | `5000` | Timeout por petición. |
-| `maxBatchSize` | `number` | `500` | Entradas por petición en `sendBatch`. |
+| `maxBatchSize` | `number` | `500` | Entradas por petición en `sendBatch`. Debe ser <= al `MAX_BATCH_SIZE` del servidor. |
+| `maxRetries` | `number` | `2` | Reintentos tras el primer intento ante un fallo recuperable. `0` lo desactiva. |
+| `retryBaseMs` | `number` | `300` | Base de la espera exponencial con jitter entre reintentos. |
+| `batchConcurrency` | `number` | `1` | Trozos de `sendBatch` enviados a la vez. `1` = en serie. |
 | `headers` | `Record<string, string>` | — | Cabeceras extra (proxy, APM, multi-tenant…). |
-| `onError` | `(error: Error) => void` | — | Se invoca en cada fallo cuando `throwOnError` es `false`. |
+| `onError` | `(error: Error) => void` | — | Se invoca al fallar **definitivamente**, agotados los reintentos, si `throwOnError` es `false`. |
+| `onRetry` | `(info) => void` | — | Se invoca antes de cada reintento con `{ attempt, delayMs, error }`. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | Implementación de `fetch` a usar (tests, proxies). |
+
+### Reintentos
+
+Un envío que falla por algo transitorio se reintenta solo. Cuenta como transitorio un
+fallo de red, un timeout, un `408`, un `429` del limitador de ingesta y cualquier `5xx`.
+
+No se reintenta un `4xx` que no sea `408` ni `429`: un `400` de validación, un `401` con
+la clave mal o un `403` por aplicación fuera de alcance dan la misma respuesta por muchas
+veces que se repitan, y solo gastarían cuota.
+
+La espera entre intentos es exponencial con jitter (`retryBaseMs` × 2ⁿ, ±50 %). El jitter
+importa cuando caen varias instancias a la vez: sin él volverían todas al mismo tiempo y
+repetirían la avalancha. Si el servidor manda `Retry-After` en un `429`, esa cabecera
+manda sobre el cálculo.
+
+```ts
+const mclog = createMCLogClient({
+  baseUrl: "...",
+  apiKey: "...",
+  maxRetries: 3,
+  onRetry: ({ attempt, delayMs }) => metrics.increment("mclog.retry", { attempt, delayMs }),
+});
+```
+
+`onRetry` avisa de cada reintento; `onError` solo se invoca al rendirse. Un servicio que
+reintenta a menudo está avisando de que va justo de cuota de ingesta.
 
 ### Manejo de errores
 
@@ -121,6 +152,21 @@ const mclog = createMCLogClient({
 ```
 
 O bórralo todo y gestiona tú las excepciones con `throwOnError: true`.
+
+## La API key
+
+La clave se manda en `x-api-key` y necesita el scope **`ingest`**. Se crean desde
+`POST /api/keys` en el servicio, o desde el dashboard.
+
+Una clave puede además estar acotada a ciertas aplicaciones. Si mandas un log de una
+aplicación fuera de su alcance, el servicio responde `403` con la lista permitida:
+
+```json
+{ "error": "API key not allowed for application \"otra-app\"", "allowedApplications": ["mi-servicio"] }
+```
+
+Ese `403` **no se reintenta**: es un error de configuración, no una caída. Revisa el
+`application` que mandas o el alcance de la clave.
 
 ## Middleware de validación (Express)
 
@@ -154,6 +200,23 @@ Ante un cuerpo inválido responde `400` con:
 { "status": "error", "errors": { "level": { "msg": "Level must be one of: debug, info, warn, error" } } }
 ```
 
+Para un endpoint de lotes con cuerpo `{ logs: [...] }` usa `validateLogBatch`, que aplica
+las mismas reglas a cada entrada y señala el índice que falla (`logs[1].level`):
+
+```ts
+import { validateLogBatch } from "@enviromentmc/mclog/express";
+
+app.post("/mis-logs/batch", ...validateLogBatch, (req, res) => {
+  res.status(201).json({ recibidos: req.body.logs.length });
+});
+```
+
+> Estas reglas son un espejo de las del servidor MCLog y aceptan y rechazan exactamente lo
+> mismo, objeto `error` incluido: un cuerpo que pase por aquí pasa por el servicio. La
+> única excepción es el número máximo de entradas por lote, que fija el servidor con
+> `MAX_BATCH_SIZE` y este paquete no puede conocer.
+
+
 ## Contrato de una entrada
 
 | Campo | Obligatorio | Tipo |
@@ -161,13 +224,24 @@ Ante un cuerpo inválido responde `400` con:
 | `application` | sí | `string` (máx. 120) |
 | `level` | sí | `debug` \| `info` \| `warn` \| `error` |
 | `environment` | sí | `development` \| `staging` \| `production` |
-| `message` | sí | `string` |
-| `service` | no | `string` |
-| `host` | no | `string` |
+| `message` | sí | `string` (máx. 100 000) |
+| `service` | no | `string` (máx. 120) |
+| `host` | no | `string` (máx. 255) |
 | `timestamp` | no | `string` (ISO 8601) |
-| `traceId` | no | `string` |
-| `spanId` | no | `string` |
+| `traceId` | no | `string` (máx. 128) |
+| `spanId` | no | `string` (máx. 128) |
 | `metadata` | no | objeto libre o `null` |
+| `error` | no | `Error` o cualquier objeto con `name` / `message` / `code` / `stack` |
+| `errorName` | no | `string` (máx. 200) |
+| `errorCode` | no | `string` o `number` (máx. 100) |
+| `errorStack` | no | `string` (máx. 50 000) |
+| `fingerprint` | no | `string` (máx. 64) |
+
+`error` es un atajo: se reparte en `errorName`, `errorCode` y `errorStack`, y aporta el
+`message` si no mandas ninguno. Los campos planos que pongas a mano tienen prioridad.
+
+`fingerprint` es la huella de agrupación. Si no la mandas, el servidor la calcula para
+los niveles `error` y `warn`; mandarla permite agrupar con criterio propio.
 
 ## Requisitos
 

@@ -63,17 +63,39 @@ export type MCLogClientOptions = {
     defaultMetadata?: Record<string, unknown> | undefined;
     /** Si true, los errores se lanzan en lugar de silenciarse (default: false) */
     throwOnError?: boolean | undefined;
-    /** Timeout en ms para cada petición (default: 5000) */
+    /** Timeout en ms para cada intento (default: 5000) */
     timeoutMs?: number | undefined;
     /** Máximo de entradas por petición en sendBatch; se trocea (default: 500) */
     maxBatchSize?: number | undefined;
+    /**
+     * Reintentos tras el primer intento ante un fallo recuperable (default: 2).
+     * 0 lo desactiva. Ver `retryBaseMs` para la espera entre intentos.
+     */
+    maxRetries?: number | undefined;
+    /**
+     * Base de la espera exponencial con jitter entre reintentos, en ms
+     * (default: 300 → ~300, ~600, ~1200...). El `Retry-After` que mande el
+     * servidor en un 429 tiene prioridad sobre este cálculo.
+     */
+    retryBaseMs?: number | undefined;
+    /**
+     * Trozos de `sendBatch` enviados a la vez (default: 1, en serie).
+     * Subirlo acelera lotes grandes a costa de acercarte al límite de ingesta.
+     */
+    batchConcurrency?: number | undefined;
     /** Cabeceras extra (p. ej. para un proxy o APM) */
     headers?: Record<string, string> | undefined;
     /**
-     * Se invoca cuando un envío falla y `throwOnError` es false.
-     * Por defecto no hace nada: una librería no debería escribir en tu consola.
+     * Se invoca cuando un envío falla definitivamente, agotados los reintentos,
+     * y `throwOnError` es false. Por defecto no hace nada: una librería no
+     * debería escribir en tu consola.
      */
     onError?: ((error: Error) => void) | undefined;
+    /**
+     * Se invoca antes de cada reintento. Sirve para instrumentar: un servicio
+     * que reintenta a menudo está avisando de que la ingesta va justa.
+     */
+    onRetry?: ((info: { attempt: number; delayMs: number; error: Error }) => void) | undefined;
     /** Implementación de fetch a usar (default: globalThis.fetch). Útil para tests y proxies. */
     fetch?: typeof globalThis.fetch | undefined;
 };
@@ -143,6 +165,35 @@ const chunk = <T>(items: T[], size: number): T[][] => {
     return out;
 };
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Códigos que merecen otro intento: el servicio está saturado, caído o
+ * reiniciándose, y el mismo cuerpo puede entrar dentro de un momento.
+ *
+ * Un 4xx queda fuera a propósito. Un 400 de validación, un 401 con clave mala
+ * o un 403 por aplicación fuera de alcance no se arreglan repitiendo: dan la
+ * misma respuesta y solo gastan cuota.
+ */
+const isRetryableStatus = (status: number): boolean =>
+    status === 429 || status === 408 || (status >= 500 && status <= 599);
+
+/**
+ * Lee el `Retry-After` de un 429. Admite las dos formas del estándar: segundos
+ * de espera o fecha HTTP. Devuelve undefined si no viene o no se entiende, y
+ * entonces manda la espera exponencial.
+ */
+const parseRetryAfter = (value: string | null): number | undefined => {
+    if (!value) return undefined;
+
+    const seconds = Number(value.trim());
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+
+    const date = Date.parse(value);
+    if (Number.isNaN(date)) return undefined;
+    return Math.max(0, date - Date.now());
+};
+
 export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
     const {
         baseUrl,
@@ -150,8 +201,12 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         throwOnError = false,
         timeoutMs = 5000,
         maxBatchSize = 500,
+        maxRetries = 2,
+        retryBaseMs = 300,
+        batchConcurrency = 1,
         headers: extraHeaders,
         onError,
+        onRetry,
     } = options;
 
     if (typeof baseUrl !== 'string' || baseUrl.trim() === '') {
@@ -162,6 +217,15 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
     }
     if (!Number.isFinite(maxBatchSize) || maxBatchSize < 1) {
         throw new Error('createMCLogClient: `maxBatchSize` debe ser >= 1');
+    }
+    if (!Number.isFinite(maxRetries) || maxRetries < 0) {
+        throw new Error('createMCLogClient: `maxRetries` debe ser >= 0');
+    }
+    if (!Number.isFinite(retryBaseMs) || retryBaseMs < 0) {
+        throw new Error('createMCLogClient: `retryBaseMs` debe ser >= 0');
+    }
+    if (!Number.isFinite(batchConcurrency) || batchConcurrency < 1) {
+        throw new Error('createMCLogClient: `batchConcurrency` debe ser >= 1');
     }
 
     const doFetch = options.fetch ?? globalThis.fetch;
@@ -179,7 +243,12 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         return false;
     };
 
-    const post = async (path: string, payload: unknown): Promise<boolean> => {
+    /** Un intento suelto. `retryAfterMs` solo viene si el servidor lo indicó. */
+    type Attempt =
+        | { ok: true }
+        | { ok: false; error: Error; retryable: boolean; retryAfterMs?: number | undefined };
+
+    const attempt = async (path: string, body: string): Promise<Attempt> => {
         let response: Response;
         try {
             response = await doFetch(root + path, {
@@ -189,19 +258,55 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
                     'x-api-key': apiKey,
                     ...extraHeaders,
                 },
-                body: JSON.stringify(payload),
+                body,
                 signal: AbortSignal.timeout(timeoutMs),
             });
         } catch (cause) {
-            const error = new Error(`MCLog: fallo enviando log a ${root}${path}`, { cause });
-            return fail(error);
+            // Fallo de red o timeout: casi siempre transitorio.
+            return {
+                ok: false,
+                error: new Error(`MCLog: fallo enviando log a ${root}${path}`, { cause }),
+                retryable: true,
+            };
         }
 
-        if (!response.ok) {
-            const body = await response.text().catch(() => '');
-            return fail(new Error(`MCLog HTTP ${response.status}: ${body}`));
+        if (response.ok) return { ok: true };
+
+        const text = await response.text().catch(() => '');
+        return {
+            ok: false,
+            error: new Error(`MCLog HTTP ${response.status}: ${text}`),
+            retryable: isRetryableStatus(response.status),
+            retryAfterMs: parseRetryAfter(response.headers.get('retry-after')),
+        };
+    };
+
+    /**
+     * Envía reintentando los fallos recuperables. Sin esto, un 429 del limitador
+     * de ingesta —que es justo lo que devuelve el servicio cuando más logs se
+     * están produciendo— descartaba la entrada en silencio.
+     */
+    const post = async (path: string, payload: unknown): Promise<boolean> => {
+        const body = JSON.stringify(payload);
+        let last: Extract<Attempt, { ok: false }> | undefined;
+
+        for (let tries = 0; tries <= maxRetries; tries += 1) {
+            const result = await attempt(path, body);
+            if (result.ok) return true;
+
+            last = result;
+            if (!result.retryable || tries === maxRetries) break;
+
+            // El jitter evita que muchas instancias que fallaron a la vez
+            // vuelvan a la vez y repitan la avalancha que las tumbó.
+            const backoff = retryBaseMs * 2 ** tries * (0.5 + Math.random());
+            const delayMs = Math.round(result.retryAfterMs ?? backoff);
+
+            onRetry?.({ attempt: tries + 1, delayMs, error: result.error });
+            await sleep(delayMs);
         }
-        return true;
+
+        return fail(last!.error);
     };
 
     const withDefaults = (entry: MCLogInput): MCLogEntry => {
@@ -253,14 +358,28 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         });
     };
 
+    /**
+     * Trocea el lote y lo envía. Por defecto en serie: mandar todos los trozos
+     * a la vez convertía un lote grande en una ráfaga simultánea contra el
+     * limitador de ingesta, que respondía 429 a casi todos. `batchConcurrency`
+     * lo sube para quien tenga margen de cuota.
+     */
     const sendBatch = async (entries: MCLogInput[]): Promise<boolean> => {
         if (!Array.isArray(entries) || entries.length === 0) return true;
-        const results = await Promise.all(
-            chunk(entries, maxBatchSize).map((batch) =>
-                post('/api/logs/batch', { logs: batch.map(withDefaults) }),
-            ),
-        );
-        return results.every(Boolean);
+
+        const chunks = chunk(entries, maxBatchSize);
+        let allOk = true;
+
+        for (const group of chunk(chunks, batchConcurrency)) {
+            const results = await Promise.all(
+                group.map((batch) => post('/api/logs/batch', { logs: batch.map(withDefaults) })),
+            );
+            // No se corta al primer fallo: los trozos son independientes y
+            // descartar el resto perdería logs que sí habrían entrado.
+            if (!results.every(Boolean)) allOk = false;
+        }
+
+        return allOk;
     };
 
     const level =
