@@ -87,7 +87,7 @@ curl https://<tu dominio>/health
 
 `/health` debe responder `{"status":"ok","database":"up",...}`. Entra en `https://<tu dominio>` con las credenciales de administrador y **cambia la contraseña** desde Ajustes.
 
-> **El arranque falla a propósito** si `NODE_ENV=production` y quedan secretos de desarrollo, `CORS_ORIGINS` vacío o el `ADMIN_PASSWORD` de ejemplo. El mensaje lista de una vez todo lo que falta. Es la guardia de configuración, no un error.
+> **El arranque falla a propósito** si `NODE_ENV=production` y queda algún `CAMBIAR-...` sin rellenar, los dos secretos JWT son iguales o `CORS_ORIGINS` está vacío. El mensaje lista de una vez todo lo que falta. Es la guardia de configuración, no un error.
 
 ---
 

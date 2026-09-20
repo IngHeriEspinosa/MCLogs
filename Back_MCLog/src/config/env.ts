@@ -65,25 +65,44 @@ export const config = {
 };
 
 /**
- * Valores de ejemplo que viajan en `.env.example`, y por tanto son publicos.
- * Arrancar en produccion con cualquiera de ellos equivale a no tener secreto.
+ * Valores que viajan en los ficheros de ejemplo y por tanto son publicos:
+ * arrancar en produccion con cualquiera de ellos equivale a no tener secreto.
+ *
+ * Hay dos familias porque hay dos ficheros. `Back_MCLog/.env.example` trae los
+ * valores de desarrollo, que funcionan tal cual en local. `deploy/.env.example`
+ * —el que la guia de despliegue manda copiar— trae marcadores `CAMBIAR-...`,
+ * que no funcionan en ningun sitio pero arrancan igual de bien. De ahi el
+ * prefijo: cubre los de hoy y los que se anadan manana sin tener que acordarse
+ * de volver aqui.
  */
-const PLACEHOLDER_ADMIN_PASSWORDS = new Set(["ChangeMe123!", "changeme", "admin", "password"]);
+const isPlaceholderSecret = (value: string | undefined): boolean => {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized.startsWith("cambiar") ||
+    normalized.startsWith("change-me") ||
+    normalized.startsWith("changeme") ||
+    ["dev-key", "dev-access-secret", "dev-refresh-secret", "admin", "password", "secret"].includes(normalized)
+  );
+};
 
 export const assertProductionConfig = () => {
   if (config.nodeEnv !== "production") return;
   const problems: string[] = [];
-  if (config.apiKey === "change-me" || config.apiKey === "dev-key") {
-    problems.push("API_KEY sigue con el valor por defecto");
+  if (isPlaceholderSecret(config.apiKey)) problems.push("API_KEY sigue con un valor de ejemplo");
+  if (isPlaceholderSecret(config.jwtAccessSecret)) problems.push("JWT_ACCESS_SECRET sigue con un valor de ejemplo");
+  if (isPlaceholderSecret(config.jwtRefreshSecret)) problems.push("JWT_REFRESH_SECRET sigue con un valor de ejemplo");
+  if (config.jwtAccessSecret === config.jwtRefreshSecret) {
+    // Con el mismo secreto, un access token vale como refresh token: se podria
+    // renovar la sesion indefinidamente con el token de vida corta.
+    problems.push("JWT_ACCESS_SECRET y JWT_REFRESH_SECRET son iguales (deben ser distintos)");
   }
-  if (config.jwtAccessSecret === "dev-access-secret") problems.push("JWT_ACCESS_SECRET sigue con el valor por defecto");
-  if (config.jwtRefreshSecret === "dev-refresh-secret") problems.push("JWT_REFRESH_SECRET sigue con el valor por defecto");
   if (!config.corsOrigins?.length) problems.push("CORS_ORIGINS no está definido (en producción no se permite cualquier origen)");
   // ensureAdminUser() corre justo despues de esta comprobacion y da de alta al
-  // administrador con lo que haya aqui. Sin este control, quien copiase
-  // .env.example y rotase solo lo que se le exigia arriba acababa con una cuenta
-  // de administrador cuya contrasena esta publicada en el repositorio.
-  if (process.env.ADMIN_PASSWORD && PLACEHOLDER_ADMIN_PASSWORDS.has(process.env.ADMIN_PASSWORD)) {
+  // administrador con lo que haya aqui. Sin este control, quien copiase un
+  // fichero de ejemplo y rotase solo lo que se le exigia arriba acababa con una
+  // cuenta de administrador cuya contrasena esta publicada en el repositorio.
+  if (isPlaceholderSecret(process.env.ADMIN_PASSWORD)) {
     problems.push("ADMIN_PASSWORD sigue con un valor de ejemplo");
   }
   if (problems.length) {

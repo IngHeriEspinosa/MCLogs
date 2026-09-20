@@ -110,7 +110,7 @@ La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del ba
 ## Tests
 
 ```bash
-# Backend — 143 tests (auth, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
+# Backend — 150 tests (auth, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
 cd Back_MCLog
 docker compose up -d db       # requiere la DB en localhost:5435
 npm test

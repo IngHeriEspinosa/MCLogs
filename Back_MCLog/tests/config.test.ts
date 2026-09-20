@@ -68,12 +68,29 @@ describe("assertProductionConfig", () => {
   });
 
   /**
-   * .env.example viaja en el repositorio con ADMIN_PASSWORD=ChangeMe123!, y
-   * ensureAdminUser() da de alta al administrador con ese valor nada mas pasar
-   * esta comprobacion. Quien copiase el ejemplo y rotase solo lo que se le
-   * exigia se quedaba con una cuenta de administrador de contrasena publica.
+   * Hay dos ficheros de ejemplo con dos familias de marcadores, y la guia de
+   * despliegue manda copiar el segundo. Reconocer solo los valores de
+   * desarrollo dejaba pasar justo el camino que sigue un despliegue real.
    */
-  it.each(["ChangeMe123!", "changeme", "admin", "password"])(
+  it.each([
+    ["API_KEY", "CAMBIAR-openssl-rand-hex-32"],
+    ["JWT_ACCESS_SECRET", "CAMBIAR-openssl-rand-hex-32"],
+    ["JWT_REFRESH_SECRET", "CAMBIAR-otro-distinto-openssl-rand-hex-32"],
+    ["ADMIN_PASSWORD", "CAMBIAR-contrasena-fuerte"],
+  ])("rechaza el marcador de deploy/.env.example en %s", async (clave, valor) => {
+    const { assertProductionConfig } = await cargarConEntorno({
+      ...entornoValido,
+      [clave]: valor,
+    });
+    expect(() => assertProductionConfig()).toThrow(clave);
+  });
+
+  /**
+   * Back_MCLog/.env.example viaja en el repositorio con
+   * ADMIN_PASSWORD=ChangeMe123!, y ensureAdminUser() da de alta al
+   * administrador con ese valor nada mas pasar esta comprobacion.
+   */
+  it.each(["ChangeMe123!", "changeme", "admin", "password", "  CambiaR-esto  "])(
     "rechaza ADMIN_PASSWORD de ejemplo: %s",
     async (contrasena) => {
       const { assertProductionConfig } = await cargarConEntorno({
@@ -83,6 +100,24 @@ describe("assertProductionConfig", () => {
       expect(() => assertProductionConfig()).toThrow("ADMIN_PASSWORD");
     },
   );
+
+  it("rechaza que los dos secretos JWT sean iguales", async () => {
+    const { assertProductionConfig } = await cargarConEntorno({
+      ...entornoValido,
+      JWT_ACCESS_SECRET: "el-mismo-secreto-para-los-dos",
+      JWT_REFRESH_SECRET: "el-mismo-secreto-para-los-dos",
+    });
+    // Con un solo secreto, un access token vale como refresh token.
+    expect(() => assertProductionConfig()).toThrow("iguales");
+  });
+
+  it("no confunde un secreto legitimo que contenga la palabra", async () => {
+    const { assertProductionConfig } = await cargarConEntorno({
+      ...entornoValido,
+      ADMIN_PASSWORD: "no-voy-a-cambiar-esta-clave-jamas",
+    });
+    expect(() => assertProductionConfig()).not.toThrow();
+  });
 
   it("no exige ADMIN_PASSWORD si no se usa el alta automatica", async () => {
     const { assertProductionConfig } = await cargarConEntorno({

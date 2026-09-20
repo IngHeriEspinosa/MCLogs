@@ -416,7 +416,7 @@ npm pack           # tarball de publicación
 
 | Suite | Comando | Cobertura |
 |---|---|---|
-| Backend | `cd Back_MCLog && npm test` | **143 tests** (vitest + supertest contra PostgreSQL real) |
+| Backend | `cd Back_MCLog && npm test` | **150 tests** (vitest + supertest contra PostgreSQL real) |
 | Librería | `cd packages/mclog && npm test` | **83 tests** (cliente con fetch inyectado + middleware con supertest) |
 
 El backend requiere la base levantada:

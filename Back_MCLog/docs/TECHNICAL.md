@@ -130,7 +130,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 | `JWT_ACCESS_TTL` | 15m | El auto-refresh hace transparente el TTL corto |
 | `TRUST_PROXY` | 0 | Poner 1 detrás de load balancer (afecta rate-limit e IPs) |
 
-**En producción** (`NODE_ENV=production`) el arranque falla si `API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` o `ADMIN_PASSWORD` conservan valores de ejemplo, o si `CORS_ORIGINS` está vacío. El mensaje enumera todos los problemas a la vez.
+**En producción** (`NODE_ENV=production`) el arranque falla si `API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` o `ADMIN_PASSWORD` conservan un valor de ejemplo, si los dos secretos JWT son iguales, o si `CORS_ORIGINS` está vacío. Se reconocen las dos familias de marcadores: los valores de desarrollo de `.env.example` y los `CAMBIAR-...` de `deploy/.env.example`. El mensaje enumera todos los problemas a la vez.
 
 ## Seguridad
 
@@ -143,7 +143,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 ## Tests
 
 `npm test` (vitest + supertest, DB real en `localhost:5435` — `docker compose up -d db`).
-**143 tests** en `tests/`, repartidos en doce suites: sesiones y seguridad (`auth`), API keys con permisos y aislamiento por aplicación (`apiKeys`), gestión de usuarios y salvaguardas (`users`), ingesta y consulta (`logs`), huella de agrupación (`fingerprint`), análisis de errores, trazas y contexto (`errors`), servidor MCP (`mcp`), retención y limpieza (`scheduler`), protecciones del borde (`hardening`), alertas (`alerts`), stream en vivo (`stream`) y guardia de configuración de producción (`config`).
+**150 tests** en `tests/`, repartidos en doce suites: sesiones y seguridad (`auth`), API keys con permisos y aislamiento por aplicación (`apiKeys`), gestión de usuarios y salvaguardas (`users`), ingesta y consulta (`logs`), huella de agrupación (`fingerprint`), análisis de errores, trazas y contexto (`errors`), servidor MCP (`mcp`), retención y limpieza (`scheduler`), protecciones del borde (`hardening`), alertas (`alerts`), stream en vivo (`stream`) y guardia de configuración de producción (`config`).
 
 Corren en serie (`--fileParallelism=false --maxWorkers=1`) porque comparten la misma base de datos.
 
