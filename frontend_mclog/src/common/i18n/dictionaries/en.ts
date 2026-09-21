@@ -502,7 +502,7 @@ export const en: Dictionary = {
     heroBody:
       "Capture, group and query the logs of every application. Find the cause of a failure in seconds, not hours.",
     heroPoints: ["Errors grouped by fingerprint", "Traces across systems", "Briefs ready for AI agents"],
-    footer: "Self-hosted · open source",
+    footer: "Self-hosted · open source · By Multicomputos SRL",
   },
 
   apiKeys: {

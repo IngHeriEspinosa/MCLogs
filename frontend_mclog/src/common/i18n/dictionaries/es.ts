@@ -511,7 +511,7 @@ export const es = {
     heroBody:
       "Captura, agrupa y consulta los registros de tus aplicaciones. Encuentra la causa de un fallo en segundos, no en horas.",
     heroPoints: ["Errores agrupados por huella", "Trazas entre sistemas", "Briefs listos para agentes de IA"],
-    footer: "Autoalojado · open source",
+    footer: "Autoalojado · open source · Por Multicomputos SRL",
   },
 
   apiKeys: {

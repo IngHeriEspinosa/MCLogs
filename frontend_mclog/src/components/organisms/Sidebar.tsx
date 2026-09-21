@@ -95,12 +95,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
           }}
         />
 
-        <div className={`relative flex h-16 shrink-0 items-center gap-3 px-4 ${collapsed ? "lg:justify-center lg:px-0" : ""}`}>
-          <Link href="/" className="flex items-center gap-3 hover:no-underline" aria-label="MCLog">
+        {/* La marca comparte la rejilla del menu: el logo va centrado en el
+            mismo eje que los iconos y "MCLog" empieza donde empiezan las
+            etiquetas, para que la columna no quede escalonada. */}
+        <div className={`relative flex h-16 shrink-0 items-center pl-[1.0625rem] pr-4 ${collapsed ? "lg:justify-center lg:pl-0 lg:pr-0" : ""}`}>
+          <Link href="/" className="flex items-center gap-[0.4375rem] hover:no-underline" aria-label="MCLog">
             <Logo className="h-8 w-8 shrink-0 drop-shadow" />
             <span className={`flex flex-col leading-none ${collapsed ? "lg:hidden" : ""}`}>
               <span className="font-heading text-[1.0625rem] font-bold tracking-tight text-rail-ink">{t.app.name}</span>
-              <span className="mt-1 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-rail-ink-2">{t.app.console}</span>
+              <span className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-rail-ink-2">{t.app.console}</span>
             </span>
           </Link>
           <IconButton

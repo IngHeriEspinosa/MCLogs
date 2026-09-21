@@ -24,6 +24,7 @@ export const ThemeMenu: React.FC = () => {
       icon={THEME_ICON[preference]}
       iconOnly
       variant="ghost"
+      compact
       items={[
         { type: "label", key: "label", label: t.prefs.theme },
         ...options.map((option) => ({
@@ -47,16 +48,26 @@ export const LanguageMenu: React.FC = () => {
       trigger={
         <span className="flex items-center gap-1.5">
           <Icon name="globe" className="h-4 w-4" />
-          <span className="font-mono text-[0.6875rem] font-semibold uppercase">{locale}</span>
+          {/* La caja de una linea de texto incluye el hueco de los trazos que
+              bajan de la linea base, que estas mayusculas no usan: centrarla
+              deja el codigo un pixel por encima del icono. `text-box` recorta
+              la caja a la altura de las mayusculas, asi que el centrado es
+              exacto a cualquier tamano de fuente. Donde no este soportado se
+              ve como antes, no peor. */}
+          <span className="font-mono text-[0.6875rem] font-semibold uppercase [text-box:trim-both_cap_alphabetic]">
+            {locale}
+          </span>
         </span>
       }
       triggerClassName="inline-flex h-9 items-center rounded-lg px-2.5 text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
+      compact
       items={[
         { type: "label", key: "label", label: t.prefs.language },
+        // Sin el codigo como segunda linea: "Español" ya dice lo mismo que "ES"
+        // y doblaba el alto de cada fila.
         ...LOCALES.map((option) => ({
           key: option,
           label: t.prefs.languages[option],
-          hint: option.toUpperCase(),
           checked: locale === option,
           onSelect: () => setLocale(option),
         })),

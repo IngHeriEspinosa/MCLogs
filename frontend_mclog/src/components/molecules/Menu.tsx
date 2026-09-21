@@ -35,6 +35,11 @@ type MenuProps = {
   triggerClassName?: string;
   /** Cabecera fija del panel, encima de las opciones. */
   header?: React.ReactNode;
+  /**
+   * Menus de pocas opciones y etiquetas cortas (idioma, tema): filas mas
+   * bajas, panel mas estrecho y mas pegado al disparador.
+   */
+  compact?: boolean;
 };
 
 /** Menu de acciones con el patron de teclado de ARIA (flechas, Inicio/Fin, Esc). */
@@ -49,11 +54,15 @@ export const Menu: React.FC<MenuProps> = ({
   trigger,
   triggerClassName = "",
   header,
+  compact,
 }) => {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const { anchorRef, floatingRef, style } = useFloating<HTMLButtonElement, HTMLDivElement>(open, { align });
+  const { anchorRef, floatingRef, style } = useFloating<HTMLButtonElement, HTMLDivElement>(open, {
+    align,
+    offset: compact ? 4 : 6,
+  });
 
   const enabledIndexes = items
     .map((item, index) => ((item.type ?? "item") === "item" && !("disabled" in item && item.disabled) ? index : -1))
@@ -127,7 +136,9 @@ export const Menu: React.FC<MenuProps> = ({
           <div
             ref={floatingRef}
             style={style}
-            className="min-w-[14rem] max-w-[calc(100vw-16px)] animate-pop-in overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-pop"
+            className={`max-w-[calc(100vw-16px)] animate-pop-in overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-pop ${
+              compact ? "min-w-[9rem]" : "min-w-[14rem]"
+            }`}
           >
             {header}
             <div id={menuId} role="menu" aria-label={label} onKeyDown={onKeyDown}>
@@ -135,7 +146,11 @@ export const Menu: React.FC<MenuProps> = ({
                 if (item.type === "separator") return <div key={item.key} role="separator" className="my-1 h-px bg-line" />;
                 if (item.type === "label") {
                   return (
-                    <div key={item.key} role="presentation" className="eyebrow px-2.5 pb-1 pt-2">
+                    <div
+                      key={item.key}
+                      role="presentation"
+                      className={`eyebrow px-2.5 ${compact ? "pb-0.5 pt-1" : "pb-1 pt-2"}`}
+                    >
                       {item.label}
                     </div>
                   );
@@ -155,16 +170,23 @@ export const Menu: React.FC<MenuProps> = ({
                       close();
                       item.onSelect();
                     }}
-                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm outline-none transition-colors hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:outline-none disabled:opacity-50 ${
-                      item.danger ? "text-danger" : "text-ink"
-                    }`}
+                    className={`flex w-full items-center rounded-lg text-left outline-none transition-colors hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:outline-none disabled:opacity-50 ${
+                      compact ? "gap-2 px-2.5 py-1.5 text-[0.8125rem]" : "gap-2.5 px-2.5 py-2 text-sm"
+                    } ${item.danger ? "text-danger" : "text-ink"}`}
                   >
-                    {item.icon && <Icon name={item.icon} className={`h-4 w-4 ${item.danger ? "" : "text-ink-3"}`} />}
+                    {item.icon && (
+                      <Icon
+                        name={item.icon}
+                        className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${item.danger ? "" : "text-ink-3"}`}
+                      />
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{item.label}</span>
                       {item.hint && <span className="block truncate text-xs text-ink-3">{item.hint}</span>}
                     </span>
-                    {item.checked && <Icon name="check" className="h-4 w-4 text-brand" strokeWidth={2.5} />}
+                    {item.checked && (
+                      <Icon name="check" className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} text-brand`} strokeWidth={2.5} />
+                    )}
                   </button>
                 );
               })}

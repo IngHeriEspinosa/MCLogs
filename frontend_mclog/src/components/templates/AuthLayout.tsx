@@ -49,10 +49,10 @@ export const AuthLayout: React.FC<{ children: React.ReactNode; title: string; su
         />
 
         <div className="relative flex items-center gap-3">
-          <Logo className="h-10 w-10" />
+          <Logo className="h-12 w-12" />
           <div className="leading-none">
             <p className="font-heading text-xl font-bold">{t.app.name}</p>
-            <p className="mt-1 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-rail-ink-2">{t.app.tagline}</p>
+            <p className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-rail-ink-2">{t.app.tagline}</p>
           </div>
         </div>
 
@@ -88,7 +88,7 @@ export const AuthLayout: React.FC<{ children: React.ReactNode; title: string; su
                   style={{ animationDelay: `${index * 120}ms`, animationFillMode: "both" }}
                 >
                   <span className="text-rail-ink-2">{line.time}</span>
-                  <span className={`w-12 font-semibold uppercase ${LEVEL_TEXT[line.level]}`}>{line.level}</span>
+                  <span className={`w-12 font-semibold uppercase mr-2 ${LEVEL_TEXT[line.level]}`}>{line.level}</span>
                   <span className="w-16 text-rail-ink">{line.app}</span>
                   <span className="truncate text-rail-ink-2">{line.message}</span>
                 </li>
