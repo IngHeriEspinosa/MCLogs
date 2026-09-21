@@ -10,7 +10,7 @@ type NavItem = { href: string; label: string; icon: IconName };
 type NavSection = { label: string; items: NavItem[]; adminOnly?: boolean };
 
 const isActive = (pathname: string, href: string) =>
-  href === "/" ? pathname === "/" || pathname.startsWith("/trace") : pathname.startsWith(href);
+  href === "/logs" ? pathname.startsWith("/logs") || pathname.startsWith("/trace") : pathname.startsWith(href);
 
 type SidebarProps = {
   collapsed: boolean;
@@ -34,7 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
     {
       label: t.nav.observe,
       items: [
-        { href: "/", label: t.nav.logs, icon: "logs" },
+        { href: "/logs", label: t.nav.logs, icon: "logs" },
         { href: "/errors", label: t.nav.errors, icon: "errors" },
         { href: "/reports", label: t.nav.reports, icon: "report" },
       ],
@@ -99,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
             mismo eje que los iconos y "MCLog" empieza donde empiezan las
             etiquetas, para que la columna no quede escalonada. */}
         <div className={`relative flex h-16 shrink-0 items-center pl-[1.0625rem] pr-4 ${collapsed ? "lg:justify-center lg:pl-0 lg:pr-0" : ""}`}>
-          <Link href="/" className="flex items-center gap-[0.4375rem] hover:no-underline" aria-label="MCLog">
+          <Link href="/logs" className="flex items-center gap-[0.4375rem] hover:no-underline" aria-label="MCLog">
             <Logo className="h-8 w-8 shrink-0 drop-shadow" />
             <span className={`flex flex-col leading-none ${collapsed ? "lg:hidden" : ""}`}>
               <span className="font-heading text-[1.0625rem] font-bold tracking-tight text-rail-ink">{t.app.name}</span>

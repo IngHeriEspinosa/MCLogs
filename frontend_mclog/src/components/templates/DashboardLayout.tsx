@@ -1,7 +1,7 @@
 "use client";
 // Template: DashboardLayout (riel de navegacion, barra superior y cabecera de pagina)
 import React, { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/organisms/Sidebar";
 import { Topbar } from "@/components/organisms/Topbar";
 import { useI18n } from "@/common/i18n/I18nProvider";
@@ -58,9 +58,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 }) => {
   const { t } = useI18n();
   const me = useMe();
+  const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = usePreference<boolean>("sidebarCollapsed", false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // /auth/me falla cuando no hay cookie de sesion o ha caducado. El destino
+  // viaja en ?next= para volver aqui despues de entrar.
+  useEffect(() => {
+    if (me.isError) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [me.isError, pathname, router]);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 

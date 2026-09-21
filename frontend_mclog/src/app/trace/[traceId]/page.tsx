@@ -136,7 +136,7 @@ export default function TracePage() {
       description={t.trace.description}
       actions={
         <>
-          <ButtonLink href="/" icon="arrowLeft" variant="ghost">
+          <ButtonLink href="/logs" icon="arrowLeft" variant="ghost">
             {t.trace.back}
           </ButtonLink>
           {logs.length > 0 && (

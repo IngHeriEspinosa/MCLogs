@@ -19,7 +19,11 @@ export default function LoginPage() {
     event.preventDefault();
     try {
       await login.mutateAsync({ email, password });
-      window.location.href = "/";
+      // El guard del panel manda aqui con ?next= para devolver a la pagina que
+      // se pidio. Solo se acepta una ruta interna: un destino absoluto seria
+      // una redireccion abierta hacia otro dominio.
+      const next = new URLSearchParams(window.location.search).get("next");
+      window.location.href = next?.startsWith("/") && !next.startsWith("//") ? next : "/logs";
     } catch {
       // el estado de error de la mutación muestra el mensaje
     }
