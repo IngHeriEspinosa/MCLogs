@@ -42,12 +42,6 @@ export type AlertEvent = {
   rule: { id: number; name: string; type: AlertRuleType };
 };
 
-export const CHANNEL_LABELS: Record<AlertChannelType, string> = {
-  webhook: "Webhook",
-  email: "Correo",
-  telegram: "Telegram",
-};
-
 const invalidate = (qc: ReturnType<typeof useQueryClient>, ...keys: string[]) =>
   keys.forEach((key) => qc.invalidateQueries({ queryKey: [key] }));
 

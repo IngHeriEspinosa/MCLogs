@@ -1,5 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
+import { Button, ButtonSize } from "@/components/atoms/Button";
+import { IconName } from "@/components/atoms/Icon";
 
 type Props = {
   onConfirm: () => void;
@@ -8,6 +10,8 @@ type Props = {
   confirmLabel: string;
   disabled?: boolean;
   pending?: boolean;
+  icon?: IconName;
+  size?: ButtonSize;
 };
 
 /**
@@ -18,7 +22,15 @@ type Props = {
  * confirma en unos segundos, el boton vuelve solo a su estado inicial para no
  * quedarse armado a la espera de un clic despistado.
  */
-export const ConfirmButton: React.FC<Props> = ({ onConfirm, children, confirmLabel, disabled, pending }) => {
+export const ConfirmButton: React.FC<Props> = ({
+  onConfirm,
+  children,
+  confirmLabel,
+  disabled,
+  pending,
+  icon = "trash",
+  size = "sm",
+}) => {
   const [armed, setArmed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -36,17 +48,16 @@ export const ConfirmButton: React.FC<Props> = ({ onConfirm, children, confirmLab
   };
 
   return (
-    <button
-      type="button"
+    <Button
+      size={size}
+      variant={armed ? "danger" : "ghost"}
+      icon={armed ? "alertCircle" : icon}
       onClick={handleClick}
-      disabled={disabled || pending}
-      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
-        armed
-          ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
-          : "border-slate-200 text-slate-700 hover:border-red-300 hover:text-red-700"
-      }`}
+      disabled={disabled}
+      loading={pending}
+      className={armed ? "" : "hover:bg-danger-soft hover:text-danger"}
     >
-      {pending ? "..." : armed ? confirmLabel : children}
-    </button>
+      {armed ? confirmLabel : children}
+    </Button>
   );
 };

@@ -24,7 +24,7 @@ let respuesta = { code: 201, body: '' };
 const modulos = {
     'N/https': {
         post: ({ url, body, headers }) => {
-            peticiones.push({ url, body: JSON.parse(body), headers });
+            peticiones.push({ url, body: JSON.parse(body), bytes: Buffer.byteLength(body, 'utf8'), headers });
             return respuesta;
         },
     },
@@ -117,6 +117,50 @@ comprobar('ningun trozo pasa del tope del servidor', () => peticiones.every((p) 
 
 reset();
 comprobar('un lote vacio no gasta una llamada', () => mclog.sendBatch([]) === true && peticiones.length === 0);
+
+/**
+ * El servidor corta el cuerpo en su BODY_LIMIT (3 MB) y responde 413, perdiendo
+ * el trozo entero. 500 errores con stacks de unos 7 KB ya pesan 4 MB, asi que
+ * trocear solo por numero no bastaba.
+ */
+grupo('sendBatch: troceo por bytes');
+
+const MAX_BYTES = 1024 * 1024;
+const conStack = (n) =>
+    entradas(n).map((e) => Object.assign(e, { error: { name: 'INVALID_FLD_VALUE', stack: Array(1400).fill('at x') } }));
+const mensaje = (texto) => ({ level: 'info', application: 'A', message: texto });
+const tamanos = () => peticiones.map((p) => p.bytes).join(', ');
+
+reset();
+comprobar('500 errores con stacks grandes se entregan', () => mclog.sendBatch(conStack(500)) === true);
+comprobar('se parten en varias peticiones', () => peticiones.length > 1, peticiones.length);
+comprobar('ningun cuerpo pasa de 1 MB', () => peticiones.every((p) => p.bytes <= MAX_BYTES), tamanos());
+comprobar(
+    'no se pierde ni se desordena ninguna entrada',
+    () =>
+        peticiones.flatMap((p) => p.body.logs.map((log) => log.message)).join('|') ===
+        entradas(500).map((e) => e.message).join('|'),
+);
+
+reset();
+mclog.sendBatch([mensaje('ñ'.repeat(300000)), mensaje('ñ'.repeat(300000))]);
+comprobar('mide bytes UTF-8 y no caracteres', () => peticiones.length === 2 && peticiones.every((p) => p.bytes <= MAX_BYTES), tamanos());
+
+reset();
+mclog.sendBatch([mensaje('😀'.repeat(150000)), mensaje('😀'.repeat(150000))]);
+comprobar('un emoji cuenta 4 bytes: no se queda corto', () => peticiones.every((p) => p.bytes <= MAX_BYTES), tamanos());
+
+reset();
+mclog.sendBatch([mensaje('😀'.repeat(100000)), mensaje('😀'.repeat(100000))]);
+comprobar('un emoji cuenta 4 bytes: ni se pasa', () => peticiones.length === 1, tamanos());
+
+reset();
+mclog.sendBatch([mensaje('antes'), mensaje('x'.repeat(1500000)), mensaje('despues')]);
+comprobar(
+    'la entrada que no cabe va sola y no arrastra a las demas',
+    () => peticiones.map((p) => p.body.logs.length).join(',') === '1,1,1',
+    peticiones.map((p) => p.body.logs.length).join(','),
+);
 
 grupo('sendBatch: comportamiento ante fallos');
 

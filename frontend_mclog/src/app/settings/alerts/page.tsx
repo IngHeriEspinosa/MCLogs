@@ -1,17 +1,26 @@
 "use client";
 import React, { useState } from "react";
-import { DashboardLayout } from "@/components/templates/DashboardLayout";
-import { Card } from "@/components/molecules/Card";
 import { Alert } from "@/components/atoms/Alert";
+import { Button } from "@/components/atoms/Button";
+import { Checkbox } from "@/components/atoms/Checkbox";
+import { EmptyState } from "@/components/atoms/EmptyState";
+import { Field, Fieldset } from "@/components/atoms/Field";
+import { Icon, IconName } from "@/components/atoms/Icon";
+import { Input } from "@/components/atoms/Input";
+import { Segmented } from "@/components/atoms/Segmented";
 import { Skeleton } from "@/components/atoms/Skeleton";
-import { PrimaryButton } from "@/components/atoms/PrimaryButton";
+import { Switch } from "@/components/atoms/Switch";
+import { Tag } from "@/components/atoms/Tag";
+import { Card } from "@/components/molecules/Card";
 import { ConfirmButton } from "@/components/molecules/ConfirmButton";
+import { Select } from "@/components/molecules/Select";
+import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
+import { useI18n } from "@/common/i18n/I18nProvider";
 import { useMe } from "@/hooks/useAuth";
 import {
   AlertChannelType,
   AlertRuleType,
-  CHANNEL_LABELS,
   useAlertChannels,
   useAlertEvents,
   useAlertRules,
@@ -23,21 +32,24 @@ import {
   useUpdateChannel,
   useUpdateRule,
 } from "@/hooks/useAlerts";
+import { useFilterOptions } from "@/hooks/useOptions";
 
-const inputClass =
-  "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500";
-const labelClass = "text-sm font-medium text-slate-700";
+type Tab = "channels" | "rules" | "history";
+const CHANNEL_TYPES: AlertChannelType[] = ["webhook", "email", "telegram"];
+const CHANNEL_ICON: Record<AlertChannelType, IconName> = { webhook: "webhook", email: "mail", telegram: "send" };
 
-const TABS = [
-  { id: "channels", label: "Canales" },
-  { id: "rules", label: "Reglas" },
-  { id: "history", label: "Historial" },
-] as const;
-type Tab = (typeof TABS)[number]["id"];
+const ListSkeleton = () => (
+  <div className="flex flex-col gap-2">
+    {Array.from({ length: 3 }).map((_, index) => (
+      <Skeleton key={index} className="h-16 w-full" />
+    ))}
+  </div>
+);
 
 // --- Canales ---
 
 const ChannelForm: React.FC = () => {
+  const { t } = useI18n();
   const [type, setType] = useState<AlertChannelType>("webhook");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -53,7 +65,7 @@ const ChannelForm: React.FC = () => {
       type === "webhook"
         ? { url: url.trim(), ...(secret.trim() ? { secret: secret.trim() } : {}) }
         : type === "email"
-          ? { to: to.split(",").map((valor) => valor.trim()).filter(Boolean) }
+          ? { to: to.split(",").map((value) => value.trim()).filter(Boolean) }
           : { botToken: botToken.trim(), chatId: chatId.trim() };
 
     await create.mutateAsync({ name: name.trim(), type, config });
@@ -66,186 +78,149 @@ const ChannelForm: React.FC = () => {
   };
 
   return (
-    <Card title="Nuevo canal">
-      <form className="flex flex-col gap-4" onSubmit={submit}>
-        <div className="flex flex-wrap gap-4">
-          <label className={`flex-1 ${labelClass}`}>
-            Nombre
-            <input className={`mt-1 ${inputClass}`} value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-          <label className={labelClass}>
-            Tipo
-            <select
-              className={`mt-1 ${inputClass}`}
-              value={type}
-              onChange={(e) => setType(e.target.value as AlertChannelType)}
-            >
-              {(Object.keys(CHANNEL_LABELS) as AlertChannelType[]).map((valor) => (
-                <option key={valor} value={valor}>
-                  {CHANNEL_LABELS[valor]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+    <Card title={t.alerts.newChannel} divider>
+      <form className="flex flex-col gap-5" onSubmit={submit}>
+        <Field label={t.alerts.type}>
+          <Segmented
+            label={t.alerts.type}
+            value={type}
+            onChange={setType}
+            className="w-full"
+            options={CHANNEL_TYPES.map((value) => ({ value, label: t.alerts.channelTypes[value], icon: CHANNEL_ICON[value] }))}
+          />
+        </Field>
+        <Field label={t.alerts.name}>
+          <Input value={name} onChange={(event) => setName(event.target.value)} required />
+        </Field>
 
         {type === "webhook" && (
           <>
-            <label className={labelClass}>
-              URL
-              <input
-                type="url"
-                className={`mt-1 ${inputClass}`}
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://hooks.slack.com/services/…"
-                required
-              />
-              <span className="mt-1 block text-xs font-normal text-slate-500">
-                Sirve para Slack, Discord, Teams, n8n o cualquier receptor que acepte un POST con JSON.
-              </span>
-            </label>
-            <label className={labelClass}>
-              Secreto de firma
-              <input className={`mt-1 ${inputClass}`} value={secret} onChange={(e) => setSecret(e.target.value)} />
-              <span className="mt-1 block text-xs font-normal text-slate-500">
-                Opcional. Si lo pones, cada aviso viaja firmado con HMAC-SHA256 en la cabecera{" "}
-                <code className="font-mono">x-mclog-signature</code>, para que el receptor compruebe que viene de MCLog.
-              </span>
-            </label>
+            <Field label={t.alerts.url} hint={t.alerts.urlHint}>
+              <Input type="url" icon="webhook" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://hooks.slack.com/services/…" required />
+            </Field>
+            <Field label={t.alerts.secret} hint={t.alerts.secretHint} aside={t.common.optional}>
+              <Input value={secret} onChange={(event) => setSecret(event.target.value)} className="font-mono" />
+            </Field>
           </>
         )}
 
         {type === "email" && (
-          <label className={labelClass}>
-            Destinatarios
-            <input
-              className={`mt-1 ${inputClass}`}
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="soporte@empresa.com, guardia@empresa.com"
-              required
-            />
-            <span className="mt-1 block text-xs font-normal text-slate-500">
-              Separados por comas. El servidor SMTP se configura con las variables <code className="font-mono">SMTP_*</code>{" "}
-              del backend.
-            </span>
-          </label>
+          <Field label={t.alerts.recipients} hint={t.alerts.recipientsHint}>
+            <Input icon="mail" value={to} onChange={(event) => setTo(event.target.value)} placeholder="ops@company.com, oncall@company.com" required />
+          </Field>
         )}
 
         {type === "telegram" && (
-          <div className="flex flex-wrap gap-4">
-            <label className={`flex-1 ${labelClass}`}>
-              Token del bot
-              <input
-                className={`mt-1 ${inputClass}`}
-                value={botToken}
-                onChange={(e) => setBotToken(e.target.value)}
-                placeholder="123456:ABC-DEF…"
-                required
-              />
-            </label>
-            <label className={`flex-1 ${labelClass}`}>
-              Chat ID
-              <input className={`mt-1 ${inputClass}`} value={chatId} onChange={(e) => setChatId(e.target.value)} required />
-            </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t.alerts.botToken}>
+              <Input value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder="123456:ABC-DEF…" className="font-mono" required />
+            </Field>
+            <Field label={t.alerts.chatId}>
+              <Input value={chatId} onChange={(event) => setChatId(event.target.value)} className="font-mono" required />
+            </Field>
           </div>
         )}
 
-        {create.isError && <Alert variant="error">{errorMessage(create.error)}</Alert>}
+        {create.isError && <Alert variant="error">{errorMessage(create.error, t.common.unknownError)}</Alert>}
 
-        <div>
-          <PrimaryButton type="submit" loading={create.isPending}>
-            Crear canal
-          </PrimaryButton>
-        </div>
+        <Button type="submit" variant="primary" icon="plus" loading={create.isPending}>
+          {t.alerts.createChannel}
+        </Button>
       </form>
     </Card>
   );
 };
 
 const ChannelsTab: React.FC = () => {
+  const { t } = useI18n();
   const channels = useAlertChannels();
   const update = useUpdateChannel();
   const remove = useDeleteChannel();
   const test = useTestChannel();
-  const [probado, setProbado] = useState<{ id: number; ok: boolean; error?: string } | null>(null);
+  const [tested, setTested] = useState<{ id: number; ok: boolean; error?: string } | null>(null);
 
-  const probar = async (id: number) => {
-    setProbado(null);
-    const resultado = await test.mutateAsync(id);
-    setProbado({ id, ok: resultado.ok, error: resultado.error });
+  const runTest = async (id: number) => {
+    setTested(null);
+    const result = await test.mutateAsync(id);
+    setTested({ id, ok: result.ok, error: result.error });
   };
 
+  const data = channels.data ?? [];
+
   return (
-    <>
+    <div className="grid items-start gap-4 2xl:grid-cols-[26rem_minmax(0,1fr)] 3xl:gap-5">
       <ChannelForm />
-      <Card title={`Canales (${channels.data?.length ?? 0})`}>
-        {channels.isLoading && <Skeleton className="h-16 w-full" />}
-        {channels.isError && <Alert variant="error">{errorMessage(channels.error)}</Alert>}
-
-        {channels.data?.length === 0 && (
-          <p className="py-6 text-center text-sm text-slate-500">
-            Todavía no hay canales. Crea uno para poder recibir avisos.
-          </p>
+      <Card title={`${t.alerts.channels} · ${data.length}`} divider>
+        {channels.isLoading && <ListSkeleton />}
+        {channels.isError && <Alert variant="error">{errorMessage(channels.error, t.common.unknownError)}</Alert>}
+        {channels.isSuccess && data.length === 0 && (
+          <EmptyState icon="bell" title={t.alerts.channelsEmpty} description={t.alerts.channelsEmptyHint} />
         )}
-
-        <div className="flex flex-col gap-2">
-          {channels.data?.map((channel) => (
-            <div key={channel.id} className="rounded-lg border border-slate-200 px-3 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">
+        <ul className="flex flex-col gap-2">
+          {data.map((channel) => (
+            <li key={channel.id} className="rounded-xl border border-line p-3.5 transition-colors hover:border-line-strong">
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                    channel.enabled ? "bg-brand-soft text-brand" : "bg-surface-3 text-ink-3"
+                  }`}
+                >
+                  <Icon name={CHANNEL_ICON[channel.type]} className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
                     {channel.name}
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-                      {CHANNEL_LABELS[channel.type]}
-                    </span>
-                    {!channel.enabled && <span className="ml-2 text-xs text-slate-400">desactivado</span>}
+                    <Tag tone="neutral">{t.alerts.channelTypes[channel.type]}</Tag>
+                    {!channel.enabled && <Tag tone="warning">{t.common.disabled}</Tag>}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                  <p className="mt-0.5 truncate font-mono text-xs text-ink-3">
                     {channel.type === "webhook" && String(channel.config.url ?? "")}
                     {channel.type === "email" && (channel.config.to as string[] | undefined)?.join(", ")}
-                    {channel.type === "telegram" && `chat ${String(channel.config.chatId ?? "")}`}
+                    {channel.type === "telegram" && t.alerts.chat(String(channel.config.chatId ?? ""))}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => probar(channel.id)}
+                <div className="flex items-center gap-1">
+                  <Switch
+                    hideLabel
+                    size="sm"
+                    label={channel.enabled ? t.common.disable : t.common.enable}
+                    checked={channel.enabled}
+                    onChange={(enabled) => update.mutate({ id: channel.id, enabled })}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="send"
+                    onClick={() => runTest(channel.id)}
+                    loading={test.isPending && test.variables === channel.id}
                     disabled={test.isPending}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className="ml-2"
                   >
-                    Enviar prueba
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => update.mutate({ id: channel.id, enabled: !channel.enabled })}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    {channel.enabled ? "Desactivar" : "Activar"}
-                  </button>
-                  <ConfirmButton onConfirm={() => remove.mutate(channel.id)} confirmLabel="Sí, eliminar">
-                    Eliminar
+                    {t.alerts.sendTest}
+                  </Button>
+                  <ConfirmButton onConfirm={() => remove.mutate(channel.id)} confirmLabel={t.common.confirmRemove}>
+                    {t.common.remove}
                   </ConfirmButton>
                 </div>
               </div>
-
-              {probado?.id === channel.id && (
-                <Alert variant={probado.ok ? "success" : "error"} className="mt-2">
-                  {probado.ok ? "Aviso de prueba entregado." : `No se pudo entregar: ${probado.error}`}
+              {tested?.id === channel.id && (
+                <Alert variant={tested.ok ? "success" : "error"} className="mt-3">
+                  {tested.ok ? t.alerts.testOk : t.alerts.testFailed(tested.error ?? "")}
                 </Alert>
               )}
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </Card>
-    </>
+    </div>
   );
 };
 
 // --- Reglas ---
 
 const RuleForm: React.FC = () => {
+  const { t } = useI18n();
+  const options = useFilterOptions();
   const channels = useAlertChannels();
   const create = useCreateRule();
 
@@ -259,8 +234,8 @@ const RuleForm: React.FC = () => {
   const [cooldownMinutes, setCooldownMinutes] = useState(30);
   const [channelIds, setChannelIds] = useState<number[]>([]);
 
-  const toggleChannel = (id: number) =>
-    setChannelIds((actual) => (actual.includes(id) ? actual.filter((valor) => valor !== id) : [...actual, id]));
+  const toggleChannel = (id: number, checked: boolean) =>
+    setChannelIds((current) => (checked ? [...current, id] : current.filter((value) => value !== id)));
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -280,278 +255,250 @@ const RuleForm: React.FC = () => {
     setChannelIds([]);
   };
 
+  const numberInput = (value: number, onChange: (value: number) => void, min: number, max?: number) => (
+    <Input type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} className="font-mono tabular-nums" />
+  );
+
   return (
-    <Card title="Nueva regla">
-      <form className="flex flex-col gap-4" onSubmit={submit}>
-        <div className="flex flex-wrap gap-4">
-          <label className={`flex-1 ${labelClass}`}>
-            Nombre
-            <input
-              className={`mt-1 ${inputClass}`}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Errores de facturación en producción"
-              required
-            />
-          </label>
-          <label className={labelClass}>
-            Tipo
-            <select
-              className={`mt-1 ${inputClass}`}
-              value={type}
-              onChange={(e) => setType(e.target.value as AlertRuleType)}
-            >
-              <option value="threshold">Umbral de repeticiones</option>
-              <option value="new_error_group">Error nuevo</option>
-            </select>
-          </label>
-        </div>
+    <Card title={t.alerts.newRule} divider>
+      <form className="flex flex-col gap-5" onSubmit={submit}>
+        <Field label={t.alerts.name}>
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={t.alerts.ruleNamePlaceholder} required />
+        </Field>
 
-        <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          {type === "threshold"
-            ? "Avisa cuando se acumulan al menos N coincidencias dentro de la ventana."
-            : "Avisa cuando aparece un error que no se había visto nunca antes. Es la señal más útil justo después de un despliegue."}
-        </p>
+        <Field label={t.alerts.type}>
+          <Segmented
+            label={t.alerts.type}
+            value={type}
+            onChange={setType}
+            className="w-full"
+            options={[
+              { value: "threshold", label: t.alerts.ruleTypes.threshold, icon: "activity" },
+              { value: "new_error_group", label: t.alerts.ruleTypes.new_error_group, icon: "zap" },
+            ]}
+          />
+        </Field>
+        <p className="-mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs leading-relaxed text-ink-2">{t.alerts.ruleTypeHints[type]}</p>
 
-        <div className="flex flex-wrap gap-4">
-          <label className={`flex-1 ${labelClass}`}>
-            Aplicación
-            <input
-              className={`mt-1 ${inputClass}`}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t.alerts.application}>
+            <Select
+              icon="box"
               value={application}
-              onChange={(e) => setApplication(e.target.value)}
-              placeholder="Todas"
+              onChange={setApplication}
+              options={[{ value: "", label: t.alerts.allApps }, ...options.apps.slice(1)]}
+              searchable
+              allowCustom
             />
-          </label>
-          <label className={labelClass}>
-            Entorno
-            <select className={`mt-1 ${inputClass}`} value={environment} onChange={(e) => setEnvironment(e.target.value)}>
-              <option value="">Todos</option>
-              <option value="development">development</option>
-              <option value="staging">staging</option>
-              <option value="production">production</option>
-            </select>
-          </label>
-          <label className={labelClass}>
-            Nivel mínimo
-            <select className={`mt-1 ${inputClass}`} value={level} onChange={(e) => setLevel(e.target.value)}>
-              <option value="error">error</option>
-              <option value="warn">warn y error</option>
-            </select>
-          </label>
+          </Field>
+          <Field label={t.alerts.environment}>
+            <Select
+              icon="layers"
+              value={environment}
+              onChange={setEnvironment}
+              options={[{ value: "", label: t.alerts.allEnvs }, ...options.environments.slice(1)]}
+            />
+          </Field>
         </div>
 
-        <div className="flex flex-wrap gap-4">
-          <label className={labelClass}>
-            {type === "threshold" ? "Umbral" : "Errores nuevos"}
-            <input
-              type="number"
-              min={1}
-              className={`mt-1 ${inputClass}`}
-              value={threshold}
-              onChange={(e) => setThreshold(Number(e.target.value))}
-            />
-          </label>
-          <label className={labelClass}>
-            Ventana (min)
-            <input
-              type="number"
-              min={1}
-              max={1440}
-              className={`mt-1 ${inputClass}`}
-              value={windowMinutes}
-              onChange={(e) => setWindowMinutes(Number(e.target.value))}
-            />
-          </label>
-          <label className={labelClass}>
-            Silencio tras avisar (min)
-            <input
-              type="number"
-              min={0}
-              max={1440}
-              className={`mt-1 ${inputClass}`}
-              value={cooldownMinutes}
-              onChange={(e) => setCooldownMinutes(Number(e.target.value))}
-            />
-          </label>
+        <Field label={t.alerts.minLevel}>
+          <Select
+            value={level}
+            onChange={setLevel}
+            options={[
+              { value: "error", label: t.alerts.minLevels.error, dotClass: "bg-lvl-error" },
+              { value: "warn", label: t.alerts.minLevels.warn, dotClass: "bg-lvl-warn" },
+            ]}
+          />
+        </Field>
+
+        <div className="grid grid-cols-3 gap-3">
+          <Field label={type === "threshold" ? t.alerts.threshold : t.alerts.newErrors}>{numberInput(threshold, setThreshold, 1)}</Field>
+          <Field label={t.alerts.window}>{numberInput(windowMinutes, setWindowMinutes, 1, 1440)}</Field>
+          <Field label={t.alerts.cooldown}>{numberInput(cooldownMinutes, setCooldownMinutes, 0, 1440)}</Field>
         </div>
 
-        <fieldset>
-          <legend className={labelClass}>Avisar por</legend>
+        <Fieldset legend={t.alerts.notifyVia} hint={channelIds.length === 0 ? t.alerts.pickChannel : undefined}>
           {channels.data?.length === 0 ? (
-            <p className="mt-1 text-xs text-slate-500">Crea antes un canal en la pestaña anterior.</p>
+            <p className="text-xs text-ink-3">{t.alerts.needChannel}</p>
           ) : (
-            <div className="mt-2 flex flex-wrap gap-3">
+            <div className="grid gap-2 sm:grid-cols-2">
               {channels.data?.map((channel) => (
-                <label key={channel.id} className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={channelIds.includes(channel.id)}
-                    onChange={() => toggleChannel(channel.id)}
-                  />
-                  {channel.name}
-                </label>
+                <Checkbox
+                  key={channel.id}
+                  variant="card"
+                  checked={channelIds.includes(channel.id)}
+                  onChange={(checked) => toggleChannel(channel.id, checked)}
+                  label={channel.name}
+                  description={t.alerts.channelTypes[channel.type]}
+                />
               ))}
             </div>
           )}
-        </fieldset>
+        </Fieldset>
 
-        {create.isError && <Alert variant="error">{errorMessage(create.error)}</Alert>}
+        {create.isError && <Alert variant="error">{errorMessage(create.error, t.common.unknownError)}</Alert>}
 
-        <div>
-          <PrimaryButton type="submit" loading={create.isPending} disabled={channelIds.length === 0}>
-            Crear regla
-          </PrimaryButton>
-          {channelIds.length === 0 && (
-            <span className="ml-3 text-xs text-slate-500">Selecciona al menos un canal.</span>
-          )}
-        </div>
+        <Button type="submit" variant="primary" icon="plus" loading={create.isPending} disabled={channelIds.length === 0}>
+          {t.alerts.createRule}
+        </Button>
       </form>
     </Card>
   );
 };
 
 const RulesTab: React.FC = () => {
+  const { t, fmt } = useI18n();
   const rules = useAlertRules();
   const update = useUpdateRule();
   const remove = useDeleteRule();
+  const data = rules.data ?? [];
 
   return (
-    <>
+    <div className="grid items-start gap-4 2xl:grid-cols-[28rem_minmax(0,1fr)] 3xl:gap-5">
       <RuleForm />
-      <Card title={`Reglas (${rules.data?.length ?? 0})`}>
-        {rules.isLoading && <Skeleton className="h-16 w-full" />}
-        {rules.isError && <Alert variant="error">{errorMessage(rules.error)}</Alert>}
-
-        {rules.data?.length === 0 && (
-          <p className="py-6 text-center text-sm text-slate-500">Todavía no hay reglas.</p>
+      <Card title={`${t.alerts.rules} · ${data.length}`} divider>
+        {rules.isLoading && <ListSkeleton />}
+        {rules.isError && <Alert variant="error">{errorMessage(rules.error, t.common.unknownError)}</Alert>}
+        {rules.isSuccess && data.length === 0 && (
+          <EmptyState icon="bell" title={t.alerts.rulesEmpty} description={t.alerts.rulesEmptyHint} />
         )}
-
-        <div className="flex flex-col gap-2">
-          {rules.data?.map((rule) => (
-            <div key={rule.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2">
-              <div>
-                <p className="text-sm font-medium text-slate-900">
+        <ul className="flex flex-col gap-2">
+          {data.map((rule) => (
+            <li key={rule.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3.5 transition-colors hover:border-line-strong">
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                  rule.enabled ? "bg-brand-soft text-brand" : "bg-surface-3 text-ink-3"
+                }`}
+              >
+                <Icon name={rule.type === "new_error_group" ? "zap" : "activity"} className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
                   {rule.name}
-                  {!rule.enabled && <span className="ml-2 text-xs font-normal text-slate-400">desactivada</span>}
+                  <Tag tone="neutral">{t.alerts.ruleTypes[rule.type]}</Tag>
+                  {!rule.enabled && <Tag tone="warning">{t.common.disabled}</Tag>}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-ink-3">
                   {rule.type === "new_error_group"
-                    ? `${rule.threshold} error(es) nuevo(s) en ${rule.windowMinutes} min`
-                    : `${rule.threshold} o más en ${rule.windowMinutes} min`}
+                    ? t.alerts.summaryNew(rule.threshold, rule.windowMinutes)
+                    : t.alerts.summaryThreshold(rule.threshold, rule.windowMinutes)}
                   {" · "}
-                  {rule.application ?? "todas las apps"}
+                  <span className="font-mono">{rule.application ?? t.alerts.allAppsLower}</span>
                   {rule.environment ? ` · ${rule.environment}` : ""}
-                  {" · nivel "}
-                  {rule.level}
-                  {" · avisa por "}
-                  {rule.channels.map((channel) => channel.name).join(", ") || "ningún canal"}
+                  {" · "}
+                  {t.alerts.levelLabel(rule.level)}
+                  {" · "}
+                  {t.alerts.via(rule.channels.map((channel) => channel.name).join(", ") || t.alerts.noChannel)}
                 </p>
                 {rule.lastTriggeredAt && (
-                  <p className="text-xs text-slate-400">
-                    Último aviso: {new Date(rule.lastTriggeredAt).toLocaleString()}
+                  <p className="mt-0.5 text-xs text-ink-3" title={fmt.dateTime(rule.lastTriggeredAt)}>
+                    {t.alerts.lastTriggered(fmt.relative(rule.lastTriggeredAt))}
                   </p>
                 )}
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => update.mutate({ id: rule.id, enabled: !rule.enabled })}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  {rule.enabled ? "Desactivar" : "Activar"}
-                </button>
-                <ConfirmButton onConfirm={() => remove.mutate(rule.id)} confirmLabel="Sí, eliminar">
-                  Eliminar
-                </ConfirmButton>
+              <div className="flex items-center gap-1">
+                <Switch
+                  hideLabel
+                  size="sm"
+                  label={rule.enabled ? t.common.disable : t.common.enable}
+                  checked={rule.enabled}
+                  onChange={(enabled) => update.mutate({ id: rule.id, enabled })}
+                />
+                <span className="ml-2">
+                  <ConfirmButton onConfirm={() => remove.mutate(rule.id)} confirmLabel={t.common.confirmRemove}>
+                    {t.common.remove}
+                  </ConfirmButton>
+                </span>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </Card>
-    </>
+    </div>
   );
 };
 
 // --- Historial ---
 
 const HistoryTab: React.FC = () => {
+  const { t, fmt } = useI18n();
   const events = useAlertEvents();
+  const data = events.data ?? [];
 
   return (
-    <Card title="Últimos avisos">
-      {events.isLoading && <Skeleton className="h-16 w-full" />}
-      {events.isError && <Alert variant="error">{errorMessage(events.error)}</Alert>}
-
-      {events.data?.length === 0 && (
-        <p className="py-6 text-center text-sm text-slate-500">Ninguna regla se ha disparado todavía.</p>
-      )}
-
-      <div className="flex flex-col gap-2">
-        {events.data?.map((event) => {
-          const fallidos = event.deliveries.filter((entrega) => !entrega.ok);
+    <Card title={t.alerts.history} divider>
+      {events.isLoading && <ListSkeleton />}
+      {events.isError && <Alert variant="error">{errorMessage(events.error, t.common.unknownError)}</Alert>}
+      {events.isSuccess && data.length === 0 && <EmptyState icon="bell" title={t.alerts.historyEmpty} />}
+      <ol className="relative flex flex-col gap-2">
+        {data.map((event) => {
+          const failed = event.deliveries.filter((delivery) => !delivery.ok);
           return (
-            <div key={event.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-medium text-slate-900">{event.rule.name}</span>
-                <span className="text-xs text-slate-500">{new Date(event.triggeredAt).toLocaleString()}</span>
+            <li key={event.id} className="rounded-xl border border-line p-3.5">
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                    failed.length ? "bg-danger-soft text-danger" : "bg-success-soft text-success"
+                  }`}
+                >
+                  <Icon name={failed.length ? "alertCircle" : "checkCircle"} className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-ink">{event.rule.name}</p>
+                  <p className="text-xs text-ink-3">
+                    {t.alerts.matches(event.count)} · {t.alerts.delivered(event.deliveries.length - failed.length, event.deliveries.length)}
+                  </p>
+                </div>
+                <span className="font-mono text-xs text-ink-3" title={fmt.dateTime(event.triggeredAt)}>
+                  {fmt.relative(event.triggeredAt)}
+                </span>
               </div>
-              <p className="mt-0.5 text-xs text-slate-600">
-                {event.count} coincidencia{event.count === 1 ? "" : "s"} · entregado a{" "}
-                {event.deliveries.length - fallidos.length} de {event.deliveries.length} canal
-                {event.deliveries.length === 1 ? "" : "es"}
-              </p>
-              {fallidos.length > 0 && (
-                <Alert variant="error" className="mt-2">
-                  {fallidos.map((entrega) => `${entrega.channelName}: ${entrega.error}`).join(" · ")}
+              {failed.length > 0 && (
+                <Alert variant="error" className="mt-3">
+                  {failed.map((delivery) => `${delivery.channelName}: ${delivery.error}`).join(" · ")}
                 </Alert>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </Card>
   );
 };
 
 export default function AlertsPage() {
+  const { t } = useI18n();
   const me = useMe();
   const [tab, setTab] = useState<Tab>("channels");
 
   if (me.isSuccess && me.data.role !== "admin") {
     return (
-      <DashboardLayout title="Alertas">
-        <Alert variant="error">Esta sección requiere rol de administrador.</Alert>
+      <DashboardLayout title={t.alerts.title} eyebrow={t.alerts.eyebrow} width="narrow">
+        <Alert variant="error">{t.common.adminOnly}</Alert>
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout title="Alertas" bare>
-      <p className="text-sm text-slate-600">
-        Una <strong>regla</strong> define cuándo avisar y un <strong>canal</strong> por dónde. El servicio comprueba las
-        reglas cada minuto, y tras disparar una la silencia el tiempo que indiques, para que un incidente de una hora no
-        genere sesenta avisos iguales.
-      </p>
-
-      <div className="flex gap-1 border-b border-slate-200">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            aria-current={tab === item.id ? "page" : undefined}
-            className={`border-b-2 px-4 py-2 text-sm font-medium transition ${
-              tab === item.id
-                ? "border-primary-600 text-primary-700"
-                : "border-transparent text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
+    <DashboardLayout
+      title={t.alerts.title}
+      eyebrow={t.alerts.eyebrow}
+      description={t.alerts.description}
+      actions={
+        <Segmented
+          label={t.alerts.title}
+          semantics="tabs"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "channels", label: t.alerts.tabs.channels, icon: "send" },
+            { value: "rules", label: t.alerts.tabs.rules, icon: "sliders" },
+            { value: "history", label: t.alerts.tabs.history, icon: "clock" },
+          ]}
+        />
+      }
+    >
       {tab === "channels" && <ChannelsTab />}
       {tab === "rules" && <RulesTab />}
       {tab === "history" && <HistoryTab />}

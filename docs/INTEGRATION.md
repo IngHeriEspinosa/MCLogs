@@ -29,6 +29,8 @@ Cualquier aplicación que pueda hacer una petición HTTP puede enviar logs a MCL
 | `errorStack` | string ≤50 000 | — | Stack trace |
 | `fingerprint` | string ≤64 | — | Huella de agrupación propia. Si falta, la calcula el servidor |
 
+`message`, `errorName`, `errorCode` y `errorStack` no se rechazan si pasan de su tope: se recortan, terminando en `…`, y la longitud original queda en `metadata.mclogTruncated`. Un stack enorme no te hace perder el log, ni el resto del lote.
+
 ### Manda la excepción, no solo su mensaje
 
 Con `error`, MCLog agrupa las repeticiones del mismo fallo en un solo grupo con su conteo. Sin él, cada mensaje con un id distinto parece un problema diferente:
@@ -106,7 +108,7 @@ await mclog.sendBatch([
 
 Los errores de red **no rompen tu aplicación**: la función devuelve `false` y sigue. La librería no escribe en tu consola por su cuenta — si quieres enterarte de los fallos usa el hook `onError`, o pide excepciones con `throwOnError: true`.
 
-`sendBatch` **trocea automáticamente** al tamaño máximo del servidor, así que puedes pasarle un array de cualquier longitud.
+`sendBatch` **trocea automáticamente** por número de entradas y por bytes, por debajo de los topes del servidor, así que puedes pasarle un array de cualquier longitud.
 
 Referencia completa de opciones: [packages/mclog/README.md](../packages/mclog/README.md).
 
@@ -172,7 +174,7 @@ Incluye automáticamente `scriptId`, `deploymentId`, `accountId`, `userId` y gov
 3. **Usa `traceId`** para correlacionar una operación que cruza varios sistemas (pásalo entre servicios y búscalo en el dashboard).
 4. **`metadata` compacta**: ids y valores relevantes, no dumps completos de registros (el límite del body es 3 MB, pero la consulta agradece payloads pequeños).
 5. **Una `application` por app real** y `service` para el subcomponente — así el filtro por aplicación del dashboard se mantiene útil.
-6. **Una clave por emisor, con los permisos justos.** Créalas desde el dashboard (Ajustes → API keys) con permiso `ingest` y acotadas a su aplicación: así una clave filtrada no puede leer nada ni escribir en nombre de otra. Rotarlas no corta el servicio: creas la nueva, actualizas al emisor y revocas la vieja.
+6. **Una clave por emisor, con los permisos justos.** Créalas desde el dashboard (Administración → API keys) con permiso `ingest` y acotadas a su aplicación: así una clave filtrada no puede leer nada ni escribir en nombre de otra. Rotarlas no corta el servicio: creas la nueva, actualizas al emisor y revocas la vieja.
 7. **Manda la excepción entera** en el campo `error` cuando registres un fallo. Es lo que permite agrupar.
 
 ## Consulta programática (opcional)

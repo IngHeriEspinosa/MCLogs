@@ -2,10 +2,13 @@
 
 Dashboard web para consultar y gestionar los logs centralizados de MCLog.
 
-- Next.js 14 (App Router) + React Query v5 + Tailwind.
+- Next.js 14 (App Router) + React Query v5 + Tailwind, sin librerías de componentes ni de gráficos.
+- Español e inglés; tema claro, oscuro o del sistema, sin destello al cargar.
+- Diseñado de móvil a 4K (3840 px): la interfaz escala y aprovecha el ancho.
 - Login con sesión en cookies httpOnly y renovación automática.
-- Estadísticas en vivo, filtros combinables (nivel, entorno, aplicación, búsqueda, fechas), orden, paginación, detalle expandible con metadata y export CSV/NDJSON con filtros aplicados.
-- Filtros sincronizados con la URL (enlaces compartibles).
+- Resumen con métricas y gráfico de actividad interactivo, filtros combinables sincronizados con la URL, tabla con detalle lateral (stack, metadata, contexto) y modo en vivo.
+- Errores agrupados por huella y trazas distribuidas con línea temporal.
+- Reportes en Markdown para personas, briefs para agentes de IA (Markdown o JSON) con enmascarado de datos sensibles, y export CSV/NDJSON con los filtros aplicados.
 
 ## Arranque
 
@@ -19,6 +22,8 @@ Configuración en `.env.local`:
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
+
+El build descarga las tipografías de Google Fonts una vez y las sirve después desde el propio dashboard. Detrás de un proxy corporativo con certificado propio, usa `NODE_OPTIONS=--use-system-ca` (Node 22.15+).
 
 ## Documentación
 

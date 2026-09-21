@@ -85,7 +85,7 @@ docker compose -f docker-compose.prod.yml ps
 curl https://<tu dominio>/health
 ```
 
-`/health` debe responder `{"status":"ok","database":"up",...}`. Entra en `https://<tu dominio>` con las credenciales de administrador y **cambia la contraseña** desde Ajustes.
+`/health` debe responder `{"status":"ok","database":"up",...}`. Entra en `https://<tu dominio>` con las credenciales de administrador y **cambia la contraseña** desde **Mi cuenta**.
 
 > **El arranque falla a propósito** si `NODE_ENV=production` y queda algún `CAMBIAR-...` sin rellenar, los dos secretos JWT son iguales o `CORS_ORIGINS` está vacío. El mensaje lista de una vez todo lo que falta. Es la guardia de configuración, no un error.
 
@@ -95,7 +95,7 @@ curl https://<tu dominio>/health
 
 ### 4.1 Crear las claves de las integraciones
 
-Desde **Ajustes → API keys**. El secreto se muestra **una sola vez**: cópialo en ese momento, porque en la base solo queda su hash.
+Desde **Administración → API keys**. El secreto se muestra **una sola vez**: cópialo en ese momento, porque en la base solo queda su hash.
 
 | Para qué | Scopes | Aplicaciones |
 |---|---|---|

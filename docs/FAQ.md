@@ -61,7 +61,7 @@ Depende de cómo lo hayas integrado:
 La regla es innegociable: **el logging nunca debe tumbar la aplicación**.
 
 ### ¿Cuántos logs puedo mandar de golpe?
-500 por petición con `POST /api/logs/batch` (configurable con `MAX_BATCH_SIZE`). Si usas `sendBatch` de la librería Node, puedes pasarle un array de cualquier tamaño: lo trocea solo.
+500 por petición con `POST /api/logs/batch` (configurable con `MAX_BATCH_SIZE`). El cuerpo de la petición no puede pasar de 3 MB (`BODY_LIMIT`). Si usas `sendBatch` de la librería Node o del cliente NetSuite, puedes pasarle un array de cualquier tamaño: lo trocea solo, por número de entradas y por bytes.
 
 ### ¿Hay límite de peticiones?
 2000 por minuto para ingesta, por defecto. Si lo superas recibes `429`. Casi siempre la solución correcta no es subir el límite, sino **agrupar en lotes**.
@@ -128,7 +128,7 @@ Solo se puede activar en la primera página y con el orden por fecha descendente
 ## Sesiones y usuarios
 
 ### ¿Cómo creo usuarios nuevos?
-Desde el dashboard, en **Ajustes → Usuarios**, si tu usuario es `admin`. Puedes dar de alta, cambiar el rol, restablecer la contraseña y eliminar. El admin inicial se sigue creando solo al arrancar desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+Desde el dashboard, en **Administración → Usuarios**, si tu usuario es `admin`. Puedes dar de alta, cambiar el rol, restablecer la contraseña y eliminar. El admin inicial se sigue creando solo al arrancar desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
 
 Dos operaciones están bloqueadas a propósito: nadie puede borrarse a sí mismo, ni eliminar o degradar al último administrador. Sin ellas sería posible dejar el servicio sin quien lo administre.
 
@@ -136,7 +136,7 @@ Dos operaciones están bloqueadas a propósito: nadie puede borrarse a sí mismo
 `user` (consultar, buscar, estadísticas, exportar) y `admin` (todo lo anterior más purgar logs). Es el único permiso que distingue a ambos.
 
 ### Olvidé la contraseña de un usuario
-Cualquier administrador puede restablecerla desde **Ajustes → Usuarios**. Si quien la ha perdido es el único administrador, no hay recuperación posible desde la aplicación (bcrypt es de una vía): hay que generar un hash nuevo y actualizar la fila a mano.
+Cualquier administrador puede restablecerla desde **Administración → Usuarios**. Si quien la ha perdido es el único administrador, no hay recuperación posible desde la aplicación (bcrypt es de una vía): hay que generar un hash nuevo y actualizar la fila a mano.
 
 ```bash
 node -e "console.log(require('bcryptjs').hashSync('NuevaContraseña', 12))"
@@ -148,7 +148,7 @@ docker compose exec db psql -U postgres -d mclog -c \
 Porque el access token dura 15 minutos pero se **renueva solo** con el refresh token (14 días) mientras sigas usando la aplicación. Solo vuelves al login si dejas de usarla el tiempo suficiente para que caduque también el refresh, o si haces logout.
 
 ### ¿Puedo cerrar la sesión en todos los dispositivos?
-Sí: cambia tu contraseña en **Ajustes → Mi cuenta**. Al hacerlo se revocan todos tus refresh tokens, así que las sesiones abiertas en cualquier otro dispositivo dejan de valer. Lo mismo ocurre cuando un administrador cambia la contraseña o el rol de alguien.
+Sí: cambia tu contraseña en **Mi cuenta**. Al hacerlo se revocan todos tus refresh tokens, así que las sesiones abiertas en cualquier otro dispositivo dejan de valer. Lo mismo ocurre cuando un administrador cambia la contraseña o el rol de alguien.
 
 ### ¿Por qué el frontend no guarda el token en localStorage?
 Porque cualquier script inyectado podría leerlo. Los tokens viven en **cookies httpOnly**, invisibles para JavaScript. Por eso el frontend nunca manipula tokens directamente.
@@ -206,7 +206,7 @@ Las cookies no se están guardando. Con el dashboard y la API en dominios distin
 ## Alertas
 
 ### ¿Cómo me entero de que algo falla sin estar mirando el dashboard?
-Con una **regla** de alerta y un **canal**, en Ajustes → Alertas. Las reglas se comprueban cada minuto.
+Con una **regla** de alerta y un **canal**, en Administración → Alertas. Las reglas se comprueban cada minuto.
 
 ### ¿Qué puede dispararse?
 Dos cosas: que se acumulen N coincidencias en una ventana (**umbral**), o que aparezca un error **que no se había visto nunca**. La segunda es la más útil justo después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".
@@ -221,7 +221,7 @@ Pon un **secreto** al crear el canal: cada aviso viaja firmado con HMAC-SHA256 e
 Para eso está el **silencio tras avisar** de cada regla. Tras dispararse, calla el tiempo que indiques; sin él, un incidente de una hora generaría sesenta avisos idénticos. El silencio arranca aunque el envío falle, a propósito.
 
 ### Un canal ha fallado, ¿me entero?
-Sí. En Ajustes → Alertas → Historial cada disparo muestra a cuántos canales se entregó y el motivo de los que fallaron. Un canal caído no impide avisar por los demás.
+Sí. En Administración → Alertas → Historial cada disparo muestra a cuántos canales se entregó y el motivo de los que fallaron. Un canal caído no impide avisar por los demás.
 
 ### ¿Hace falta configurar algo para el correo?
 Solo para ese canal: las variables `SMTP_*` del backend. Webhook y Telegram se configuran enteros desde el dashboard.
@@ -298,7 +298,7 @@ Con `LOG_LEVEL=debug` se registra el body de las peticiones, pero **redactando**
 Cuidado con lo que tú mandas: si pones una contraseña o un token en el `message` o en `metadata` de un log tuyo, se guardará tal cual. MCLog no puede adivinar qué es secreto dentro de tu propio contenido.
 
 ### ¿Se puede restringir qué aplicación envía con cada clave?
-Sí. Al crear una clave en **Ajustes → API keys** puedes limitarla a una lista de aplicaciones. La restricción vale en los dos sentidos: esa clave no puede escribir logs de otra aplicación (responde `403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log concreto por su id, que responde `404` para no confirmar siquiera que existe.
+Sí. Al crear una clave en **Administración → API keys** puedes limitarla a una lista de aplicaciones. La restricción vale en los dos sentidos: esa clave no puede escribir logs de otra aplicación (responde `403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log concreto por su id, que responde `404` para no confirmar siquiera que existe.
 
 Cada clave lleva además permisos: `ingest` para escribir, `read` para consultar y `metrics` para Prometheus. Una clave de ingesta filtrada no expone nada de lo ya almacenado.
 

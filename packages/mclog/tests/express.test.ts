@@ -168,14 +168,6 @@ describe('paridad con el validador del servidor', () => {
             expect(res.status).toBe(201);
         });
 
-        it('rechaza un errorStack de más de 50000 chars', async () => {
-            const res = await request(app)
-                .post('/logs')
-                .send({ ...base, message: 'm', errorStack: 'x'.repeat(50001) });
-            expect(res.status).toBe(400);
-            expect(res.body.errors).toHaveProperty('errorStack');
-        });
-
         it('rechaza un fingerprint de más de 64 chars', async () => {
             const res = await request(app)
                 .post('/logs')
@@ -183,13 +175,73 @@ describe('paridad con el validador del servidor', () => {
             expect(res.status).toBe(400);
             expect(res.body.errors).toHaveProperty('fingerprint');
         });
+    });
 
-        it('rechaza un errorName de más de 200 chars', async () => {
+    /**
+     * Rechazar un stack o un mensaje demasiado largos tumbaba el lote entero,
+     * y justo con los errores más aparatosos. Se recortan y se anota cuánto
+     * medían, para que quien investigue sepa que están incompletos.
+     */
+    describe('recorte de campos largos', () => {
+        it.each([
+            ['message', 100000],
+            ['errorStack', 50000],
+            ['errorName', 200],
+            ['errorCode', 100],
+        ])('recorta %s a su tope en vez de rechazarlo', async (field, max) => {
             const res = await request(app)
                 .post('/logs')
-                .send({ ...base, message: 'm', errorName: 'x'.repeat(201) });
+                .send({ ...base, message: 'm', [field as string]: 'x'.repeat((max as number) + 1) });
+            expect(res.status).toBe(201);
+
+            const value = res.body.body[field as string] as string;
+            expect(value).toHaveLength(max as number);
+            expect(value.endsWith('…')).toBe(true);
+            expect(res.body.body.metadata.mclogTruncated).toEqual({ [field as string]: (max as number) + 1 });
+        });
+
+        it('deja intacto lo que cabe justo en el tope', async () => {
+            const res = await request(app)
+                .post('/logs')
+                .send({ ...base, message: 'm', errorStack: 'x'.repeat(50000) });
+            expect(res.status).toBe(201);
+            expect(res.body.body.errorStack).toBe('x'.repeat(50000));
+            expect(res.body.body.metadata).toBeUndefined();
+        });
+
+        it('conserva la metadata del emisor al anotar el recorte', async () => {
+            const res = await request(app)
+                .post('/logs')
+                .send({ ...base, message: 'm', errorStack: 'x'.repeat(60000), metadata: { pedido: 7 } });
+            expect(res.body.body.metadata).toEqual({ pedido: 7, mclogTruncated: { errorStack: 60000 } });
+        });
+
+        it('recorta también el stack que llega dentro del objeto error', async () => {
+            const res = await request(app)
+                .post('/logs')
+                .send({ ...base, error: { message: 'boom', stack: 'x'.repeat(60000) } });
+            expect(res.status).toBe(201);
+            expect(res.body.body.errorStack).toHaveLength(50000);
+        });
+
+        it('no parte un emoji por la mitad', async () => {
+            // Cada emoji ocupa dos unidades, así que el corte en la 99 999 cae
+            // entre las dos mitades de uno.
+            const res = await request(app)
+                .post('/logs')
+                .send({ ...base, message: '😀'.repeat(50001) });
+            const value = res.body.body.message as string;
+            const antesDeLaElipsis = value.charCodeAt(value.length - 2);
+            expect(antesDeLaElipsis >= 0xd800 && antesDeLaElipsis <= 0xdbff).toBe(false);
+            expect(value.length).toBeLessThanOrEqual(100000);
+        });
+
+        it('sigue rechazando una metadata que no sea objeto', async () => {
+            const res = await request(app)
+                .post('/logs')
+                .send({ ...base, message: 'x'.repeat(100001), metadata: [1, 2] });
             expect(res.status).toBe(400);
-            expect(res.body.errors).toHaveProperty('errorName');
+            expect(res.body.errors).toHaveProperty('metadata');
         });
     });
 
@@ -210,7 +262,6 @@ describe('paridad con el validador del servidor', () => {
         });
 
         it.each([
-            ['message', 100001],
             ['service', 121],
             ['host', 256],
             ['traceId', 129],
@@ -231,6 +282,17 @@ describe('validateLogBatch', () => {
     it('acepta un lote válido', async () => {
         const res = await request(app).post('/logs/batch').send({ logs: [entry, entry] });
         expect(res.status).toBe(201);
+    });
+
+    it('una entrada con el stack desmesurado no tumba el lote', async () => {
+        const grande = { ...entry, level: 'error', errorStack: 'x'.repeat(80000) };
+        const res = await request(app).post('/logs/batch').send({ logs: [entry, grande, entry] });
+
+        expect(res.status).toBe(201);
+        expect(res.body.body.logs).toHaveLength(3);
+        expect(res.body.body.logs[1].errorStack).toHaveLength(50000);
+        expect(res.body.body.logs[1].metadata.mclogTruncated).toEqual({ errorStack: 80000 });
+        expect(res.body.body.logs[0].metadata).toBeUndefined();
     });
 
     it('rechaza un lote vacío', async () => {

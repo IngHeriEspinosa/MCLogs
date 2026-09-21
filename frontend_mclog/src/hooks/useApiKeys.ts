@@ -25,12 +25,6 @@ export type CreateApiKeyInput = {
 /** Respuesta del alta: `key` es el secreto en claro y no vuelve a mostrarse. */
 export type CreatedApiKey = { key: string; apiKey: ApiKey };
 
-export const SCOPE_DESCRIPTIONS: Record<ApiKeyScope, string> = {
-  ingest: "Enviar logs",
-  read: "Consultar logs y errores",
-  metrics: "Leer métricas Prometheus",
-};
-
 export const useApiKeys = () =>
   useQuery<ApiKey[]>({
     queryKey: ["api-keys"],

@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { APP_VERSION } from "../config/version";
 import {
+  DEFAULT_APPLICATIONS_HOURS,
+  MAX_APPLICATIONS,
   getErrorGroups,
   getLevelTimeline,
   getLogContext,
@@ -127,13 +129,27 @@ export const buildMcpServer = (context: McpContext = {}): McpServer => {
     {
       title: "Listar aplicaciones",
       description:
-        "Inventario de las aplicaciones que envian logs, con sus servicios, entornos, total de registros, ultima actividad y errores de las ultimas 24 horas. Empieza por aqui cuando no sepas que aplicaciones existen.",
-      inputSchema: {},
+        "Inventario de las aplicaciones que han enviado logs en la ventana (por defecto los ultimos 7 dias), con sus servicios, entornos, registros dentro de la ventana, ultima actividad y errores de las ultimas 24 horas. Empieza por aqui cuando no sepas que aplicaciones existen. Una aplicacion que lleve mas tiempo sin emitir no aparece: sube \"hours\" si buscas una que no esta.",
+      inputSchema: {
+        hours: z
+          .number()
+          .int()
+          .min(24)
+          .max(24 * 31)
+          .optional()
+          .describe(`Ventana hacia atras en horas (por defecto ${DEFAULT_APPLICATIONS_HOURS}, minimo 24)`),
+      },
     },
-    async () => {
-      const applications = await listApplications(applicationsIn);
+    async ({ hours }) => {
+      const { from, to } = windowFrom(hours ?? DEFAULT_APPLICATIONS_HOURS);
+      const applications = await listApplications(applicationsIn, from);
       return jsonResult({
+        window: { from: iso(from), to: iso(to) },
         total: applications.length,
+        hint:
+          applications.length === MAX_APPLICATIONS
+            ? `Se han devuelto las ${MAX_APPLICATIONS} aplicaciones con mas logs; puede haber mas. Acota la ventana.`
+            : undefined,
         applications: applications.map((app) => ({ ...app, lastSeen: iso(app.lastSeen) })),
       });
     },

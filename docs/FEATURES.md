@@ -61,13 +61,15 @@ Pensado para procesos masivos —Map/Reduce de NetSuite, ETL, workers—: 1 peti
 | `application` | ✅ | 120 chars | — |
 | `level` | ✅ | `debug`\|`info`\|`warn`\|`error` | — |
 | `environment` | ✅ | `development`\|`staging`\|`production` | — |
-| `message` | ✅ | 100 000 chars | — |
+| `message` | ✅ | 100 000 chars (se recorta) | — |
 | `service` | — | 120 chars | el valor de `application` |
 | `host` | — | 255 chars | hostname de la petición |
 | `timestamp` | — | ISO-8601 | momento de la inserción |
 | `traceId` | — | 128 chars | UUID generado por petición |
 | `spanId` | — | 128 chars | — |
 | `metadata` | — | objeto JSON libre | — |
+
+`message`, `errorStack` (50 000), `errorName` (200) y `errorCode` (100) **se recortan** a su tope, terminando en `…`, en vez de rechazarse: su tamaño depende de lo que pase en ejecución, y rechazarlos tumbaba el lote entero. La longitud original queda en `metadata.mclogTruncated`, p. ej. `{ "errorStack": 84211 }`. El resto de topes se siguen validando con `400`.
 
 ### 1.4 Enriquecimiento automático
 
@@ -224,15 +226,20 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | Funcionalidad | Detalle |
 |---|---|
 | **Login** | Formulario email/contraseña; el front nunca manipula tokens (viven en cookies httpOnly) |
-| **Tarjetas de resumen** | Total, últimas 24 h, errores/warnings y app más activa; refresco automático cada 60 s |
-| **Filtros combinables** | Nivel, entorno, aplicación, búsqueda libre, rango desde/hasta |
+| **Español / inglés** | Toda la interfaz traducida; el cambio es inmediato y se recuerda |
+| **Tema claro / oscuro / sistema** | Sin destello al cargar; con "sistema" sigue al sistema operativo |
+| **Hasta 4K** | La interfaz escala y aprovecha el ancho hasta 3840 px; el detalle del log pasa a columna lateral desde 1920 px |
+| **Resumen** | Registros, errores, warnings, fallos distintos y aplicaciones del rango, con tendencia; por nivel, por entorno, fallos principales y apps más activas |
+| **Gráfico de actividad** | Columnas apiladas por nivel; arrastrar acota el rango, clic aísla un intervalo, vista de tabla alternativa |
+| **Filtros combinables** | Rango de tiempo (rápidos o calendario con horas), nivel, entorno, aplicación con buscador y búsqueda libre |
 | **Búsqueda con debounce** | 350 ms de espera: no lanza una consulta por cada tecla |
 | **Ordenación** | Por fecha, aplicación, nivel, host o entorno, asc/desc |
 | **Paginación** | 10 / 25 / 50 / 100 por página, con navegación anterior/siguiente |
-| **Detalle expandible** | Clic en una fila muestra host, traceId, mensaje completo y la metadata formateada |
+| **Inspector del log** | Propiedades, stack con el código propio resaltado, metadata, contexto de ±2 min y "Copiar para IA"; navegable con flechas |
 | **Badges por severidad** | Color por nivel para localizar errores de un vistazo |
-| **Export** | Botones CSV y NDJSON que aplican los filtros activos |
-| **Filtros en la URL** | `?level=error&application=x&from=...` — copiar el enlace reproduce la vista exacta |
+| **Export** | CSV y NDJSON con los filtros activos |
+| **Reportes** | Informe Markdown para personas, brief para agentes de IA (Markdown) y datos en JSON; enmascarado de correos, IPs y tokens |
+| **Filtros en la URL** | `?range=7d&level=error&application=x` — copiar el enlace reproduce la vista exacta |
 | **Estados de carga** | Skeletons al cargar; al refiltrar se mantiene la tabla anterior atenuada (sin parpadeo) |
 | **Sesión automática** | Un 401 dispara un reintento vía `/auth/refresh`; si falla, redirige a `/login` |
 

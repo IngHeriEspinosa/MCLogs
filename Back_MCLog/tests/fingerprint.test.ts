@@ -19,6 +19,21 @@ describe("Normalizacion del mensaje", () => {
   it("colapsa espacios y normaliza mayusculas", () => {
     expect(normalizeMessage("  ERROR    Grave  ")).toBe("error grave");
   });
+
+  it("reconoce correos pegados a signos de puntuacion", () => {
+    expect(normalizeMessage("Aviso a (ana.lopez@example.com), bob+x@y.org;")).toBe("aviso a (<email>), <email>;");
+  });
+
+  /**
+   * La regex de correos era cuadratica: 100 000 letras seguidas bloqueaban el
+   * proceso 20 s, y con el todas las peticiones. El margen es amplio para no
+   * fallar en un CI lento; antes se pasaba de largo.
+   */
+  it("tarda un tiempo lineal con un mensaje enorme sin espacios", () => {
+    const inicio = performance.now();
+    normalizeMessage("m".repeat(100000));
+    expect(performance.now() - inicio).toBeLessThan(1000);
+  });
 });
 
 describe("Primer marco del stack", () => {

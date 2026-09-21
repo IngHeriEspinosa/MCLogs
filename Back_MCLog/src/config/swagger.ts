@@ -209,8 +209,18 @@ export const swaggerSpec = swaggerJSDoc({
         get: {
           tags: ["análisis"],
           summary: "Inventario de aplicaciones con sus servicios, entornos y errores recientes",
+          description:
+            "Solo incluye las aplicaciones con logs en la ventana, y `count` son los logs dentro de ella. `errorsLast24h` cuenta siempre las últimas 24 h.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
-          responses: { 200: { description: "OK" } },
+          parameters: [
+            {
+              in: "query",
+              name: "hours",
+              description: "Ventana hacia atras en horas",
+              schema: { type: "integer", minimum: 24, maximum: 744, default: 168 },
+            },
+          ],
+          responses: { 200: { description: "OK" }, 400: { description: "hours fuera de rango" } },
         },
       },
       "/api/keys": {
@@ -566,9 +576,9 @@ export const swaggerSpec = swaggerJSDoc({
                 stack: { type: "string" },
               },
             },
-            errorName: { type: "string", maxLength: 200, description: "Alternativa a error.name" },
-            errorCode: { type: "string", maxLength: 100, description: "Alternativa a error.code" },
-            errorStack: { type: "string", maxLength: 50000, description: "Alternativa a error.stack" },
+            errorName: { type: "string", description: "Alternativa a error.name. Se recorta a 200 caracteres" },
+            errorCode: { type: "string", description: "Alternativa a error.code. Se recorta a 100 caracteres" },
+            errorStack: { type: "string", description: "Alternativa a error.stack. Se recorta a 50 000 caracteres" },
             fingerprint: {
               type: "string",
               maxLength: 64,

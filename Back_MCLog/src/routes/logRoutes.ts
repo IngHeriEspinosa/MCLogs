@@ -4,6 +4,7 @@ import { applications, errorGroups, logContext, trace } from '../controllers/ana
 import { streamLogs } from '../controllers/streamController';
 import { validateLog, validateLogBatch } from '../middlewares/validateLog';
 import {
+    validateApplications,
     validateErrorGroups,
     validateLogContext,
     validateLogDelete,
@@ -27,7 +28,7 @@ router.post('/logs/batch', ingestLimiter, requireIngest, validateLogBatch, logBa
 // Las rutas con segmento fijo van ANTES que /logs/:id: si no, Express tomaria
 // "stats" o "applications" como si fueran un id.
 router.get('/logs/stats', queryLimiter, requireAuthOrReadKey, validateStatsQuery, stats);
-router.get('/logs/applications', queryLimiter, requireAuthOrReadKey, applications);
+router.get('/logs/applications', queryLimiter, requireAuthOrReadKey, validateApplications, applications);
 // Stream en vivo (SSE). Sin queryLimiter: es una conexion larga, no una rafaga
 // de peticiones, y su tope propio es SSE_MAX_CONNECTIONS.
 router.get('/logs/stream', requireAuthOrReadKey, streamLogs);

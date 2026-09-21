@@ -1,7 +1,28 @@
 import { RequestHandler } from 'express';
 import { body, validationResult, ValidationChain } from 'express-validator';
 
+const MAX_MESSAGE_LENGTH = 100000;
 const MAX_STACK_LENGTH = 50000;
+const MAX_ERROR_NAME_LENGTH = 200;
+const MAX_ERROR_CODE_LENGTH = 100;
+
+/**
+ * Campos que se recortan en vez de rechazarse. Su tamano depende de lo que
+ * pase en ejecucion —un mensaje con un volcado entero, un stack de mil
+ * marcos—, asi que pasarse no es un fallo del emisor. Rechazarlos tumbaba el
+ * lote entero, y justo con los errores mas aparatosos.
+ *
+ * El resto de topes (application, service, host...) se siguen validando: son
+ * configuracion, fallan desde el primer envio y ese aviso sirve.
+ */
+const TRUNCATED_FIELDS: Record<string, number> = {
+    message: MAX_MESSAGE_LENGTH,
+    errorStack: MAX_STACK_LENGTH,
+    errorName: MAX_ERROR_NAME_LENGTH,
+    errorCode: MAX_ERROR_CODE_LENGTH,
+};
+
+const ELLIPSIS = '…';
 
 const validField: RequestHandler = (req, res, next) => {
     const errors = validationResult(req);
@@ -53,20 +74,67 @@ const flattenError = (entry: Record<string, unknown>) => {
     delete entry.error;
 };
 
-/** Normaliza el cuerpo antes de validarlo, tanto para un log suelto como para un lote. */
-export const normalizeErrorFields: RequestHandler = (req, _res, next) => {
-    const body = req.body as Record<string, unknown> | undefined;
-    if (!body || typeof body !== 'object') return next();
+/**
+ * Recorta a `max` caracteres terminando en una elipsis. No parte un par
+ * sustituto (emoji y similares): media letra se guardaria como caracter
+ * invalido.
+ */
+const truncate = (value: string, max: number): string => {
+    let end = max - ELLIPSIS.length;
+    const last = value.charCodeAt(end - 1);
+    if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+    return value.slice(0, end) + ELLIPSIS;
+};
 
-    if (Array.isArray(body.logs)) {
-        for (const entry of body.logs) {
-            if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-                flattenError(entry as Record<string, unknown>);
-            }
+/**
+ * Recorta los campos de TRUNCATED_FIELDS que pasen de su tope y anota en
+ * `metadata.mclogTruncated` la longitud original de cada uno, para que quien
+ * investigue sepa que el texto esta incompleto y cuanto faltaba.
+ */
+const truncateEntry = (entry: Record<string, unknown>) => {
+    const truncated: Record<string, number> = {};
+
+    for (const [field, max] of Object.entries(TRUNCATED_FIELDS)) {
+        const value = entry[field];
+        if (typeof value === 'string' && value.length > max) {
+            entry[field] = truncate(value, max);
+            truncated[field] = value.length;
+        }
+    }
+    if (Object.keys(truncated).length === 0) return;
+
+    const metadata = entry.metadata;
+    if (metadata === undefined || metadata === null) {
+        entry.metadata = { mclogTruncated: truncated };
+    } else if (typeof metadata === 'object' && !Array.isArray(metadata)) {
+        entry.metadata = { ...metadata, mclogTruncated: truncated };
+    }
+    // Una metadata que no sea objeto la rechaza la validacion; no se toca.
+};
+
+/** Aplica `fn` a cada entrada del cuerpo, sea un log suelto o un lote `{ logs }`. */
+const forEachEntry = (payload: unknown, fn: (entry: Record<string, unknown>) => void) => {
+    if (!payload || typeof payload !== 'object') return;
+
+    const logs = (payload as Record<string, unknown>).logs;
+    if (Array.isArray(logs)) {
+        for (const entry of logs) {
+            if (entry && typeof entry === 'object' && !Array.isArray(entry)) fn(entry as Record<string, unknown>);
         }
     } else {
-        flattenError(body);
+        fn(payload as Record<string, unknown>);
     }
+};
+
+/** Normaliza el cuerpo antes de validarlo, tanto para un log suelto como para un lote. */
+export const normalizeErrorFields: RequestHandler = (req, _res, next) => {
+    forEachEntry(req.body, flattenError);
+    next();
+};
+
+/** Recorta los campos largos antes de validarlos; va despues de normalizeErrorFields. */
+export const truncateLongFields: RequestHandler = (req, _res, next) => {
+    forEachEntry(req.body, truncateEntry);
     next();
 };
 
@@ -91,7 +159,7 @@ const logFieldRules = (prefix = '') => [
     body(`${prefix}message`)
         .notEmpty().withMessage('Message is required (or send error.message)')
         .isString().withMessage('Message must be a string')
-        .isLength({ max: 100000 }).withMessage('Message must be at most 100000 chars'),
+        .isLength({ max: MAX_MESSAGE_LENGTH }).withMessage(`Message must be at most ${MAX_MESSAGE_LENGTH} chars`),
 
     body(`${prefix}service`).optional().isString().isLength({ max: 120 }).withMessage('Service must be a string (max 120)'),
     body(`${prefix}host`).optional().isString().isLength({ max: 255 }).withMessage('Host must be a string (max 255)'),
@@ -101,13 +169,17 @@ const logFieldRules = (prefix = '') => [
 
     // Detalle estructurado del error. Permite agrupar ocurrencias del mismo
     // fallo y darle a quien investiga el stack sin bucear en metadata.
-    body(`${prefix}errorName`).optional().isString().isLength({ max: 200 }).withMessage('errorName must be a string (max 200)'),
+    body(`${prefix}errorName`)
+        .optional()
+        .isString()
+        .isLength({ max: MAX_ERROR_NAME_LENGTH })
+        .withMessage(`errorName must be a string (max ${MAX_ERROR_NAME_LENGTH})`),
     body(`${prefix}errorCode`)
         .optional()
         .customSanitizer((value) => (typeof value === 'number' ? String(value) : value))
         .isString()
-        .isLength({ max: 100 })
-        .withMessage('errorCode must be a string or number (max 100 chars)'),
+        .isLength({ max: MAX_ERROR_CODE_LENGTH })
+        .withMessage(`errorCode must be a string or number (max ${MAX_ERROR_CODE_LENGTH} chars)`),
     body(`${prefix}errorStack`)
         .optional()
         .isString()
@@ -124,12 +196,14 @@ const logFieldRules = (prefix = '') => [
 
 export const validateLog: Array<ValidationChain | RequestHandler> = [
     normalizeErrorFields,
+    truncateLongFields,
     ...logFieldRules(),
     validField,
 ];
 
 export const validateLogBatch: Array<ValidationChain | RequestHandler> = [
     normalizeErrorFields,
+    truncateLongFields,
     body('logs')
         .isArray({ min: 1 }).withMessage('logs must be a non-empty array'),
     ...logFieldRules('logs.*.'),

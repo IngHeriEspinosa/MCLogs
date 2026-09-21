@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import logger from "../config/logger";
 import type { AuthenticatedRequest } from "../middlewares/requireAuth";
 import {
+  DEFAULT_APPLICATIONS_HOURS,
   getErrorGroups,
   getLogContext,
   getTrace,
@@ -109,8 +110,18 @@ export const logContext = async (req: Request, res: Response) => {
 };
 
 export const applications = async (req: Request, res: Response) => {
+  // Solo `hours`, sin from/to: los errores se cuentan siempre sobre las
+  // ultimas 24 h, y una ventana que no llegue a hoy los dejaria a cero.
+  const hours = (req.query.hours as unknown as number | undefined) ?? DEFAULT_APPLICATIONS_HOURS;
+  const to = new Date();
+  const from = new Date(to.getTime() - hours * HOUR_MS);
+
   try {
-    res.json({ data: await listApplications(allowedApplications(req)) });
+    res.json({
+      data: await listApplications(allowedApplications(req), from),
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
   } catch (error) {
     logger.error("Error retrieving applications", { error });
     res.status(500).json({ error: "Error retrieving applications" });

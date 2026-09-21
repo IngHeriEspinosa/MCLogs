@@ -78,8 +78,12 @@ await mclog.send({
 
 ### Lotes
 
-`sendBatch` trocea automáticamente en peticiones de `maxBatchSize` (500 por defecto,
-el límite del servidor), así que puedes pasarle un array de cualquier tamaño:
+`sendBatch` trocea automáticamente en peticiones de como mucho `maxBatchSize` entradas
+(500 por defecto, el límite del servidor) y `maxBatchBytes` bytes (1 MiB por defecto,
+por debajo de los 3 MB de `BODY_LIMIT`), así que puedes pasarle un array de cualquier
+tamaño y con entradas de cualquier peso. Una entrada que por sí sola pase de
+`maxBatchBytes` viaja en una petición propia, para que si el servidor la rechaza no
+arrastre a las demás:
 
 ```ts
 await mclog.sendBatch(
@@ -101,6 +105,7 @@ await mclog.sendBatch(
 | `throwOnError` | `boolean` | `false` | Si `true`, los fallos se lanzan en vez de silenciarse. |
 | `timeoutMs` | `number` | `5000` | Timeout por petición. |
 | `maxBatchSize` | `number` | `500` | Entradas por petición en `sendBatch`. Debe ser <= al `MAX_BATCH_SIZE` del servidor. |
+| `maxBatchBytes` | `number` | `1048576` | Bytes por petición en `sendBatch` (1 MiB). Debe quedar por debajo del `BODY_LIMIT` del servidor. |
 | `maxRetries` | `number` | `2` | Reintentos tras el primer intento ante un fallo recuperable. `0` lo desactiva. |
 | `retryBaseMs` | `number` | `300` | Base de la espera exponencial con jitter entre reintentos. |
 | `batchConcurrency` | `number` | `1` | Trozos de `sendBatch` enviados a la vez. `1` = en serie. |
@@ -219,10 +224,10 @@ app.post("/mis-logs/batch", ...validateLogBatch, (req, res) => {
 });
 ```
 
-> Estas reglas son un espejo de las del servidor MCLog y aceptan y rechazan exactamente lo
-> mismo, objeto `error` incluido: un cuerpo que pase por aquí pasa por el servicio. La
-> única excepción es el número máximo de entradas por lote, que fija el servidor con
-> `MAX_BATCH_SIZE` y este paquete no puede conocer.
+> Estas reglas son un espejo de las del servidor MCLog y aceptan, rechazan y recortan
+> exactamente lo mismo, objeto `error` incluido: un cuerpo que pase por aquí pasa por el
+> servicio. La única excepción es el número máximo de entradas por lote, que fija el
+> servidor con `MAX_BATCH_SIZE` y este paquete no puede conocer.
 
 
 ## Contrato de una entrada
@@ -244,6 +249,11 @@ app.post("/mis-logs/batch", ...validateLogBatch, (req, res) => {
 | `errorCode` | no | `string` o `number` (máx. 100) |
 | `errorStack` | no | `string` (máx. 50 000) |
 | `fingerprint` | no | `string` (máx. 64) |
+
+`message`, `errorName`, `errorCode` y `errorStack` no se rechazan si pasan de su tope: se
+recortan, terminando en `…`, y la longitud original queda en `metadata.mclogTruncated`
+(p. ej. `{ "errorStack": 84211 }`). Así un stack enorme no tumba el lote entero. El resto de
+topes sí se rechazan con `400`.
 
 `error` es un atajo: se reparte en `errorName`, `errorCode` y `errorStack`, y aporta el
 `message` si no mandas ninguno. Los campos planos que pongas a mano tienen prioridad.

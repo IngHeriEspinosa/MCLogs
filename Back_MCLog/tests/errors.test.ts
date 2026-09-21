@@ -123,15 +123,38 @@ describe("Ingesta con detalle de error", () => {
     expect(res.body.fingerprint).toBe("huella-propia-del-emisor");
   });
 
-  it("rechaza un stack desmesurado", async () => {
+  it("recorta un stack desmesurado en vez de perder el log", async () => {
     const res = await ingest({
       application: "ventas",
       level: "error",
       environment: "production",
       message: "stack enorme",
       errorStack: "x".repeat(50001),
+      metadata: { pedido: 12 },
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
+    expect(res.body.errorStack).toHaveLength(50000);
+    expect(res.body.errorStack.endsWith("…")).toBe(true);
+    expect(res.body.metadata).toEqual({ pedido: 12, mclogTruncated: { errorStack: 50001 } });
+  });
+
+  /**
+   * Antes, una sola entrada con el stack o el mensaje demasiado largos hacia
+   * que el servidor respondiera 400 al lote entero, y se perdian todas.
+   */
+  it("una entrada desmesurada no tumba el lote", async () => {
+    const base = { application: "lote-recortado", environment: "production", level: "info", message: "normal" };
+    const res = await request(app)
+      .post("/api/logs/batch")
+      .set("x-api-key", config.apiKey)
+      .send({ logs: [base, { ...base, level: "error", message: "m".repeat(150000) }, base] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.created).toBe(3);
+
+    const recortado = await prisma.log.findFirst({ where: { application: "lote-recortado", level: "error" } });
+    expect(recortado?.message).toHaveLength(100000);
+    expect(recortado?.metadata).toEqual({ mclogTruncated: { message: 150000 } });
   });
 });
 
@@ -224,6 +247,48 @@ describe("Inventario de aplicaciones", () => {
     expect(facturacion.services).toContain("pagos");
     expect(facturacion.environments).toContain("production");
     expect(facturacion.errorsLast24h).toBeGreaterThan(0);
+  });
+
+  it("agrega bien varios servicios y entornos de una misma aplicacion", async () => {
+    const base = { application: "inventario-mixta", message: "evento" };
+    await ingest({ ...base, service: "a", environment: "production", level: "error" });
+    await ingest({ ...base, service: "a", environment: "production", level: "info" });
+    await ingest({ ...base, service: "b", environment: "staging", level: "error" });
+    await ingest({ ...base, environment: "production", level: "info" });
+
+    const res = await request(app).get("/api/logs/applications").set(auth());
+    const mixta = res.body.data.find((row: { application: string }) => row.application === "inventario-mixta");
+
+    expect(mixta.count).toBe(4);
+    expect(mixta.errorsLast24h).toBe(2);
+    // Sin service, la ingesta usa el nombre de la aplicacion.
+    expect([...mixta.services].sort()).toEqual(["a", "b", "inventario-mixta"]);
+    expect([...mixta.environments].sort()).toEqual(["production", "staging"]);
+  });
+
+  it("solo mira la ventana, una semana por defecto", async () => {
+    const hace10Dias = new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString();
+    await ingest({
+      application: "inventario-antigua",
+      level: "info",
+      environment: "production",
+      message: "Ultimo aviso",
+      timestamp: hace10Dias,
+    });
+    const nombres = (res: request.Response) => res.body.data.map((row: { application: string }) => row.application);
+
+    const semana = await request(app).get("/api/logs/applications").set(auth());
+    expect(semana.status).toBe(200);
+    expect(nombres(semana)).not.toContain("inventario-antigua");
+    expect(new Date(semana.body.to).getTime() - new Date(semana.body.from).getTime()).toBe(7 * 24 * 3600 * 1000);
+
+    const mes = await request(app).get("/api/logs/applications?hours=744").set(auth());
+    expect(nombres(mes)).toContain("inventario-antigua");
+  });
+
+  it("rechaza una ventana menor de 24 horas, que recortaria los errores", async () => {
+    const res = await request(app).get("/api/logs/applications?hours=1").set(auth());
+    expect(res.status).toBe(400);
   });
 });
 

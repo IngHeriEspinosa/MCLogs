@@ -88,9 +88,9 @@ mclog.send('error', {
 ### `sendBatch(entries)` — lote
 Ideal en **Map/Reduce** y **Scheduled Scripts**: acumula los logs en un array y envíalos en `summarize` en lugar de uno a uno.
 
-Se trocea solo en lotes de 500, que es el `MAX_BATCH_SIZE` del servidor. Importa: el servidor rechaza con `400` el lote que pase de ese tope, y lo rechaza **entero**. Un `summarize` que acumula una entrada por clave fallida pasa de 500 con facilidad, y sin trocear se perdían todos los logs de esa ejecución.
+Se trocea solo, en lotes de como mucho 500 entradas (el `MAX_BATCH_SIZE` del servidor) y 1 MB (por debajo de los 3 MB de su `BODY_LIMIT`). Importa: el servidor rechaza **entero** el lote que pase de cualquiera de los dos topes, con `400` o con `413`. Un `summarize` que acumula una entrada por clave fallida pasa de 500 con facilidad, y 500 errores con stacks de unos 7 KB ya pesan 4 MB: sin trocear se perdían todos los logs de esa ejecución. Una entrada que por sí sola pase de 1 MB viaja en una petición propia, para que si el servidor la rechaza no arrastre a las demás.
 
-El coste de governance va por peticiones, no por entradas: `ceil(N / 500) × 10` unidades. 10 000 entradas son 200 unidades.
+El coste de governance va por peticiones, no por entradas: `ceil(N / 500) × 10` unidades, y alguna petición más si las entradas son grandes. 10 000 entradas pequeñas son 200 unidades.
 
 ## Contexto automático
 

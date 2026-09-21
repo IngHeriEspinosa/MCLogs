@@ -54,6 +54,15 @@ export const validateStatsQuery: Array<ValidationChain | RequestHandler> = [
   handle
 ];
 
+/**
+ * El inventario cuenta los errores de las ultimas 24 h: una ventana menor los
+ * recortaria sin avisar, asi que ese es el minimo.
+ */
+export const validateApplications: Array<ValidationChain | RequestHandler> = [
+  query("hours").optional().isInt({ min: 24, max: 24 * 31 }).withMessage("hours must be 24-744").toInt(),
+  handle
+];
+
 export const validateTrace: Array<ValidationChain | RequestHandler> = [
   param("traceId").isString().isLength({ min: 1, max: 128 }).withMessage("traceId must be 1-128 chars"),
   handle

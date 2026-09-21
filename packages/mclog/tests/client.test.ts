@@ -25,6 +25,9 @@ const make = (opts: Partial<MCLogClientOptions> = {}, fetchImpl?: typeof globalT
 
 const bodyOf = (call: Call) => JSON.parse(String(call.init.body));
 
+/** Bytes del cuerpo tal y como viaja, que es lo que mide el BODY_LIMIT del servidor. */
+const bytesOf = (call: Call) => new TextEncoder().encode(String(call.init.body)).length;
+
 describe('createMCLogClient — construcción', () => {
     it('exige baseUrl', () => {
         expect(() => createMCLogClient({ baseUrl: '', apiKey: 'k' })).toThrow(/baseUrl/);
@@ -37,6 +40,11 @@ describe('createMCLogClient — construcción', () => {
     it('rechaza maxBatchSize inválido', () => {
         expect(() => createMCLogClient({ baseUrl: 'https://x', apiKey: 'k', maxBatchSize: 0 }))
             .toThrow(/maxBatchSize/);
+    });
+
+    it('rechaza maxBatchBytes inválido', () => {
+        expect(() => createMCLogClient({ baseUrl: 'https://x', apiKey: 'k', maxBatchBytes: 0 }))
+            .toThrow(/maxBatchBytes/);
     });
 });
 
@@ -142,6 +150,56 @@ describe('createMCLogClient — sendBatch', () => {
         expect(f.calls).toHaveLength(3);
         expect(bodyOf(f.calls[0]!).logs).toHaveLength(500);
         expect(bodyOf(f.calls[2]!).logs).toHaveLength(200);
+    });
+
+    /**
+     * Trocear solo por número dejaba pasar lotes de más de 3 MB: el servidor
+     * respondía 413 y se perdían las 500 entradas del trozo. Es el caso de un
+     * Map/Reduce con muchos fallos, justo cuando más falta hacen los logs.
+     */
+    it('parte por bytes un lote de errores con stacks grandes', async () => {
+        const f = fakeFetch();
+        const entries = Array.from({ length: 500 }, (_, i) => ({
+            level: 'error' as const,
+            message: `Fallo ${i}`,
+            errorStack: 'at x\n'.repeat(1400),
+        }));
+
+        expect(await make({}, f.impl).sendBatch(entries)).toBe(true);
+
+        expect(f.calls.length).toBeGreaterThan(1);
+        expect(f.calls.every((call) => bytesOf(call) <= 1024 * 1024)).toBe(true);
+        const mensajes = f.calls.flatMap((call) => bodyOf(call).logs.map((log: { message: string }) => log.message));
+        expect(mensajes).toEqual(entries.map((entry) => entry.message));
+    });
+
+    it('respeta maxBatchBytes', async () => {
+        const f = fakeFetch();
+        const entries = Array.from({ length: 10 }, (_, i) => ({ message: `${i}`.padEnd(300, 'x') }));
+        await make({ maxBatchBytes: 1000 }, f.impl).sendBatch(entries);
+
+        expect(f.calls.length).toBeGreaterThan(1);
+        expect(f.calls.every((call) => bytesOf(call) <= 1000)).toBe(true);
+        expect(f.calls.reduce((total, call) => total + bodyOf(call).logs.length, 0)).toBe(10);
+    });
+
+    it('mide bytes UTF-8 y no caracteres', async () => {
+        const f = fakeFetch();
+        // 400 caracteres, pero 800 bytes: dos no caben en 1200 bytes.
+        const entries = [{ message: 'ñ'.repeat(400) }, { message: 'ñ'.repeat(400) }];
+        await make({ maxBatchBytes: 1200 }, f.impl).sendBatch(entries);
+
+        expect(f.calls).toHaveLength(2);
+        expect(f.calls.every((call) => bytesOf(call) <= 1200)).toBe(true);
+    });
+
+    it('manda sola la entrada que no cabe en ningún trozo, sin arrastrar a las demás', async () => {
+        const f = fakeFetch();
+        const entries = [{ message: 'antes' }, { message: 'x'.repeat(5000) }, { message: 'despues' }];
+        await make({ maxBatchBytes: 1000 }, f.impl).sendBatch(entries);
+
+        expect(f.calls.map((call) => bodyOf(call).logs.length)).toEqual([1, 1, 1]);
+        expect(bodyOf(f.calls[1]!).logs[0].message).toHaveLength(5000);
     });
 
     it('no hace ninguna petición con un lote vacío', async () => {

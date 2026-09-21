@@ -20,80 +20,81 @@ Si no sabes qué significa alguna palabra, está en el [Glosario](GLOSSARY.md). 
 
 **Sobre tu sesión:** se renueva sola mientras estés usando la aplicación, así que no te va a echar en mitad de una investigación. Si dejas la pestaña abandonada mucho tiempo, al volver te llevará al login.
 
-Arriba tienes la barra de secciones. Las de administración solo aparecen si tu usuario es `admin`:
+A la izquierda tienes el menú de secciones (en el móvil se abre con el botón ☰). Las de administración solo aparecen si tu usuario es `admin`:
 
 | Sección | Para qué |
 |---|---|
-| **Logs** | La tabla de registros, con filtros y descargas |
+| **Logs** | Resumen, gráfico de actividad y la tabla de registros, con filtros y descargas |
 | **Errores** | Los fallos agrupados por causa. Casi siempre, el mejor sitio para empezar |
+| **Reportes** | Informes en Markdown y briefs para agentes de IA |
+| **Alertas** | Avisos automáticos por webhook, correo o Telegram (admin) |
 | **API keys** | Claves para que las máquinas envíen o consulten (admin) |
 | **Usuarios** | Alta, roles y contraseñas (admin) |
-| **Alertas** | Avisos automáticos por webhook, correo o Telegram (admin) |
-| **Mi cuenta** | Tus datos y tu contraseña |
+| **Mi cuenta** | Tus datos, tus preferencias y tu contraseña |
+
+Arriba a la derecha, en todas las pantallas, cambias el **idioma** (español / inglés) y el **tema** (claro, oscuro o el de tu sistema). Se recuerdan en ese navegador.
 
 ## A.2 La pantalla de logs
 
-### Tarjetas de resumen
-
-Cuatro números que se actualizan solos cada minuto: total de registros, volumen de las últimas 24 horas, errores y warnings acumulados, y la aplicación que más emite.
-
-### Actividad por hora
-
-Debajo, un gráfico de barras con el volumen de la última jornada, apilado por nivel. Los errores van abajo, pegados a la línea base, porque es la parte que se puede comparar de un vistazo entre horas.
-
-Sirve para una pregunta concreta y muy frecuente: **¿desde cuándo pasa esto?** Si la franja roja aparece de golpe a una hora, ahí tienes el momento del incidente. Pasa el ratón por una barra para ver el desglose exacto de esa hora.
-
 ### Filtros
 
-Se combinan entre sí: cuantos más pongas, más se acota la búsqueda. La tabla se actualiza sola.
+Una sola fila encima de todo. Se combinan entre sí, y el resumen y la tabla se actualizan solos.
 
 | Filtro | Cómo funciona |
 |---|---|
+| **Rango de tiempo** | Rangos rápidos (15 minutos, 1 hora… 30 días, todo el histórico) o un rango a medida en el calendario, con hora de inicio y fin |
+| **Buscar** | Busca a la vez en el mensaje, la aplicación, el servicio, el host y el traceId. La tecla <kbd>/</kbd> te lleva directo al buscador |
 | **Nivel** | debug, info, warn o error |
 | **Entorno** | development, staging o production |
-| **Aplicación** | Escribe parte del nombre, sin necesidad del nombre exacto ni de respetar mayúsculas |
-| **Buscar** | Busca a la vez en el mensaje, la aplicación, el servicio, el host y el traceId |
-| **Desde / Hasta** | Rango de fecha y hora |
-| **Ordenar por** | Fecha, aplicación, nivel, host o entorno, con el botón ↓/↑ para invertir |
+| **Aplicación** | Lista con buscador. También puedes escribir parte de un nombre que no esté en la lista |
+
+**Limpiar filtros** los quita todos salvo el rango. El orden (fecha, aplicación, nivel, host o entorno) se cambia en la cabecera de la tabla.
 
 > **Comparte lo que ves.** La dirección del navegador refleja los filtros activos. Copia la URL y pégala en un chat: quien la abra verá exactamente tu misma vista.
+
+### Resumen
+
+- **Tarjetas**: registros, errores y warnings del rango con su tendencia, fallos distintos y aplicaciones activas.
+- **Actividad**: un gráfico de barras con el volumen del rango, apilado por nivel. Los errores van abajo, pegados a la línea base, porque es la parte que se puede comparar de un vistazo entre barras. Responde a una pregunta concreta y muy frecuente: **¿desde cuándo pasa esto?** Si la franja roja aparece de golpe, ahí tienes el momento del incidente. Pasa el ratón para ver el desglose exacto; **arrastra sobre el gráfico para acotar el rango** a esa franja, o haz clic en una barra para aislarla. **Ver como tabla** da las mismas cifras en filas.
+- **Por nivel y por entorno**, **fallos principales** y **aplicaciones más activas**. Un clic en cualquiera lo convierte en filtro.
+
+El resumen respeta el rango, la aplicación y el entorno, pero no la búsqueda ni el nivel. Puedes ocultarlo con el botón del panel, arriba, para dejarle todo el sitio a la tabla.
 
 ### En vivo
 
 El botón **En vivo** deja la conexión abierta y va colocando arriba, resaltados, los logs según llegan. Es lo que quieres mientras reproduces un fallo o justo después de desplegar.
 
-Solo se puede activar en la primera página y con el orden por fecha descendente. En cualquier otra vista estaría colando filas nuevas en medio de algo que no las espera, así que el botón se desactiva solo. El punto de la izquierda indica el estado: verde parpadeando es conexión viva.
+Solo se puede activar en la primera página, con el orden por fecha descendente y un rango que llegue hasta ahora. En cualquier otra vista estaría colando filas nuevas en medio de algo que no las espera, así que el botón se desactiva solo. El punto indica el estado: verde palpitando es conexión viva.
 
 ### La tabla
 
-Cada fila es un evento: fecha, aplicación, servicio, nivel, entorno y mensaje. El nivel va con color para localizarlo de un vistazo (rojo = error, ámbar = warn, azul = info, gris = debug).
+Cada fila es un evento: hora con milisegundos, nivel, aplicación y servicio, entorno y mensaje; en pantallas anchas, también host y traza. Una barra a la izquierda lleva el color del nivel (rojo = error, ámbar = warn, azul = info, gris = debug). En la cabecera eliges el orden, la densidad (cómoda o compacta) y cuántos registros por página (10, 25, 50 o 100).
 
-**Haz clic en cualquier fila** y se despliega con el detalle completo:
+**Haz clic en cualquier fila** (o muévete con las flechas y pulsa Intro) para abrir su detalle. En pantallas de 1920 px o más aparece como una columna junto a la tabla, y puedes seguir recorriéndola con las flechas; en pantallas más pequeñas se abre por encima y se cierra con <kbd>Esc</kbd>. Incluye:
 
-- **Host** — la máquina o instancia que lo generó
-- **TraceId** — el identificador para seguir la operación entre sistemas
-- **Error y código** — la clase de la excepción, si la aplicación la envió
-- **Huella** — el identificador del grupo al que pertenece este fallo
-- **Mensaje completo** — sin recortar
-- **Stack trace** — dónde se rompió exactamente, si venía en el log
-- **Metadata** — el contexto en JSON que envió la aplicación
+- **Mensaje completo**, sin recortar
+- **Propiedades**: aplicación, servicio, host, traceId, error y código, huella e ID
+- **Stack trace**, con las líneas de tu propio código resaltadas y las de librerías atenuadas
+- **Metadata**: el contexto en JSON que envió la aplicación
+- **Contexto**: lo que pasó en la misma aplicación dos minutos antes y después
 
-Y tres accesos directos:
+Y cuatro accesos directos:
 
 | Botón | Qué hace |
 |---|---|
-| **Ver traza completa** | Abre la operación entera, de todos los sistemas por los que pasó |
-| **Ver errores iguales** | Filtra a las demás ocurrencias de este mismo fallo |
+| **Ver traza** | Abre la operación entera, de todos los sistemas por los que pasó |
+| **Fallos iguales** | Filtra a las demás ocurrencias de este mismo fallo |
 | **Copiar JSON** | Copia el registro entero al portapapeles, para pegarlo en un ticket |
+| **Copiar para IA** | Copia un brief con el log y su contexto, listo para un agente de IA, con los datos sensibles enmascarados |
 
-Abajo eliges cuántos registros ver por página (10, 25, 50 o 100) y navegas con Anterior / Siguiente.
+### Exportar
 
-### Descargar
-
-Los botones **CSV** y **NDJSON** descargan los logs **con los filtros que tengas puestos**, no todo. Hasta 10 000 registros.
+El botón **Exportar** descarga los logs **con los filtros que tengas puestos**, no todo, hasta 10 000 registros:
 
 - **CSV** se abre directo en Excel, pero no incluye la metadata.
 - **NDJSON** trae un JSON por línea con el registro completo, metadata incluida.
+
+Desde el mismo menú, **Informe Markdown** y **Brief para agentes IA** abren la pantalla de Reportes con tu rango y ámbito, y lo generan al momento.
 
 ## A.3 La pantalla de errores
 
@@ -101,42 +102,59 @@ Aquí está la diferencia entre mirar logs y entender qué está roto.
 
 **Cada fila es un fallo distinto, no una ocurrencia.** Si el mismo timeout ha pasado veintinueve veces, es una fila con un 29 al lado, no veintinueve líneas iguales. MCLog las agrupa aunque los mensajes lleven dentro números de pedido, identificadores o fechas distintos.
 
-Cada fila te dice:
+Encima de la lista, cuatro cifras: fallos distintos, ocurrencias totales, la aplicación más afectada y cuánto pesa el fallo principal sobre el total. Cada fila te dice:
 
 | Columna | Qué significa |
 |---|---|
-| **Veces** | Cuántas ocurrencias en la ventana elegida |
-| **Error** | La clase de la excepción y su código, con un mensaje de ejemplo |
+| **Veces** | Cuántas ocurrencias en el rango, y qué parte del total son |
+| **Fallo** | La clase de la excepción y su código, con un mensaje de ejemplo y la huella |
 | **Aplicación** | Dónde ocurre, y en qué servicio dentro de ella |
-| **Actividad** | Cuándo fue la última vez y cuándo la primera |
+| **Actividad** | Cuándo fue la última vez y la primera dentro del rango |
 
-Ese par de fechas es lo más útil de la pantalla. **Primera aparición reciente significa error nuevo**, que casi siempre apunta a lo último que se tocó. Primera aparición antigua significa un problema que llevaba ahí tiempo.
+Ese par de fechas es lo más útil de la pantalla. **Primera aparición reciente suele significar error nuevo**, que casi siempre apunta a lo último que se tocó. Es la primera vez *dentro del rango elegido*: amplíalo a 30 días antes de darlo por nuevo.
 
-Arriba eliges la ventana (1 hora, 24 horas, 7 o 30 días) y filtras por nivel, entorno y aplicación. Con **Ver ocurrencias** saltas a la tabla de logs filtrada a ese fallo concreto.
+Arriba eliges el rango, **Errores** o **Warnings**, el entorno y la aplicación. Con **Ver ocurrencias** saltas a la tabla de logs filtrada a ese fallo, y el botón ✦ copia un brief para IA del fallo con su ejemplo más reciente.
 
 ## A.4 La pantalla de traza
 
-Se llega desde el botón **Ver traza completa** de cualquier log que tenga traceId.
+Se llega desde el botón **Ver traza** del detalle de cualquier log que tenga traceId.
 
-Muestra todos los registros de una misma operación en orden cronológico, **aunque haya pasado por varias aplicaciones**, con el tiempo transcurrido desde el primero. Eso último es lo que delata dónde se fue el tiempo: si entre dos pasos hay un salto de treinta segundos, ahí está el cuello de botella.
+Muestra todos los registros de una misma operación en orden cronológico, **aunque haya pasado por varias aplicaciones**. Cada línea lleva el tiempo desde el primer registro y el salto desde el anterior (Δ), y a la derecha una pista con la duración total: el tramo coloreado es el tiempo entre un paso y el siguiente. Eso es lo que delata dónde se fue el tiempo: si un tramo ocupa media pista, ahí está el cuello de botella.
 
-Pulsa cualquier línea para desplegar su detalle, con stack y metadata.
+Pulsa cualquier línea para desplegar su detalle, con stack y metadata. Arriba, **Descargar .md** guarda la traza como documento y **Copiar para IA** la prepara para un agente.
 
-## A.5 Cómo investigar un incidente
+## A.5 Reportes
+
+La pantalla **Reportes** genera documentos a partir de los logs de un rango:
+
+| Tipo | Para quién |
+|---|---|
+| **Informe Markdown** | Personas: hallazgos clave en prosa, métricas, actividad, niveles, aplicaciones, fallos con su stack y errores recientes |
+| **Brief para agentes IA** | Un agente de IA: instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
+| **Datos para agentes (JSON)** | Pipelines y herramientas: lo mismo que el brief, en un objeto JSON con esquema estable |
+
+Eliges el rango, la aplicación y el entorno, las secciones y cuántos fallos incluir. Para los briefs de IA, además, el **objetivo** (triaje, regresión tras un despliegue o resumen de incidente) y, si quieres, instrucciones propias. El idioma del reporte se elige aparte del de la interfaz.
+
+**Enmascarar datos sensibles** oculta correos, IPs, tokens y claves antes de exportar. Viene activado en los formatos de IA: mantenlo así si el reporte va a un modelo externo. Las huellas y los traceId se conservan, porque el agente los necesita para seguir investigando.
+
+La vista previa muestra el documento formateado o el Markdown tal cual, con su tamaño y una estimación de tokens. **Copiar** y **Descargar** son los únicos momentos en que sale algo de tu navegador.
+
+## A.6 Cómo investigar un incidente
 
 **Te avisan de un fallo en producción a las 10:30.**
 
-1. Abre **Errores**, pon la ventana en **24 horas** y el entorno en **production**.
+1. Abre **Errores**, pon el rango en **Últimas 24 horas** y el entorno en **production**.
 2. Mira la columna Actividad. Busca un fallo cuya **primera aparición** sea reciente: eso es algo que antes no pasaba.
 3. Pulsa **Ver ocurrencias** para ir a los registros concretos.
-4. Abre uno y lee el **stack trace**: te dice el archivo y la función exactos.
-5. Si la operación cruza sistemas, pulsa **Ver traza completa** para ver qué pasó antes del fallo, incluidos los `info` que llevan hasta él.
+4. Abre uno y lee el **stack trace**: te dice el archivo y la función exactos. El **contexto** te enseña qué pasó justo antes.
+5. Si la operación cruza sistemas, pulsa **Ver traza** para ver qué pasó antes del fallo, incluidos los `info` que llevan hasta él.
+6. Si quieres una segunda opinión, **Copiar para IA** o un **Brief para agentes IA** desde Reportes le dan a un agente todo el contexto, sin datos sensibles.
 
 La vieja forma (filtrar por nivel y hora en la tabla y rebuscar) sigue funcionando y a veces es lo que quieres. Pero para "qué está roto", empezar por Errores te ahorra el paso de descubrir que las cuarenta líneas que estás leyendo son el mismo problema.
 
-## A.6 Consejos
+## A.7 Consejos
 
-- **El filtro de fechas es el que más se queda puesto sin querer.** Si ves "No hay registros que coincidan" y esperabas resultados, límpialo primero.
+- **El rango de tiempo es el filtro que más se queda puesto sin querer.** Si ves "No hay registros que coincidan" y esperabas resultados, amplíalo primero.
 - **Empieza por Errores, no por Logs**, salvo que ya sepas qué buscas.
 - **Primera aparición reciente = sospechoso principal.** Es la señal más barata que tienes.
 - **La metadata es donde está lo bueno.** El mensaje dice *qué* falló; la metadata suele decir *con qué datos*.
@@ -288,7 +306,7 @@ Levanta base de datos, API, dashboard, copias de seguridad y un proxy Caddy que 
 
 ## C.3 Usuarios
 
-En **Ajustes → Usuarios**, si tu rol es `admin`. Puedes dar de alta, cambiar el rol, restablecer contraseñas y eliminar.
+En **Administración → Usuarios**, si tu rol es `admin`. Puedes dar de alta, cambiar el rol, restablecer contraseñas y eliminar.
 
 | Rol | Puede |
 |---|---|
@@ -303,7 +321,7 @@ Cada quien cambia su propia contraseña en **Mi cuenta**. Hacerlo cierra tambié
 
 ## C.4 API keys
 
-En **Ajustes → API keys**. Cada clave lleva permisos, y conviene dar los justos:
+En **Administración → API keys**. Cada clave lleva permisos, y conviene dar los justos:
 
 | Permiso | Para |
 |---|---|
@@ -321,7 +339,7 @@ Puedes además **acotarla a una lista de aplicaciones** y ponerle caducidad. La 
 
 ## C.5 Alertas
 
-En **Ajustes → Alertas**. Una **regla** define cuándo avisar y un **canal** por dónde. Se comprueban cada minuto.
+En **Administración → Alertas**. Una **regla** define cuándo avisar y un **canal** por dónde. Se comprueban cada minuto.
 
 **Reglas.** Dos tipos:
 
@@ -402,7 +420,7 @@ docker compose -f docker-compose.prod.yml start api
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| `401` al ingerir | Clave inexistente, revocada o caducada | Revísala en Ajustes → API keys |
+| `401` al ingerir | Clave inexistente, revocada o caducada | Revísala en Administración → API keys |
 | `403` al ingerir | La clave no tiene permiso `ingest`, o el log es de una aplicación fuera de su alcance | La respuesta indica las aplicaciones permitidas |
 | `403` al consultar | La clave no tiene permiso `read` | Las claves de ingesta no pueden leer, por diseño |
 | `429 Too Many Requests` | Superado el límite de ingesta | Agrupa con `/api/logs/batch` antes de subir `INGEST_RATE_LIMIT_MAX` |

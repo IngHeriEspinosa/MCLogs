@@ -33,7 +33,11 @@ export const normalizeMessage = (message: string): string => {
   return firstLine
     .toLowerCase()
     .replace(/https?:\/\/\S+/g, "<url>")
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "<email>")
+    // El lookbehind obliga a empezar al principio de una tira de caracteres.
+    // Sin el, el motor probaba desde cada posicion de la tira y la recorria
+    // entera cada vez: un mensaje de 100 000 letras seguidas bloqueaba el
+    // proceso 20 s. Con el es lineal y reemplaza exactamente lo mismo.
+    .replace(/(?<![\w.+-])[\w.+-]+@[\w-]+\.[\w.-]+/g, "<email>")
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g, "<uuid>")
     .replace(/\b0x[0-9a-f]+\b/g, "<hex>")
     .replace(/\b[0-9a-f]{8,}\b/g, "<hex>")

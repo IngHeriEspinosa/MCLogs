@@ -108,7 +108,7 @@ export type LogsParams = {
   fingerprint?: string;
 };
 
-const cleanParams = (params: LogsParams) =>
+const cleanParams = (params: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ""));
 
 export const useLogs = (params: LogsParams) => {
@@ -122,13 +122,27 @@ export const useLogs = (params: LogsParams) => {
   });
 };
 
-export const useLogStats = () => {
+export type StatsParams = {
+  from?: string;
+  to?: string;
+  hours?: number;
+  application?: string;
+  environment?: string;
+};
+
+/**
+ * Totales y serie horaria. La serie respeta la ventana; los totales (`total`,
+ * `byLevel`, `byApplication`...) son historicos, acotados solo por aplicacion
+ * y entorno.
+ */
+export const useLogStats = (params: StatsParams = {}) => {
   return useQuery<LogStats>({
-    queryKey: ["logs", "stats"],
+    queryKey: ["logs", "stats", params],
     queryFn: async () => {
-      const res = await client.get("/api/logs/stats");
+      const res = await client.get("/api/logs/stats", { params: cleanParams(params) });
       return res.data;
     },
+    placeholderData: keepPreviousData,
     refetchInterval: 60_000,
   });
 };

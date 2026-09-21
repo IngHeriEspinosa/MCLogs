@@ -1,6 +1,6 @@
 import React from "react";
 
-// Atom: Skeleton placeholder block
-export const Skeleton: React.FC<{ className?: string }> = ({ className }) => (
-  <div className={["animate-pulse rounded-md bg-slate-200/80", className].filter(Boolean).join(" ")} />
+/** Bloque de carga con brillo que recorre el hueco del contenido. */
+export const Skeleton: React.FC<{ className?: string }> = ({ className = "" }) => (
+  <div aria-hidden className={`skeleton ${className}`} />
 );

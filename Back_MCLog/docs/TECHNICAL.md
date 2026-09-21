@@ -68,7 +68,7 @@ La `API_KEY` única heredada de la variable de entorno sigue viva para no romper
 | GET | `/api/logs/:id` | JWT o API key `read` | Log individual |
 | GET | `/api/logs/:id/context` | JWT o API key `read` | Logs vecinos en el tiempo, para ver qué pasaba alrededor |
 | GET | `/api/logs/stats` | JWT o API key `read` | total, últimas 24h, por nivel, top-10 apps, por entorno |
-| GET | `/api/logs/applications` | JWT o API key `read` | Aplicaciones distintas vistas |
+| GET | `/api/logs/applications` | JWT o API key `read` | Aplicaciones con logs en la ventana (`hours`, una semana por defecto) |
 | GET | `/api/logs/stream` | JWT o API key `read` | Logs en vivo por SSE (`SSE_MAX_CONNECTIONS`) |
 | GET | `/api/logs/errors/groups` | JWT o API key `read` | Errores agrupados por huella, con recuento y primera/última vez |
 | GET | `/api/logs/trace/:traceId` | JWT o API key `read` | Traza completa de una petición |
@@ -105,6 +105,7 @@ Respuesta JSON: `{ data, page, pageSize, total, totalPages }`.
 Obligatorios: `application` (≤120), `level` (`debug|info|warn|error`), `environment` (`development|staging|production`), `message` (≤100 000, o el `message` del objeto `error`).
 Opcionales: `service` (≤120), `host` (≤255), `timestamp` (ISO-8601), `traceId` (≤128), `spanId` (≤128), `metadata` (objeto JSON libre).
 Detalle del error: `errorName` (≤200), `errorCode` (string o número, ≤100), `errorStack` (≤50 000) y `fingerprint` (≤64).
+Recorte (`truncateLongFields`): `message`, `errorName`, `errorCode` y `errorStack` se recortan a su tope, terminando en `…`, en vez de rechazarse, y la longitud original queda en `metadata.mclogTruncated`. Su tamaño depende de la ejecución y rechazarlos tumbaba el lote entero. El resto de topes se validan con `400`.
 Atajo `error`: un `Error` o cualquier objeto con `name`/`message`/`code`/`stack` se reparte en esos campos planos (`normalizeErrorFields`) y aporta el `message` si no viene ninguno; los campos puestos a mano tienen prioridad. El `stack` como array de marcos se une con saltos de línea (NetSuite).
 Defaults del servidor: `service`=application, `host`=hostname de la petición, `traceId`=generado (uuid), `timestamp`=ahora, `fingerprint`=calculada para `error` y `warn`.
 

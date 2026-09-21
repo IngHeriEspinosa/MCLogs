@@ -1,501 +1,305 @@
 "use client";
-import React, { Suspense, useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { DashboardLayout } from "@/components/templates/DashboardLayout";
-import { useLogs, useLogStats, LogEntry } from "@/hooks/useAuth";
-import { useDebounce } from "@/hooks/useDebounce";
-import { BufferedLog, useLogStream } from "@/hooks/useLogStream";
-import { LevelBadge } from "@/components/atoms/LevelBadge";
-import { DownloadActions } from "@/components/molecules/DownloadActions";
-import { StatsCards } from "@/components/molecules/StatsCards";
-import { downloadLogs } from "@/common/api/download";
-import { Skeleton } from "@/components/atoms/Skeleton";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button, IconButton } from "@/components/atoms/Button";
+import { Icon } from "@/components/atoms/Icon";
+import { Menu } from "@/components/molecules/Menu";
+import { useToast } from "@/components/molecules/Toast";
+import { LogFilterBar } from "@/components/organisms/LogFilterBar";
+import { LogInspector } from "@/components/organisms/LogInspector";
+import { LogOverview } from "@/components/organisms/LogOverview";
+import { Density, LogRow, LogTable, rowKey } from "@/components/organisms/LogTable";
+import { DashboardLayout } from "@/components/templates/DashboardLayout";
+import { downloadLogs } from "@/common/api/download";
+import { useI18n } from "@/common/i18n/I18nProvider";
+import { isRelative, rangeToParams, resolveRange } from "@/common/time/range";
+import { useLogs } from "@/hooks/useAuth";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useLogFilters } from "@/hooks/useLogFilters";
+import { useLogStream } from "@/hooks/useLogStream";
+import { useMediaQuery, usePreference } from "@/hooks/usePreference";
 
-type SortField = "timestamp" | "application" | "level" | "host" | "environment";
+/** Boton "En vivo" con su indicador de estado de la conexion. */
+const LiveToggle: React.FC<{
+  on: boolean;
+  allowed: boolean;
+  status: string;
+  onToggle: () => void;
+}> = ({ on, allowed, status, onToggle }) => {
+  const { t } = useI18n();
+  const label = !on
+    ? t.logs.live
+    : status === "error"
+      ? t.logs.liveReconnecting
+      : status === "connecting"
+        ? t.logs.liveConnecting
+        : t.logs.live;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={!allowed}
+      aria-pressed={on}
+      title={allowed ? t.logs.liveHint : t.logs.liveUnavailable}
+      className={`inline-flex h-9 items-center gap-2.5 rounded-lg border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+        on
+          ? "border-success/40 bg-success-soft text-success"
+          : "border-line bg-surface text-ink hover:border-line-strong hover:bg-surface-2"
+      }`}
+    >
+      <span aria-hidden className="relative flex h-2.5 w-2.5">
+        {on && status === "live" && <span className="absolute inset-0 animate-live-ring rounded-full bg-[#0ca30c]" />}
+        <span
+          className={`relative h-2.5 w-2.5 rounded-full ${
+            !on ? "bg-line-strong" : status === "live" ? "bg-[#0ca30c]" : status === "error" ? "bg-lvl-error" : "bg-lvl-warn"
+          }`}
+        />
+      </span>
+      {label}
+    </button>
+  );
+};
 
-const SORT_FIELDS: readonly SortField[] = ["timestamp", "application", "level", "host", "environment"];
-
-function LogsDashboard() {
-  const searchParams = useSearchParams();
+function LogsView() {
+  const { t, fmt } = useI18n();
   const router = useRouter();
-  const pathname = usePathname();
+  const notify = useToast();
+  const queryClient = useQueryClient();
+  const { filters, setFilters, activeCount } = useLogFilters();
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const sanitizeSortField = (value: string | null): SortField =>
-    SORT_FIELDS.includes(value as SortField) ? (value as SortField) : "timestamp";
+  // Instante de referencia de los rangos relativos: se fija al elegir el
+  // rango y al refrescar, no en cada render, para que la consulta sea estable.
+  const [now, setNow] = useState(() => Date.now());
+  const rangeKey = JSON.stringify(filters.range);
+  useEffect(() => setNow(Date.now()), [rangeKey]);
+  const resolved = resolveRange(filters.range, now);
 
-  const initialPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
-  const [level, setLevel] = useState<string>(searchParams.get("level") ?? "");
-  const [environment, setEnvironment] = useState<string>(searchParams.get("environment") ?? "");
-  const [application, setApplication] = useState<string>(searchParams.get("application") ?? "");
-  const [search, setSearch] = useState<string>(searchParams.get("search") ?? "");
-  const [from, setFrom] = useState<string>(searchParams.get("from") ?? "");
-  const [to, setTo] = useState<string>(searchParams.get("to") ?? "");
-  const [page, setPage] = useState<number>(initialPage);
-  const [pageSize, setPageSize] = useState<number>(parseInt(searchParams.get("pageSize") || "25", 10) || 25);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(searchParams.get("sortDir") === "asc" ? "asc" : "desc");
-  const [sortField, setSortField] = useState<SortField>(sanitizeSortField(searchParams.get("sortField")));
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  // Se llega aqui desde la vista de errores agrupados, con la huella en la URL.
-  const [fingerprint, setFingerprint] = useState<string>(searchParams.get("fingerprint") ?? "");
+  // La busqueda se escribe en local y llega a la URL con retardo.
+  const [search, setSearch] = useState(filters.search);
+  useEffect(() => setSearch(filters.search), [filters.search]);
+  const debouncedSearch = useDebounce(search);
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) setFilters({ search: debouncedSearch });
+    // Solo reacciona a lo que escribe el usuario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
+  const [density, setDensity] = usePreference<Density>("density", "comfortable");
+  const [showOverview, setShowOverview] = usePreference<boolean>("overview", true);
+  const [selected, setSelected] = useState<LogRow | null>(null);
+  const wide = useMediaQuery("(min-width: 1920px)");
   const [live, setLive] = useState(false);
 
-  const debouncedSearch = useDebounce(search);
-  const debouncedApplication = useDebounce(application);
+  const queryFilters = {
+    level: filters.level,
+    environment: filters.environment,
+    application: filters.application,
+    search: filters.search,
+    fingerprint: filters.fingerprint || undefined,
+    from: resolved.from?.toISOString(),
+    to: resolved.to?.toISOString(),
+    sort: `${filters.sortField}:${filters.sortDir}`,
+  };
+  const logs = useLogs({ page: filters.page, pageSize: filters.pageSize, ...queryFilters });
 
   /**
-   * El modo en vivo antepone los logs que llegan al principio de la tabla, así
-   * que solo tiene sentido en la primera página y con el orden por defecto
-   * (más recientes primero). En cualquier otra vista se desactiva solo.
+   * El modo en vivo antepone los logs que llegan al principio de la tabla, asi
+   * que solo tiene sentido en la primera pagina, con el orden por defecto y un
+   * rango abierto hasta ahora. En cualquier otra vista se desactiva solo.
    */
-  const liveAllowed = page === 1 && sortField === "timestamp" && sortDir === "desc";
+  const liveAllowed =
+    filters.page === 1 && filters.sortField === "timestamp" && filters.sortDir === "desc" && !resolved.to;
   const liveOn = live && liveAllowed;
-
-  const activeFilters = {
-    level,
-    environment,
-    application: debouncedApplication,
-    search: debouncedSearch,
-    fingerprint: fingerprint || undefined,
-    from: from ? new Date(from).toISOString() : undefined,
-    to: to ? new Date(to).toISOString() : undefined,
-    sort: `${sortField}:${sortDir}`,
-  };
-
-  const { data, isLoading, isFetching, isError, error } = useLogs({
-    page,
-    pageSize,
-    ...activeFilters,
-  });
-  const stats = useLogStats();
-
   const stream = useLogStream(
     liveOn,
-    { level, environment, application: debouncedApplication },
-    pageSize,
+    { level: filters.level, environment: filters.environment, application: filters.application },
+    filters.pageSize,
   );
 
-  // Mientras hay conexión en vivo se refresca la tabla cada 15 s y se vacía el
-  // buffer: así las filas recién llegadas se sustituyen por las del servidor,
-  // que traen id y metadata completos.
-  const queryClient = useQueryClient();
+  // En vivo se refresca la tabla cada 15 s y se vacia el buffer: las filas
+  // recien llegadas se sustituyen por las del servidor, con id y metadata.
   useEffect(() => {
     if (!liveOn) return;
-    const temporizador = setInterval(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
       void queryClient.invalidateQueries({ queryKey: ["logs"] });
       stream.clear();
     }, 15_000);
-    return () => clearInterval(temporizador);
+    return () => clearInterval(timer);
   }, [liveOn, queryClient, stream]);
 
-  /**
-   * Filas a pintar. En vivo, las del stream van delante y se recorta al tamaño
-   * de página para que la tabla no crezca sin fin.
-   */
-  const rows: Array<LogEntry | (BufferedLog & { streamKey: string })> = liveOn
-    ? [...stream.logs, ...(data?.data ?? [])].slice(0, pageSize)
-    : (data?.data ?? []);
+  const rows: LogRow[] = liveOn ? [...stream.logs, ...(logs.data?.data ?? [])].slice(0, filters.pageSize) : logs.data?.data ?? [];
 
-  const updateUrl = useMemo(
-    () =>
-      (updates: Record<string, string | number | undefined>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        const nextState: Record<string, string | number | undefined> = {
-          page,
-          pageSize,
-          level: level || undefined,
-          environment: environment || undefined,
-          application: application || undefined,
-          search: search || undefined,
-          from: from || undefined,
-          to: to || undefined,
-          fingerprint: fingerprint || undefined,
-          sortField,
-          sortDir,
-          ...updates,
-        };
-        Object.entries(nextState).forEach(([key, value]) => {
-          const isDefault =
-            value === undefined ||
-            value === "" ||
-            (key === "page" && value === 1) ||
-            (key === "pageSize" && value === 25) ||
-            (key === "sortField" && value === "timestamp") ||
-            (key === "sortDir" && value === "desc");
-          if (isDefault) params.delete(key);
-          else params.set(key, String(value));
-        });
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      },
-    [application, environment, fingerprint, from, level, page, pageSize, pathname, router, search, searchParams, sortDir, sortField, to]
-  );
+  // "/" enfoca la busqueda, como en tantas consolas.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || target.closest("input, textarea, [contenteditable]")) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
-  const resetToFirstPage = (updates: Record<string, string | number | undefined>) => {
-    setPage(1);
-    updateUrl({ ...updates, page: 1 });
+  const closeInspector = useCallback(() => setSelected(null), []);
+
+  const refresh = () => {
+    setNow(Date.now());
+    void queryClient.invalidateQueries({ queryKey: ["logs"] });
+    void queryClient.invalidateQueries({ queryKey: ["error-groups"] });
   };
 
-  const totalPages = data?.totalPages ?? 1;
-  const canPrev = page > 1;
-  const canNext = page < totalPages;
+  const exportData = async (format: "csv" | "ndjson") => {
+    try {
+      const name = await downloadLogs(format, queryFilters);
+      notify(t.toast.downloaded(name));
+    } catch {
+      notify(t.toast.exportFailed, "error");
+    }
+  };
 
-  const selectClass = "rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white";
+  const openReport = (kind: "markdown" | "agent-md") => {
+    const params = new URLSearchParams({ kind, generate: "1" });
+    Object.entries(rangeToParams(filters.range)).forEach(([key, value]) => value && params.set(key, value));
+    if (filters.application) params.set("application", filters.application);
+    if (filters.environment) params.set("environment", filters.environment);
+    router.push(`/reports?${params.toString()}`);
+  };
+
+  const filterFingerprint = (fingerprint: string) => {
+    setFilters({ fingerprint });
+    setSelected(null);
+  };
+
+  const inspectorOpen = selected !== null;
 
   return (
     <DashboardLayout
-      title="Logs recientes"
+      title={t.logs.title}
+      eyebrow={t.logs.eyebrow}
+      description={t.logs.description}
       actions={
-        <DownloadActions
-          onCsv={() => downloadLogs("csv", activeFilters)}
-          onNdjson={() => downloadLogs("ndjson", activeFilters)}
-        />
+        <>
+          <IconButton
+            icon="panelTop"
+            label={showOverview ? t.logs.hideOverview : t.logs.showOverview}
+            variant="secondary"
+            active={!showOverview}
+            onClick={() => setShowOverview(!showOverview)}
+          />
+          <IconButton icon="refresh" label={t.common.refresh} variant="secondary" onClick={refresh} />
+          <LiveToggle on={liveOn} allowed={liveAllowed} status={stream.status} onToggle={() => setLive((value) => !value)} />
+          <Menu
+            label={t.logs.export}
+            icon="download"
+            variant="primary"
+            items={[
+              { type: "label", key: "data", label: t.logs.exportData },
+              { key: "csv", label: t.logs.exportCsv, hint: t.logs.exportCsvHint, icon: "table", onSelect: () => void exportData("csv") },
+              { key: "ndjson", label: t.logs.exportNdjson, hint: t.logs.exportNdjsonHint, icon: "braces", onSelect: () => void exportData("ndjson") },
+              { type: "separator", key: "separator" },
+              { type: "label", key: "reports", label: t.logs.exportReports },
+              { key: "md", label: t.logs.exportMd, hint: t.logs.exportMdHint, icon: "report", onSelect: () => openReport("markdown") },
+              { key: "ai", label: t.logs.exportAi, hint: t.logs.exportAiHint, icon: "sparkles", onSelect: () => openReport("agent-md") },
+            ]}
+          />
+        </>
       }
     >
-      <StatsCards stats={stats.data} loading={stats.isLoading} />
-
-      {fingerprint && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-900">
-          <span>
-            Mostrando solo las ocurrencias del error{" "}
-            <code className="font-mono text-xs">{fingerprint.slice(0, 12)}…</code>
-          </span>
-          <button
-            type="button"
-            className="rounded-md border border-primary-500 px-2 py-0.5 text-xs font-semibold hover:bg-white"
-            onClick={() => {
-              setFingerprint("");
-              resetToFirstPage({ fingerprint: undefined });
-            }}
-          >
-            Quitar filtro
-          </button>
-          <Link href="/errors" className="text-xs font-semibold underline">
-            Volver a los errores agrupados
-          </Link>
-        </div>
-      )}
-
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <select
-          className={selectClass}
-          value={level}
-          onChange={(e) => {
-            setLevel(e.target.value);
-            resetToFirstPage({ level: e.target.value });
+      <div className="flex flex-col gap-4 3xl:gap-5">
+        <LogFilterBar
+          ref={searchRef}
+          filters={filters}
+          setFilters={setFilters}
+          search={search}
+          onSearchChange={setSearch}
+          onReset={() => {
+            setSearch("");
+            setFilters({ level: "", environment: "", application: "", search: "", fingerprint: "" });
           }}
-        >
-          <option value="">Nivel (todos)</option>
-          <option value="debug">debug</option>
-          <option value="info">info</option>
-          <option value="warn">warn</option>
-          <option value="error">error</option>
-        </select>
-        <select
-          className={selectClass}
-          value={environment}
-          onChange={(e) => {
-            setEnvironment(e.target.value);
-            resetToFirstPage({ environment: e.target.value });
-          }}
-        >
-          <option value="">Entorno (todos)</option>
-          <option value="development">development</option>
-          <option value="staging">staging</option>
-          <option value="production">production</option>
-        </select>
-        <input
-          className="w-44 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-          placeholder="Aplicación"
-          value={application}
-          onChange={(e) => {
-            setApplication(e.target.value);
-            resetToFirstPage({ application: e.target.value });
-          }}
+          activeCount={activeCount}
         />
-        <input
-          className="flex-1 min-w-[200px] rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-          placeholder="Buscar mensaje, app, host o traceId"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            resetToFirstPage({ search: e.target.value });
-          }}
-        />
-        <label className="text-xs text-slate-600">
-          Desde
-          <input
-            type="datetime-local"
-            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-            value={from}
-            onChange={(e) => {
-              setFrom(e.target.value);
-              resetToFirstPage({ from: e.target.value });
-            }}
-          />
-        </label>
-        <label className="text-xs text-slate-600">
-          Hasta
-          <input
-            type="datetime-local"
-            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-            value={to}
-            onChange={(e) => {
-              setTo(e.target.value);
-              resetToFirstPage({ to: e.target.value });
-            }}
-          />
-        </label>
-        <div className="flex items-center gap-2">
-          <select
-            className={selectClass}
-            value={sortField}
-            onChange={(e) => {
-              const next = sanitizeSortField(e.target.value);
-              setSortField(next);
-              resetToFirstPage({ sortField: next });
-            }}
-          >
-            <option value="timestamp">fecha</option>
-            <option value="application">aplicación</option>
-            <option value="level">nivel</option>
-            <option value="host">host</option>
-            <option value="environment">entorno</option>
-          </select>
-          <button
-            className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-700"
-            onClick={() => {
-              const next = sortDir === "desc" ? "asc" : "desc";
-              setSortDir(next);
-              updateUrl({ sortDir: next });
-            }}
-            type="button"
-          >
-            {sortDir === "desc" ? "↓ desc" : "↑ asc"}
-          </button>
-        </div>
 
-        <button
-          type="button"
-          onClick={() => setLive((valor) => !valor)}
-          disabled={!liveAllowed}
-          aria-pressed={liveOn}
-          title={
-            liveAllowed
-              ? "Muestra los logs según van llegando"
-              : "Disponible en la primera página y con el orden por fecha descendente"
-          }
-          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition disabled:opacity-40 ${
-            liveOn
-              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <span
-            aria-hidden
-            className={`inline-block h-2 w-2 rounded-full ${
-              stream.status === "live"
-                ? "animate-pulse bg-emerald-500"
-                : stream.status === "connecting"
-                  ? "bg-amber-400"
-                  : stream.status === "error"
-                    ? "bg-red-500"
-                    : "bg-slate-300"
-            }`}
-          />
-          {liveOn ? (stream.status === "error" ? "Reconectando" : "En vivo") : "En vivo"}
-        </button>
-      </div>
-
-      {isLoading && (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase text-slate-500">
-            Cargando registros
-          </div>
-          <div className="divide-y divide-slate-100 px-4 py-3">
-            {Array.from({ length: 6 }).map((_, idx) => (
-              <div key={idx} className="grid grid-cols-4 gap-4 py-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 w-full" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {isError && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          No pudimos cargar los logs. Detalle: {(error as Error)?.message ?? "error desconocido"}.
-        </div>
-      )}
-
-      {data && !isLoading && (
-        <div className={`overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : "opacity-100"}`}>
-          <table className="w-full text-sm text-slate-800">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
-                <th className="py-2 pr-4">Fecha</th>
-                <th className="py-2 pr-4">App</th>
-                <th className="py-2 pr-4">Servicio</th>
-                <th className="py-2 pr-4">Nivel</th>
-                <th className="py-2 pr-4">Entorno</th>
-                <th className="py-2 pr-4">Mensaje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((log) => {
-                const enVivo = "streamKey" in log;
-                return (
-                <React.Fragment key={enVivo ? log.streamKey : log.id}>
-                  <tr
-                    className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${
-                      enVivo ? "bg-primary-50/60" : ""
-                    }`}
-                    onClick={() => log.id !== undefined && setExpandedId(expandedId === log.id ? null : log.id)}
-                  >
-                    <td className="whitespace-nowrap py-2 pr-4 text-slate-600">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="py-2 pr-4 font-medium">{log.application}</td>
-                    <td className="py-2 pr-4 text-slate-600">{log.service ?? "—"}</td>
-                    <td className="py-2 pr-4">
-                      <LevelBadge level={log.level} />
-                    </td>
-                    <td className="py-2 pr-4 text-xs text-slate-500">{log.environment}</td>
-                    <td className="max-w-[420px] truncate py-2 pr-4 text-slate-700" title={log.message}>
-                      {log.message}
-                    </td>
-                  </tr>
-                  {log.id !== undefined && expandedId === log.id && !enVivo && (
-                    <tr className="border-b border-slate-100 bg-slate-50/70">
-                      <td colSpan={6} className="px-4 py-3">
-                        <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-                          <p><span className="font-semibold">Host:</span> {log.host ?? "—"}</p>
-                          <p><span className="font-semibold">TraceId:</span> {log.traceId ?? "—"}</p>
-                          {log.errorName && (
-                            <p>
-                              <span className="font-semibold">Error:</span> {log.errorName}
-                              {log.errorCode ? ` (${log.errorCode})` : ""}
-                            </p>
-                          )}
-                          {log.fingerprint && (
-                            <p>
-                              <span className="font-semibold">Huella:</span>{" "}
-                              <code className="font-mono">{log.fingerprint.slice(0, 12)}…</code>
-                            </p>
-                          )}
-                          <p className="sm:col-span-2"><span className="font-semibold">Mensaje completo:</span> {log.message}</p>
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {log.traceId && (
-                            <Link
-                              href={`/trace/${encodeURIComponent(log.traceId)}`}
-                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            >
-                              Ver traza completa
-                            </Link>
-                          )}
-                          {log.fingerprint && log.fingerprint !== fingerprint && (
-                            <button
-                              type="button"
-                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                              onClick={() => {
-                                const huella = log.fingerprint!;
-                                setFingerprint(huella);
-                                resetToFirstPage({ fingerprint: huella });
-                              }}
-                            >
-                              Ver errores iguales
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            onClick={() => navigator.clipboard?.writeText(JSON.stringify(log, null, 2))}
-                          >
-                            Copiar JSON
-                          </button>
-                        </div>
-
-                        {log.errorStack && (
-                          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">
-                            {log.errorStack}
-                          </pre>
-                        )}
-                        {log.metadata && (
-                          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">
-                            {JSON.stringify(log.metadata, null, 2)}
-                          </pre>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-                );
-              })}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-6 text-center text-sm text-slate-500">
-                    {liveOn
-                      ? "Sin registros todavía. Los nuevos aparecerán aquí en cuanto lleguen."
-                      : "No hay registros que coincidan con tu búsqueda."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-            <span>
-              Página {page} de {totalPages} · {data.total} registros
-            </span>
-            <div className="flex items-center gap-2">
-              <select
-                className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                value={pageSize}
-                onChange={(e) => {
-                  const next = parseInt(e.target.value, 10);
-                  setPageSize(next);
-                  resetToFirstPage({ pageSize: next });
-                }}
-              >
-                {[10, 25, 50, 100].map((size) => (
-                  <option key={size} value={size}>
-                    {size} / página
-                  </option>
-                ))}
-              </select>
-              <button
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                onClick={() => {
-                  if (!canPrev) return;
-                  const next = Math.max(1, page - 1);
-                  setPage(next);
-                  updateUrl({ page: next });
-                }}
-                disabled={!canPrev}
-              >
-                Anterior
-              </button>
-              <button
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                onClick={() => {
-                  if (!canNext) return;
-                  const next = Math.min(totalPages, page + 1);
-                  setPage(next);
-                  updateUrl({ page: next });
-                }}
-                disabled={!canNext}
-              >
-                Siguiente
-              </button>
+        {filters.fingerprint && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-brand/25 bg-brand-soft/60 px-4 py-2.5 text-sm text-ink">
+            <Icon name="hash" className="h-4 w-4 text-brand" />
+            <span>{t.logs.fingerprintBanner}</span>
+            <code className="rounded bg-surface px-1.5 py-0.5 font-mono text-xs text-ink-2">{filters.fingerprint.slice(0, 16)}…</code>
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="xs" variant="secondary" icon="x" onClick={() => setFilters({ fingerprint: "" })}>
+                {t.logs.removeFilter}
+              </Button>
+              <Link href="/errors" className="text-xs font-medium">
+                {t.logs.backToGroups}
+              </Link>
             </div>
           </div>
+        )}
+
+        {showOverview && (
+          <LogOverview
+            range={filters.range}
+            now={now}
+            application={filters.application}
+            environment={filters.environment}
+            onSelectRange={(from, to) => setFilters({ range: { from: new Date(from).toISOString(), to: new Date(to).toISOString() } })}
+            onSelectLevel={(level) => setFilters({ level })}
+            onSelectApplication={(application) => setFilters({ application })}
+            onSelectEnvironment={(environment) => setFilters({ environment })}
+            onSelectFingerprint={filterFingerprint}
+          />
+        )}
+
+        <div
+          className={`grid items-start gap-4 ${
+            inspectorOpen && wide ? "3xl:grid-cols-[minmax(0,1fr)_34rem] 4xl:grid-cols-[minmax(0,1fr)_40rem]" : ""
+          }`}
+        >
+          <LogTable
+            rows={rows}
+            loading={logs.isLoading}
+            fetching={logs.isFetching}
+            error={logs.isError ? logs.error : null}
+            total={logs.data?.total ?? 0}
+            page={filters.page}
+            totalPages={logs.data?.totalPages ?? 1}
+            pageSize={filters.pageSize}
+            onPage={(page) => setFilters({ page })}
+            onPageSize={(pageSize) => setFilters({ pageSize })}
+            selectedKey={selected ? rowKey(selected) : null}
+            onSelect={setSelected}
+            density={density}
+            onDensity={setDensity}
+            live={liveOn}
+            sortField={filters.sortField}
+            sortDir={filters.sortDir}
+            onSort={setFilters}
+            onWidenRange={
+              isRelative(filters.range) && filters.range.preset !== "7d" && filters.range.preset !== "30d" && filters.range.preset !== "all"
+                ? () => setFilters({ range: { preset: "7d" } })
+                : undefined
+            }
+          />
+          {selected && (
+            <LogInspector
+              log={selected}
+              mode={wide ? "panel" : "drawer"}
+              onClose={closeInspector}
+              onSelect={setSelected}
+              onFilterFingerprint={filterFingerprint}
+            />
+          )}
         </div>
-      )}
+        {logs.data && (
+          <p className="sr-only" aria-live="polite">
+            {t.logs.results(fmt.number(logs.data.total))}
+          </p>
+        )}
+      </div>
     </DashboardLayout>
   );
 }
@@ -503,7 +307,7 @@ function LogsDashboard() {
 export default function HomePage() {
   return (
     <Suspense fallback={null}>
-      <LogsDashboard />
+      <LogsView />
     </Suspense>
   );
 }

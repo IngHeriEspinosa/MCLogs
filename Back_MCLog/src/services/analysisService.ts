@@ -146,34 +146,59 @@ export type ApplicationSummary = {
   application: string;
   services: string[];
   environments: string[];
+  /** Logs dentro de la ventana consultada, no el total historico. */
   count: number;
   lastSeen: Date;
   errorsLast24h: number;
 };
 
+/** Ventana por defecto del inventario: lo que ha emitido algo en la ultima semana. */
+export const DEFAULT_APPLICATIONS_HOURS = 24 * 7;
+
 /**
  * Inventario de lo que esta emitiendo logs. Es lo primero que necesita quien
  * (o lo que) llega sin saber que aplicaciones existen.
+ *
+ * Solo mira desde `from`. Sin ventana recorria la tabla entera en cada
+ * llamada: con 2 millones de logs tardaba de 2 a 12 s, segun hubiera cache, y
+ * crecia con la tabla; con la ventana por defecto baja a unos 0,2 s. Una
+ * aplicacion que lleve mas tiempo sin emitir no aparece.
+ *
+ * La agregacion va en dos pasos. Primero por aplicacion, servicio y entorno,
+ * que son pocas combinaciones y se agrupan en memoria; despues, sobre ese
+ * resultado ya pequeno, por aplicacion. En un solo paso los ARRAY_AGG(DISTINCT)
+ * obligaban a ordenar todas las filas, y el orden acababa en disco.
  */
-export const listApplications = async (applicationsIn?: string[]): Promise<ApplicationSummary[]> => {
+export const listApplications = async (applicationsIn: string[] | undefined, from: Date): Promise<ApplicationSummary[]> => {
   const scope = applicationsIn?.length
-    ? Prisma.sql`WHERE "application" = ANY(${applicationsIn})`
+    ? Prisma.sql`AND "application" = ANY(${applicationsIn})`
     : Prisma.empty;
 
   const rows = await prisma.$queryRaw<
     Array<Omit<ApplicationSummary, "count" | "errorsLast24h"> & { count: bigint | number; errorsLast24h: bigint | number }>
   >`
+    WITH "combos" AS (
+      SELECT
+        "application",
+        "service",
+        "environment",
+        COUNT(*) AS "count",
+        MAX("timestamp") AS "lastSeen",
+        COUNT(*) FILTER (
+          WHERE "level" = 'error' AND "timestamp" >= NOW() - INTERVAL '24 hours'
+        ) AS "errors"
+      FROM "Log"
+      WHERE "timestamp" >= ${from} ${scope}
+      GROUP BY "application", "service", "environment"
+    )
     SELECT
       "application",
       COALESCE(ARRAY_AGG(DISTINCT "service") FILTER (WHERE "service" IS NOT NULL), '{}') AS "services",
       ARRAY_AGG(DISTINCT "environment"::text) AS "environments",
-      COUNT(*)::int AS "count",
-      MAX("timestamp") AS "lastSeen",
-      COUNT(*) FILTER (
-        WHERE "level" = 'error' AND "timestamp" >= NOW() - INTERVAL '24 hours'
-      )::int AS "errorsLast24h"
-    FROM "Log"
-    ${scope}
+      SUM("count")::int AS "count",
+      MAX("lastSeen") AS "lastSeen",
+      SUM("errors")::int AS "errorsLast24h"
+    FROM "combos"
     GROUP BY "application"
     ORDER BY "count" DESC
     LIMIT ${MAX_APPLICATIONS}

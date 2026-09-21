@@ -151,6 +151,28 @@ describe("Herramientas de investigacion", () => {
     expect(aplicaciones).toContain("ventas");
   });
 
+  it("list_applications solo mira la ventana y dice cual es", async () => {
+    await ingest({
+      application: "mcp-antigua",
+      level: "info",
+      environment: "production",
+      message: "Ultimo aviso",
+      timestamp: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+    });
+    const nombres = (data: { applications: Array<{ application: string }> }) =>
+      data.applications.map((app) => app.application);
+
+    const semana = await callToolJson(readKey, "list_applications");
+    expect(nombres(semana)).not.toContain("mcp-antigua");
+    expect(semana.window.from).toBeTruthy();
+
+    const mes = await callToolJson(readKey, "list_applications", { hours: 744 });
+    expect(nombres(mes)).toContain("mcp-antigua");
+
+    const res = await callMcp(readKey, rpc("tools/call", { name: "list_applications", arguments: { hours: 1 } }));
+    expect(res.body.error !== undefined || res.body.result?.isError === true).toBe(true);
+  });
+
   it("get_error_groups agrupa las ocurrencias del mismo fallo", async () => {
     const data = await callToolJson(readKey, "get_error_groups", { application: "facturacion" });
     const grupo = data.groups.find((g: { sampleMessage: string }) => g.sampleMessage.startsWith("Timeout cobrando"));

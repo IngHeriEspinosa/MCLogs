@@ -2,14 +2,321 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ---------------------------------------------------------------------------
+   Tokens de tema
+
+   Cada color es un triplete RGB para que Tailwind pueda aplicarle opacidad
+   (`bg-brand/10`). Los neutros tiran ligeramente hacia el azul petroleo de la
+   marca en lugar de ser grises puros: es lo que da identidad a la consola.
+
+   Contraste de texto comprobado (WCAG):
+     claro  ink 17.4:1 · ink-2 8.8:1 · ink-3 5.3:1 sobre surface
+     oscuro ink 15.0:1 · ink-2 8.3:1 · ink-3 5.4:1 sobre surface
+
+   Niveles de log: paleta validada para graficos (separacion en daltonismo y
+   vision normal) contra cada superficie. En oscuro el ambar baja a #c98500 y
+   el rojo sube a #d03b3b porque el par del modo claro no se distinguia lo
+   bastante sobre el fondo oscuro. `debug` es gris a proposito: es el nivel
+   que menos importa y no debe competir con los otros tres.
+   ------------------------------------------------------------------------- */
+:root,
+:root[data-theme="light"] {
   color-scheme: light;
+
+  --canvas: 243 246 247;
+  --surface: 255 255 255;
+  --surface-2: 248 250 251;
+  --surface-3: 236 241 243;
+  --line: 226 232 235;
+  --line-strong: 205 214 219;
+
+  --ink: 15 28 35;
+  --ink-2: 61 77 86;
+  --ink-3: 94 110 119;
+
+  --brand: 25 96 126;
+  --brand-solid: 25 96 126;
+  --brand-soft: 226 237 241;
+  --brand-ink: 19 73 96;
+  --accent: 235 174 35;
+  --focus: 36 137 179;
+
+  --lvl-error: 208 59 59;
+  --lvl-warn: 237 161 0;
+  --lvl-info: 42 120 214;
+  --lvl-debug: 139 150 156;
+
+  --danger: 180 35 35;
+  --danger-soft: 251 234 234;
+  --warning: 138 90 0;
+  --warning-soft: 253 243 220;
+  --success: 6 118 71;
+  --success-soft: 231 246 238;
+  --info: 29 95 176;
+  --info-soft: 232 241 252;
+
+  --code-bg: 13 24 30;
+  --code-ink: 215 227 232;
+
+  /* Riel de navegacion: petroleo oscuro en los dos temas, el ancla visual de
+     la consola. ink-2 sobre rail: 7.6:1. */
+  --rail: 10 26 33;
+  --rail-2: 20 44 55;
+  --rail-line: 30 55 66;
+  --rail-ink: 234 241 244;
+  --rail-ink-2: 152 175 186;
+
+  --shadow-card: 0 1px 2px rgb(15 28 35 / 0.04), 0 1px 3px rgb(15 28 35 / 0.04);
+  --shadow-pop: 0 16px 40px -12px rgb(15 28 35 / 0.22), 0 4px 10px -4px rgb(15 28 35 / 0.08);
+  --grid-dot: 15 28 35;
+  --grid-alpha: 0.075;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --canvas: 8 17 22;
+  --surface: 14 26 33;
+  --surface-2: 19 37 48;
+  --surface-3: 26 49 61;
+  --line: 31 51 62;
+  --line-strong: 45 71 84;
+
+  --ink: 230 238 241;
+  --ink-2: 163 181 190;
+  --ink-3: 125 145 155;
+
+  --brand: 92 184 224;
+  --brand-solid: 31 122 161;
+  --brand-soft: 16 45 58;
+  --brand-ink: 143 208 236;
+  --accent: 235 174 35;
+  --focus: 92 184 224;
+
+  --lvl-error: 208 59 59;
+  --lvl-warn: 201 133 0;
+  --lvl-info: 57 135 229;
+  --lvl-debug: 107 119 127;
+
+  --danger: 255 155 155;
+  --danger-soft: 42 23 25;
+  --warning: 240 192 96;
+  --warning-soft: 39 31 14;
+  --success: 95 212 154;
+  --success-soft: 13 36 27;
+  --info: 143 192 245;
+  --info-soft: 15 34 56;
+
+  --code-bg: 6 13 17;
+  --code-ink: 215 227 232;
+
+  --rail: 5 13 17;
+  --rail-2: 16 33 42;
+  --rail-line: 22 40 49;
+  --rail-ink: 234 241 244;
+  --rail-ink-2: 142 165 176;
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 18px 48px -12px rgb(0 0 0 / 0.65), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --grid-dot: 163 181 190;
+  --grid-alpha: 0.07;
+}
+
+/* ---------------------------------------------------------------------------
+   Escala para pantallas grandes. Tailwind trabaja en rem, asi que subir el
+   tamano raiz agranda todo en proporcion: en un 4K sin escalado del sistema
+   el texto de 14 px seria ilegible a distancia de escritorio.
+   ------------------------------------------------------------------------- */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (min-width: 2560px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 3200px) {
+  html {
+    font-size: 19px;
+  }
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 font-body;
+  @apply bg-canvas font-body text-ink antialiased;
+  font-feature-settings: "cv11", "ss01";
 }
 
 a {
-  @apply text-primary-600 hover:text-primary-700;
+  @apply text-brand hover:text-brand-ink;
+}
+
+::selection {
+  background: rgb(var(--brand) / 0.22);
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--focus));
+  outline-offset: 2px;
+}
+
+/* Barras de desplazamiento finas y del color del tema. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line-strong)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--line-strong));
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Al cambiar de tema se apagan las transiciones un instante: si no, cada
+   borde y fondo se animaria por separado y la pagina parpadearia. */
+.theme-switching,
+.theme-switching * {
+  transition: none !important;
+}
+
+@layer components {
+  /* Trama de puntos del lienzo: papel milimetrado de instrumento. Solo va en
+     el fondo de la pagina, nunca detras de un grafico. */
+  .bg-dot-grid {
+    background-image: radial-gradient(rgb(var(--grid-dot) / var(--grid-alpha)) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .eyebrow {
+    @apply font-mono text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-ink-3;
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--surface-3)) 0%,
+      rgb(var(--surface-2)) 40%,
+      rgb(var(--surface-3)) 80%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-md;
+  }
+
+  /* Campo de texto base. Lo comparten input, textarea y los disparadores de
+     los selects para que todos midan y se comporten igual. */
+  .field-base {
+    @apply w-full rounded-lg border border-line bg-surface text-sm text-ink shadow-[0_1px_0_rgb(var(--ink)/0.02)] transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-ink-3 hover:border-line-strong focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-ink-3;
+  }
+
+  /* Los controles nativos de fecha/hora heredan el tema del documento con
+     color-scheme; aqui solo se afina el icono. */
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    @apply cursor-pointer opacity-60 hover:opacity-100;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Vista previa de Markdown (reportes). Estilos escritos a mano en lugar de
+   @tailwindcss/typography para no anadir dependencias.
+   ------------------------------------------------------------------------- */
+.md-view {
+  @apply text-[0.9375rem] leading-7 text-ink-2;
+}
+
+.md-view > * + * {
+  @apply mt-4;
+}
+
+.md-view h1 {
+  @apply font-heading text-2xl font-bold tracking-tight text-ink;
+}
+
+.md-view h2 {
+  @apply mt-10 border-b border-line pb-2 font-heading text-xl font-semibold text-ink;
+}
+
+.md-view h3 {
+  @apply mt-7 font-heading text-base font-semibold text-ink;
+}
+
+.md-view h4 {
+  @apply mt-5 text-sm font-semibold text-ink;
+}
+
+.md-view strong {
+  @apply font-semibold text-ink;
+}
+
+.md-view ul {
+  @apply list-disc space-y-1.5 pl-6 marker:text-ink-3;
+}
+
+.md-view ol {
+  @apply list-decimal space-y-1.5 pl-6 marker:text-ink-3;
+}
+
+.md-view blockquote {
+  @apply rounded-r-lg border-l-4 border-brand/40 bg-brand-soft/50 px-4 py-2.5 text-ink-2;
+}
+
+.md-view :not(pre) > code {
+  @apply rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[0.85em] text-ink;
+}
+
+.md-view pre {
+  @apply overflow-x-auto rounded-xl bg-code p-4 font-mono text-[0.8125rem] leading-relaxed text-code-ink;
+}
+
+.md-view .md-table {
+  @apply overflow-x-auto rounded-xl border border-line;
+}
+
+.md-view table {
+  @apply w-full border-collapse text-sm;
+}
+
+.md-view th {
+  @apply whitespace-nowrap border-b border-line bg-surface-2 px-3 py-2 text-left font-semibold text-ink;
+}
+
+.md-view td {
+  @apply border-b border-line px-3 py-2 align-top;
+}
+
+.md-view tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.md-view hr {
+  @apply my-8 border-line;
+}
+
+.md-view .md-frontmatter {
+  @apply rounded-xl border border-dashed border-line-strong bg-surface-2 p-4 font-mono text-xs leading-relaxed text-ink-2;
+}
+
+.md-view .md-tag {
+  @apply font-mono text-xs text-ink-3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

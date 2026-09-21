@@ -91,7 +91,7 @@ Base: `http://localhost:3000`. Swagger interactivo en `/docs`.
   "application": "facturacion",     // obligatorio, ≤120
   "level": "error",                 // obligatorio: debug|info|warn|error
   "environment": "production",      // obligatorio: development|staging|production
-  "message": "Timeout en pagos",    // obligatorio, ≤100000
+  "message": "Timeout en pagos",    // obligatorio, ≤100000 (si pasa, se recorta)
   "service": "orders-worker",       // opcional, ≤120  (default: application)
   "host": "node-1",                 // opcional, ≤255  (default: hostname de la petición)
   "timestamp": "2026-08-08T10:00:00Z", // opcional ISO-8601 (default: ahora)
@@ -162,7 +162,7 @@ Todos los logs de una traza en orden cronológico, máximo 1000. `404` si no hay
 Lo ocurrido alrededor de un log, en su misma aplicación y servicio. Query: `before` y `after` en segundos (1–3600, default 60) y `limit` (1–200, default 50). Devuelve `{ target, from, to, data, total }`.
 
 #### `GET /api/logs/applications`
-Inventario: por aplicación, sus servicios, entornos, total, última actividad y errores de las últimas 24 h.
+Inventario: por aplicación, sus servicios, entornos, logs en la ventana, última actividad y errores de las últimas 24 h. Query opcional: `hours` (24–744, default 168 = una semana). Solo aparecen las aplicaciones con logs en la ventana; sin ella la consulta recorría la tabla entera en cada llamada. Devuelve `{ data, from, to }`.
 
 #### `GET /api/logs/stats`
 Query opcional: `application`, `environment`, `hours` (default 24) o `from`/`to`, que acotan la serie temporal.
@@ -361,24 +361,23 @@ Errores no capturados → `errorHandler` central.
 
 ## 7. Frontend
 
+Detalle completo en [frontend_mclog/docs/TECHNICAL.md](../frontend_mclog/docs/TECHNICAL.md).
+
 ### Estructura
 ```
 src/
-  app/
-    layout.tsx              Server component: metadata + <Providers>
-    providers.tsx           QueryClientProvider (staleTime 15s, retry 1)
-    page.tsx                Dashboard (client, en <Suspense> por useSearchParams)
-    (auth)/login/page.tsx   Login
-  common/api/
-    client.ts               axios withCredentials; interceptor 401 → /auth/refresh → retry
-    download.ts             Export CSV/NDJSON con los filtros activos
-    logout.ts
-  hooks/
-    useAuth.ts              useLogin, useLogout, useLogs, useLogStats + tipos
-    useDebounce.ts          350 ms
+  app/                      Rutas: logs (/), errors, reports, trace/[traceId], settings/*, login
+  common/
+    api/                    axios withCredentials (401 → /auth/refresh → retry), export, errores
+    i18n/                   Diccionarios es/en tipados, formato con Intl, proveedor
+    theme/                  Claro/oscuro/sistema con cookie y script anti-destello
+    time/                   Rangos relativos/absolutos en la URL, serie horaria
+    reports/                Recogida de datos, generadores (Markdown, brief IA, JSON), enmascarado
+  hooks/                    Datos (React Query), filtros en la URL, paneles flotantes, preferencias
   components/
-    atoms/                  PrimaryButton, Skeleton, LevelBadge
-    molecules/              Card, DownloadActions, StatsCards
+    atoms/                  Button, Input, Field, Checkbox, Switch, Segmented, Icon, LevelBadge…
+    molecules/              Select, Menu, Dialog, DateRangePicker, ActivityChart, StatTile, MarkdownView…
+    organisms/              Sidebar, Topbar, LogFilterBar, LogOverview, LogTable, LogInspector
     templates/              DashboardLayout, AuthLayout
   config/api.ts             API_BASE desde NEXT_PUBLIC_API_URL
 ```
@@ -386,10 +385,14 @@ src/
 ### Decisiones
 
 - **El front nunca toca tokens.** Viven en cookies httpOnly gestionadas por el backend; axios va con `withCredentials`. No hay middleware de rutas: la fuente de verdad de la sesión es el backend, y el guard es el interceptor de 401.
-- **React Query v5** con `placeholderData: keepPreviousData` — al paginar o refiltrar la tabla anterior se mantiene atenuada en vez de parpadear a vacío. Stats con `refetchInterval` de 60 s.
-- **Filtros en la URL**, omitiendo los valores por defecto para mantenerla limpia. Copiar el enlace reproduce la vista.
-- **Debounce de 350 ms** en búsqueda y aplicación.
-- **Todo client-side**: los datos son privados y dinámicos, el SSR no aportaría nada.
+- **Sin librerías de UI ni de gráficos**: componentes, iconos y gráficos SVG propios, accesibles por teclado.
+- **Tokens de color en variables CSS** con un valor por tema; Tailwind los expone por rol (`surface`, `ink`, `brand`…). Paleta de niveles validada para daltonismo sobre cada superficie.
+- **Español e inglés** con diccionarios tipados (una traducción que falta no compila) e idioma y tema en cookies que el servidor lee, para que la primera pintura ya salga bien.
+- **Hasta 4K**: el tamaño raíz crece con el ancho y las vistas de datos usan hasta 3840 px; el detalle del log pasa a columna lateral desde 1920 px.
+- **React Query v5** con `placeholderData: keepPreviousData`: al paginar o refiltrar, lo anterior se mantiene atenuado en vez de parpadear a vacío.
+- **Filtros en la URL**, incluido el rango (`range=24h` o `from`/`to`), omitiendo los valores por defecto. Copiar el enlace reproduce la vista.
+- **Reportes en el navegador**: Markdown para personas y briefs para agentes de IA con los datos de los logs aislados en `<mclog_data>` y enmascarado de datos sensibles.
+- **Todo client-side** salvo el layout raíz, que lee las cookies de idioma y tema: los datos son privados y dinámicos, el SSR no aportaría nada.
 
 ---
 
@@ -402,7 +405,7 @@ Referencia completa en su [README](../packages/mclog/README.md).
 | `@multicomputos-srl/mclog` | `createMCLogClient` + tipos | **Ninguna** (fetch nativo, Node ≥18) |
 | `@multicomputos-srl/mclog/express` | `validateLog` | `express`, `express-validator` (peers opcionales) |
 
-Separar los entry points es lo que permite que un emisor puro no arrastre Express. Puntos de diseño: los fallos no se propagan por defecto (devuelve `boolean`, hook `onError`), `sendBatch` trocea al tamaño máximo del servidor, y la librería nunca escribe en la consola del consumidor.
+Separar los entry points es lo que permite que un emisor puro no arrastre Express. Puntos de diseño: los fallos no se propagan por defecto (devuelve `boolean`, hook `onError`), `sendBatch` trocea por entradas (`maxBatchSize`) y por bytes (`maxBatchBytes`) por debajo de los topes del servidor, y la librería nunca escribe en la consola del consumidor.
 
 ```bash
 npm run build      # tsc → dist/ con .d.ts y source maps

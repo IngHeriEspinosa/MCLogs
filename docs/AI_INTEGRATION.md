@@ -8,7 +8,7 @@ La diferencia práctica: en vez de copiar un stack trace al chat, preguntas *"¿
 
 ## 1. Crear la clave de lectura
 
-En el dashboard, **Ajustes → API keys → Nueva clave**:
+En el dashboard, **Administración → API keys → Nueva clave**:
 
 | Campo | Valor |
 |---|---|
@@ -100,7 +100,7 @@ Ocho herramientas, pensadas para el recorrido real de una investigación:
 
 | Herramienta | Para qué |
 |---|---|
-| `list_applications` | Qué aplicaciones existen, sus servicios y sus errores de las últimas 24 h |
+| `list_applications` | Qué aplicaciones han emitido logs en la última semana (ampliable con `hours`), sus servicios y sus errores de las últimas 24 h |
 | `get_error_groups` | **Qué está fallando**, agrupado por causa y ordenado por frecuencia |
 | `search_logs` | Buscar con filtros: texto, aplicación, nivel, fechas, traza, huella |
 | `get_log` | El registro completo de un log, con stack y metadata |
@@ -135,6 +135,15 @@ empieza por `get_error_groups` para ver qué falla y con qué frecuencia,
 usa `get_trace` si el problema cruza varios servicios, y `get_log_context`
 para ver qué ocurrió justo antes. La aplicación se llama `<nombre>`.
 ```
+
+### Sin conectar nada: briefs desde el dashboard
+
+Si el asistente no puede usar MCP (un chat web, un modelo de otra empresa, un ticket), el dashboard prepara el contexto por ti:
+
+- **Reportes → Brief para agentes IA** genera un Markdown con instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP por si el agente sí puede usarlas, y los datos del rango en bloques YAML, CSV y JSON. **Datos para agentes (JSON)** da lo mismo en un solo objeto con esquema `mclog.agent-report/v1`, para pipelines.
+- **Copiar para IA** en el detalle de un log, en un fallo agrupado o en una traza copia un brief más corto de solo eso.
+
+Los datos de los logs van dentro de `<mclog_data>` y las reglas le dicen al agente que ese contenido no son instrucciones: un log que diga "ignora lo anterior" no le cambia la tarea. Por defecto se enmascaran correos, IPs, tokens y claves largas; huellas y traceId se conservan para que el agente pueda citarlos o pedirlos por MCP.
 
 ---
 
@@ -184,7 +193,7 @@ Sin librería, en cualquier lenguaje, basta un campo `error` en el JSON:
 | `401` | La clave no existe, está revocada o ha caducado |
 | `403` | La clave no tiene el permiso `read` (probablemente es de ingesta) |
 | `405` | Se está usando GET. El endpoint es sin estado y solo acepta POST; los clientes MCP ya lo hacen bien |
-| El asistente no ve una aplicación | La clave está acotada a otras. Míralo en Ajustes → API keys |
+| El asistente no ve una aplicación | La clave está acotada a otras. Míralo en Administración → API keys |
 | No encuentra nada | ¿Están llegando los logs? Compruébalo en el dashboard antes de culpar al MCP |
 
 Prueba manual del endpoint, sin cliente de por medio:

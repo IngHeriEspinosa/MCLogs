@@ -38,6 +38,18 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
     const MAX_BATCH_SIZE = 500;
 
     /**
+     * Tope de bytes por peticion. El servidor corta el cuerpo en su BODY_LIMIT
+     * (3 MB por defecto), responde 413 y se pierde el trozo entero: 500
+     * errores con stacks de unos 7 KB ya pesan 4 MB. 1 MB deja margen y cabe
+     * tambien en el limite por defecto de nginx si hay uno delante.
+     */
+    const MAX_BATCH_BYTES = 1024 * 1024;
+
+    /** Envoltorio que espera POST /api/logs/batch: {"logs":[...]} */
+    const BATCH_PREFIX = '{"logs":[';
+    const BATCH_SUFFIX = ']}';
+
+    /**
      * Contexto estándar de NetSuite que se adjunta a cada log como metadata.
      */
     const nsContext = () => {
@@ -117,11 +129,66 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
         };
     };
 
+    /**
+     * Bytes que ocupa una cadena en UTF-8, que es lo que mide el limite del
+     * servidor. SuiteScript no garantiza TextEncoder, asi que se cuenta a mano.
+     */
+    const utf8Length = (text) => {
+        let bytes = 0;
+        for (let i = 0; i < text.length; i++) {
+            const code = text.charCodeAt(i);
+            if (code < 0x80) bytes += 1;
+            else if (code < 0x800) bytes += 2;
+            else if (code >= 0xd800 && code <= 0xdbff) {
+                // Par sustituto (emoji y similares): 4 bytes en dos unidades.
+                bytes += 4;
+                i++;
+            } else bytes += 3;
+        }
+        return bytes;
+    };
+
+    /**
+     * Agrupa entradas ya serializadas en cuerpos de lote que respetan a la vez
+     * MAX_BATCH_SIZE y MAX_BATCH_BYTES. Una entrada que por si sola pase del
+     * tope de bytes va en un cuerpo propio: si el servidor la rechaza, no
+     * arrastra a las demas.
+     *
+     * @param {string[]} serialized  Cada entrada ya pasada por JSON.stringify
+     * @returns {string[]} Cuerpos listos para enviar
+     */
+    const packBatches = (serialized) => {
+        const bodies = [];
+        const emptyBytes = BATCH_PREFIX.length + BATCH_SUFFIX.length;
+        let current = [];
+        let currentBytes = emptyBytes;
+
+        const flush = () => {
+            bodies.push(BATCH_PREFIX + current.join(',') + BATCH_SUFFIX);
+            current = [];
+            currentBytes = emptyBytes;
+        };
+
+        serialized.forEach((entry) => {
+            const bytes = utf8Length(entry);
+            // El +1 es la coma que la separa de la anterior.
+            if (current.length > 0 && (current.length >= MAX_BATCH_SIZE || currentBytes + 1 + bytes > MAX_BATCH_BYTES)) {
+                flush();
+            }
+            currentBytes += (current.length > 0 ? 1 : 0) + bytes;
+            current.push(entry);
+        });
+        if (current.length > 0) flush();
+
+        return bodies;
+    };
+
+    /** @param {string} body Cuerpo ya serializado */
     const post = (endpoint, body) => {
         try {
             const response = https.post({
                 url: MCLOG_URL + endpoint,
-                body: JSON.stringify(body),
+                body: body,
                 headers: {
                     'Content-Type': 'application/json',
                     'x-api-key': MCLOG_API_KEY
@@ -143,19 +210,21 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
      * Envía un log individual.
      * @example mclog.send('error', { application: 'SuiteApp-Facturacion', message: 'Fallo al crear factura', metadata: { recordId: 123 } });
      */
-    const send = (level, opts) => post(ENDPOINT_SINGLE, buildPayload(level, opts));
+    const send = (level, opts) => post(ENDPOINT_SINGLE, JSON.stringify(buildPayload(level, opts)));
 
     /**
      * Envía varios logs agrupados (recomendado en Map/Reduce y Scheduled para
-     * ahorrar governance: una llamada https por cada MAX_BATCH_SIZE entradas en
-     * lugar de una por entrada).
+     * ahorrar governance: una llamada https por trozo en lugar de una por
+     * entrada).
      *
-     * Se trocea porque el servidor rechaza con 400 el lote que pase de su
-     * MAX_BATCH_SIZE, y lo rechaza entero: sin trocear, un summarize con mas de
-     * 500 errores no registraba ninguno.
+     * Se trocea por entradas y por bytes, porque el servidor rechaza entero el
+     * lote que pase de su MAX_BATCH_SIZE (400) o de su BODY_LIMIT (413): sin
+     * trocear, un summarize con mas de 500 errores, o con stacks grandes, no
+     * registraba ninguno.
      *
      * Ojo al governance: cada https.post cuesta 10 unidades, asi que N entradas
-     * salen por ceil(N / 500) * 10. Un Map/Reduce con 10 000 entradas gasta 200.
+     * salen por ceil(N / 500) * 10, y alguna llamada mas si las entradas son
+     * grandes. Un Map/Reduce con 10 000 entradas pequenas gasta 200.
      *
      * @param {Array<{level: string} & Object>} entries  Cada entrada: { level, application, message, ... }
      * @returns {boolean} true solo si todos los trozos fueron aceptados
@@ -163,16 +232,14 @@ define(['N/https', 'N/log', 'N/runtime'], (https, log, runtime) => {
     const sendBatch = (entries) => {
         if (!entries || !entries.length) return true;
 
-        const logs = entries.map((e) => buildPayload(e.level || 'info', e));
+        const serialized = entries.map((e) => JSON.stringify(buildPayload(e.level || 'info', e)));
         let allOk = true;
 
-        for (let i = 0; i < logs.length; i += MAX_BATCH_SIZE) {
+        packBatches(serialized).forEach((body) => {
             // No se corta al primer fallo: los trozos son independientes y
             // abandonar perderia los que si habrian entrado.
-            if (!post(ENDPOINT_BATCH, { logs: logs.slice(i, i + MAX_BATCH_SIZE) })) {
-                allOk = false;
-            }
-        }
+            if (!post(ENDPOINT_BATCH, body)) allOk = false;
+        });
 
         return allOk;
     };

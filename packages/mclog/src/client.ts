@@ -68,6 +68,13 @@ export type MCLogClientOptions = {
     /** Máximo de entradas por petición en sendBatch; se trocea (default: 500) */
     maxBatchSize?: number | undefined;
     /**
+     * Máximo de bytes del cuerpo de cada petición de sendBatch (default: 1 MiB).
+     * Tiene que quedar por debajo del `BODY_LIMIT` del servidor (3 MB por
+     * defecto): un trozo que lo pase recibe un 413 y se pierde entero. 1 MiB
+     * deja margen y cabe también en el límite por defecto de nginx.
+     */
+    maxBatchBytes?: number | undefined;
+    /**
      * Reintentos tras el primer intento ante un fallo recuperable (default: 2).
      * 0 lo desactiva. Ver `retryBaseMs` para la espera entre intentos.
      */
@@ -109,7 +116,10 @@ export type MCLogCaptureOptions = Omit<Partial<MCLogEntry>, 'message'> & {
 export type MCLogClient = {
     /** Envía una entrada. Resuelve a true si el servicio la aceptó. */
     send: (entry: MCLogInput) => Promise<boolean>;
-    /** Envía un lote, troceado en peticiones de `maxBatchSize`. True si todos los trozos fueron aceptados. */
+    /**
+     * Envía un lote, troceado en peticiones de `maxBatchSize` entradas y
+     * `maxBatchBytes` bytes como mucho. True si todos los trozos fueron aceptados.
+     */
     sendBatch: (entries: MCLogInput[]) => Promise<boolean>;
     /**
      * Registra una excepción con su clase, código y stack, de modo que el
@@ -165,6 +175,50 @@ const chunk = <T>(items: T[], size: number): T[][] => {
     return out;
 };
 
+const encoder = new TextEncoder();
+
+/** Tamaño en UTF-8, que es lo que mide el límite de cuerpo del servidor. */
+const byteLength = (text: string): number => encoder.encode(text).length;
+
+/** Envoltorio que espera `POST /api/logs/batch`: `{"logs":[...]}`. */
+const BATCH_PREFIX = '{"logs":[';
+const BATCH_SUFFIX = ']}';
+
+/**
+ * Agrupa entradas ya serializadas en cuerpos de lote que respetan a la vez el
+ * tope de entradas y el de bytes.
+ *
+ * Trocear solo por número no basta: 500 errores con stacks de unos 7 KB pesan
+ * 4 MB, el servidor responde 413 y el trozo se pierde entero. Una entrada que
+ * por sí sola pase de `maxBytes` va en un cuerpo propio: si el servidor la
+ * rechaza, no arrastra a las demás.
+ */
+const packBatches = (serialized: string[], maxCount: number, maxBytes: number): string[] => {
+    const bodies: string[] = [];
+    const emptyBytes = BATCH_PREFIX.length + BATCH_SUFFIX.length;
+    let current: string[] = [];
+    let currentBytes = emptyBytes;
+
+    const flush = () => {
+        bodies.push(BATCH_PREFIX + current.join(',') + BATCH_SUFFIX);
+        current = [];
+        currentBytes = emptyBytes;
+    };
+
+    for (const entry of serialized) {
+        const bytes = byteLength(entry);
+        // El +1 es la coma que la separa de la anterior.
+        if (current.length > 0 && (current.length >= maxCount || currentBytes + 1 + bytes > maxBytes)) {
+            flush();
+        }
+        currentBytes += (current.length > 0 ? 1 : 0) + bytes;
+        current.push(entry);
+    }
+    if (current.length > 0) flush();
+
+    return bodies;
+};
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -201,6 +255,7 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         throwOnError = false,
         timeoutMs = 5000,
         maxBatchSize = 500,
+        maxBatchBytes = 1024 * 1024,
         maxRetries = 2,
         retryBaseMs = 300,
         batchConcurrency = 1,
@@ -217,6 +272,9 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
     }
     if (!Number.isFinite(maxBatchSize) || maxBatchSize < 1) {
         throw new Error('createMCLogClient: `maxBatchSize` debe ser >= 1');
+    }
+    if (!Number.isFinite(maxBatchBytes) || maxBatchBytes < 1) {
+        throw new Error('createMCLogClient: `maxBatchBytes` debe ser >= 1');
     }
     if (!Number.isFinite(maxRetries) || maxRetries < 0) {
         throw new Error('createMCLogClient: `maxRetries` debe ser >= 0');
@@ -286,8 +344,7 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
      * de ingesta —que es justo lo que devuelve el servicio cuando más logs se
      * están produciendo— descartaba la entrada en silencio.
      */
-    const post = async (path: string, payload: unknown): Promise<boolean> => {
-        const body = JSON.stringify(payload);
+    const post = async (path: string, body: string): Promise<boolean> => {
         let last: Extract<Attempt, { ok: false }> | undefined;
 
         for (let tries = 0; tries <= maxRetries; tries += 1) {
@@ -345,7 +402,7 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         return merged;
     };
 
-    const send = (entry: MCLogInput) => post('/api/log', withDefaults(entry));
+    const send = (entry: MCLogInput) => post('/api/log', JSON.stringify(withDefaults(entry)));
 
     const captureException = (error: unknown, captureOptions: MCLogCaptureOptions = {}) => {
         const extracted = extractError(error);
@@ -359,21 +416,23 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
     };
 
     /**
-     * Trocea el lote y lo envía. Por defecto en serie: mandar todos los trozos
-     * a la vez convertía un lote grande en una ráfaga simultánea contra el
-     * limitador de ingesta, que respondía 429 a casi todos. `batchConcurrency`
-     * lo sube para quien tenga margen de cuota.
+     * Trocea el lote por entradas y por bytes y lo envía. Por defecto en serie:
+     * mandar todos los trozos a la vez convertía un lote grande en una ráfaga
+     * simultánea contra el limitador de ingesta, que respondía 429 a casi
+     * todos. `batchConcurrency` lo sube para quien tenga margen de cuota.
      */
     const sendBatch = async (entries: MCLogInput[]): Promise<boolean> => {
         if (!Array.isArray(entries) || entries.length === 0) return true;
 
-        const chunks = chunk(entries, maxBatchSize);
+        const bodies = packBatches(
+            entries.map((entry) => JSON.stringify(withDefaults(entry))),
+            maxBatchSize,
+            maxBatchBytes,
+        );
         let allOk = true;
 
-        for (const group of chunk(chunks, batchConcurrency)) {
-            const results = await Promise.all(
-                group.map((batch) => post('/api/logs/batch', { logs: batch.map(withDefaults) })),
-            );
+        for (const group of chunk(bodies, batchConcurrency)) {
+            const results = await Promise.all(group.map((body) => post('/api/logs/batch', body)));
             // No se corta al primer fallo: los trozos son independientes y
             // descartar el resto perdería logs que sí habrían entrado.
             if (!results.every(Boolean)) allOk = false;

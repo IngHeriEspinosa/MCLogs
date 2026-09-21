@@ -1,6 +1,6 @@
 {
   "name": "@multicomputos-srl/mclog",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Cliente REST y middleware de validación para el servicio de logs centralizados MCLog",
   "keywords": [
     "mclog",

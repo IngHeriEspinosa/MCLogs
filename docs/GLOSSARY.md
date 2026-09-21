@@ -226,7 +226,7 @@ Comparación de secretos que tarda **lo mismo** coincidan o no. Evita que un ata
 ### TraceId
 Identificador que **correlaciona todos los logs de una misma operación**, aunque haya pasado por varios sistemas. Si la aplicación no lo envía, el servidor genera uno por petición.
 
-Es la herramienta más potente del dashboard: desde cualquier log con traceId, **Ver traza completa** abre la operación entera en orden, con el tiempo transcurrido desde el primer registro. Ese desglose es lo que delata dónde se fue el tiempo. → [SpanId](#spanid)
+Es la herramienta más potente del dashboard: desde cualquier log con traceId, **Ver traza** abre la operación entera en orden, con el tiempo transcurrido desde el primer registro y el salto entre pasos. Ese desglose es lo que delata dónde se fue el tiempo. → [SpanId](#spanid)
 
 ### Trust proxy
 Ajuste (`TRUST_PROXY=1`) que le dice a Express que confíe en las cabeceras `X-Forwarded-*` de un proxy o balanceador. Sin él, detrás de un proxy todas las peticiones parecen venir de la misma IP y el [rate limit](#rate-limit) se aplica mal.
