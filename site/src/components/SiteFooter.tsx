@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DOCS, DOC_GROUPS } from "@/lib/docs";
-import { GITHUB_REPO, NPM_PACKAGE, NPM_URL, repoFile } from "@/lib/site";
+import { GITHUB_REPO, NPM_PACKAGE, NPM_URL, SPONSOR, repoFile } from "@/lib/site";
 import { GitHubIcon, Logo } from "./Brand";
 
 const YEAR = new Date().getFullYear();
@@ -27,6 +27,18 @@ export function SiteFooter() {
             <GitHubIcon className="h-4 w-4" />
             IngHeriEspinosa/MCLogs
           </a>
+
+          <p className="mt-6 text-sm text-slate-600">
+            Patrocinado por{" "}
+            <a
+              href={SPONSOR.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-slate-900 underline-offset-4 hover:text-primary-600 hover:underline"
+            >
+              {SPONSOR.name}
+            </a>
+          </p>
         </div>
 
         <div>

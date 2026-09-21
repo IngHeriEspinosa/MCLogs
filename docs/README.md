@@ -2,7 +2,7 @@
 
 Índice completo de la documentación del proyecto.
 
-> Estos mismos documentos se publican en web en **<https://inghieriespinosa.github.io/MCLogs/docs>**. Se generan desde los `.md` de esta carpeta, así que para corregir un texto se edita el `.md` y el sitio se actualiza solo.
+> Estos mismos documentos se publican en web en **<https://ingheriespinosa.github.io/MCLogs/docs>**. Se generan desde los `.md` de esta carpeta, así que para corregir un texto se edita el `.md` y el sitio se actualiza solo.
 
 ## Empieza por aquí
 

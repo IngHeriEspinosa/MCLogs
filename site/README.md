@@ -1,7 +1,7 @@
 # MCLog — Sitio público
 
 Landing y documentación pública de MCLog. Se compila a HTML estático y se publica en **GitHub
-Pages**: <https://inghieriespinosa.github.io/MCLogs>
+Pages**: <https://ingheriespinosa.github.io/MCLogs>
 
 No tiene nada que ver con `frontend_mclog/`. Aquel es el dashboard privado que se despliega en tu
 instancia bajo `MCLOG_DOMAIN`; este es un sitio público sin autenticación, sin API y sin acceso a

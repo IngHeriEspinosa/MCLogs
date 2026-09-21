@@ -3,13 +3,19 @@
 export const GITHUB_REPO = "https://github.com/IngHeriEspinosa/MCLogs";
 
 /** Dominio publico del sitio. Cambialo si algun dia se usa dominio propio. */
-export const SITE_URL = "https://inghieriespinosa.github.io/MCLogs";
+export const SITE_URL = "https://ingheriespinosa.github.io/MCLogs";
 
 /**
  * Debe coincidir con `basePath` de next.config.js. `next/link` lo antepone
  * solo, pero los `href` sueltos (un <a> a un fichero de public/) no.
  */
 export const BASE_PATH = process.env.SITE_BASE_PATH ?? "/MCLogs";
+
+/** Patrocinador del proyecto. */
+export const SPONSOR = {
+  name: "Multicomputos SRL",
+  url: "https://multicomputos.com",
+} as const;
 
 export const NPM_PACKAGE = "@multicomputos-srl/mclog";
 export const NPM_URL = "https://www.npmjs.com/package/@multicomputos-srl/mclog";
