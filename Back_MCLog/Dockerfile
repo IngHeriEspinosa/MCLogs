@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
@@ -14,10 +14,12 @@ ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mclog?schema=publ
 RUN npm ci
 RUN npx prisma generate
 RUN npm run build
-RUN npm prune --omit=dev
+# El CLI de prisma vive en devDependencies, pero entrypoint.sh lo necesita para
+# aplicar las migraciones al arrancar: se conserva tras el prune.
+RUN npm prune --omit=dev && npm install --no-save prisma@7
 
 # Runtime stage
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -26,10 +28,11 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/dist ./dist
+COPY entrypoint.sh ./
 
 # El logger escribe en logs/app.log: el directorio debe pertenecer al usuario
 # sin privilegios con el que corre el proceso.
-RUN mkdir -p logs && chown -R node:node /app
+RUN chmod +x entrypoint.sh && mkdir -p logs && chown -R node:node /app
 
 # Nunca como root: una ejecucion remota de codigo queda acotada a este usuario.
 USER node
@@ -41,4 +44,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://127.0.0.1:3000/health || exit 1
 
-CMD ["node", "dist/index.js"]
+CMD ["./entrypoint.sh"]

@@ -25,3 +25,6 @@ coverage/
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Deploy
+deploy/import.txt
