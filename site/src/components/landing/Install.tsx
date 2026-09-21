@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { highlightCode } from "@/lib/highlight";
-import { GITHUB_REPO } from "@/lib/site";
+import { GITHUB_REPO, NPM_PACKAGE, NPM_URL } from "@/lib/site";
 
 /** Mismo arranque rapido que el README del repositorio. */
 const QUICKSTART = `git clone https://github.com/IngHeriEspinosa/MCLogs.git
@@ -40,7 +40,7 @@ export function Install() {
     <section id="instalacion" className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
         <div>
-          <h2 className="font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 className="section-title font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
             Instalación
           </h2>
           <p className="mt-4 text-lg leading-8 text-slate-600">
@@ -51,7 +51,7 @@ export function Install() {
           <ol className="mt-8 space-y-6">
             {STEPS.map((step, index) => (
               <li key={step.title} className="flex gap-4">
-                <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary-100 font-heading text-sm font-bold text-primary-700">
+                <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-400 font-heading text-sm font-bold text-slate-900">
                   {index + 1}
                 </span>
                 <div>
@@ -73,6 +73,14 @@ export function Install() {
               className="text-primary-600 hover:text-primary-700"
             >
               Código en GitHub →
+            </a>
+            <a
+              href={NPM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 hover:text-primary-700"
+            >
+              {NPM_PACKAGE} en npm →
             </a>
           </div>
         </div>

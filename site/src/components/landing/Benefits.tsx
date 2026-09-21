@@ -29,7 +29,7 @@ export function Benefits() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <div className="max-w-2xl">
-        <h2 className="font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+        <h2 className="section-title font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
           Por qué centralizar los logs
         </h2>
         <p className="mt-4 text-lg leading-8 text-slate-600">

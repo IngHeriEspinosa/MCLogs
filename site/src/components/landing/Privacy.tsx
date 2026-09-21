@@ -8,7 +8,7 @@ export function Privacy() {
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
           <div>
-            <h2 className="font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h2 className="section-title font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Tus logs no pasan por nosotros
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-300">
@@ -24,7 +24,7 @@ export function Privacy() {
                 "Código completo y auditable bajo licencia MIT.",
               ].map((item) => (
                 <li key={item} className="flex gap-3">
-                  <svg viewBox="0 0 20 20" className="mt-1 h-4 w-4 flex-none text-primary-400" fill="currentColor" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" className="mt-1 h-4 w-4 flex-none text-accent-300" fill="currentColor" aria-hidden="true">
                     <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
                   </svg>
                   <span className="text-sm leading-6">{item}</span>

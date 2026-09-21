@@ -16,6 +16,13 @@ body {
   scroll-margin-top: 5rem;
 }
 
+/* Acento de marca bajo los titulos de seccion de la landing. Es decorativo:
+   el texto sigue siendo slate-900, no ambar, que sobre blanco no es legible. */
+.section-title::after {
+  content: "";
+  @apply mt-4 block h-1 w-12 rounded-full bg-accent-400;
+}
+
 /* ---------------------------------------------------------------------------
    Documentacion: estilos del HTML generado desde los .md. Se escriben a mano
    en lugar de usar @tailwindcss/typography para no anadir otra dependencia y

@@ -163,7 +163,7 @@ function LogsDashboard() {
           </span>
           <button
             type="button"
-            className="rounded-md border border-primary-300 px-2 py-0.5 text-xs font-semibold hover:bg-white"
+            className="rounded-md border border-primary-500 px-2 py-0.5 text-xs font-semibold hover:bg-white"
             onClick={() => {
               setFingerprint("");
               resetToFirstPage({ fingerprint: undefined });

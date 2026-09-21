@@ -12,7 +12,8 @@ export function Logo({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="23" cy="19.5" r="2" fill="white" />
+      {/* El punto en el secundario de marca: el unico toque de ambar del isotipo. */}
+      <circle cx="23" cy="19.5" r="2" className="fill-accent-400" />
     </svg>
   );
 }

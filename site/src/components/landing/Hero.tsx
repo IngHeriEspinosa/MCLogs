@@ -7,8 +7,8 @@ export function Hero() {
     <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-b from-primary-50 via-white to-white">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white px-3 py-1 text-sm font-medium text-primary-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary-500" aria-hidden="true" />
+          <p className="inline-flex items-center gap-2 rounded-full border border-accent-300 bg-accent-50 px-3 py-1 text-sm font-medium text-accent-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-400" aria-hidden="true" />
             Open source · Licencia MIT · Autoalojado
           </p>
 

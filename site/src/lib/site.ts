@@ -11,8 +11,8 @@ export const SITE_URL = "https://inghieriespinosa.github.io/MCLogs";
  */
 export const BASE_PATH = process.env.SITE_BASE_PATH ?? "/MCLogs";
 
-export const NPM_PACKAGE = "@enviromentmc/mclog";
-export const NPM_URL = "https://www.npmjs.com/package/@enviromentmc/mclog";
+export const NPM_PACKAGE = "@multicomputos-srl/mclog";
+export const NPM_URL = "https://www.npmjs.com/package/@multicomputos-srl/mclog";
 
 /** Ruta de un fichero dentro de public/, con el prefijo de GitHub Pages. */
 export const asset = (path: string) => `${BASE_PATH}${path}`;

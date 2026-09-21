@@ -23,7 +23,7 @@ export function Features() {
     <section className="border-y border-slate-200 bg-slate-50">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="max-w-2xl">
-          <h2 className="font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 className="section-title font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
             Qué incluye
           </h2>
           <p className="mt-4 text-lg leading-8 text-slate-600">
@@ -36,7 +36,7 @@ export function Features() {
             <li key={title} className="flex gap-3">
               <svg
                 viewBox="0 0 20 20"
-                className="mt-0.5 h-5 w-5 flex-none text-primary-600"
+                className="mt-0.5 h-5 w-5 flex-none text-accent-500"
                 fill="currentColor"
                 aria-hidden="true"
               >

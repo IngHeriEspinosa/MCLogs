@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CodeTabs, type CodeSample } from "@/components/CodeTabs";
 import { highlightCode } from "@/lib/highlight";
+import { NPM_PACKAGE, NPM_URL } from "@/lib/site";
 
 /**
  * Los ejemplos son los mismos de docs/INTEGRATION.md. Si cambia el contrato de
@@ -13,7 +14,7 @@ const SAMPLES: { id: string; label: string; language: string; code: string; note
     label: "Node.js",
     language: "typescript",
     note: "Un fallo de red devuelve false y sigue: el logging nunca tumba tu aplicación.",
-    code: `import { createMCLogClient } from "@enviromentmc/mclog";
+    code: `import { createMCLogClient } from "@multicomputos-srl/mclog";
 
 const mclog = createMCLogClient({
   baseUrl: "https://mclog.tu-dominio.com",
@@ -121,7 +122,7 @@ export function Examples() {
   return (
     <section id="ejemplos" className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <div className="max-w-2xl">
-        <h2 className="font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+        <h2 className="section-title font-heading text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
           Ejemplos de uso
         </h2>
         <p className="mt-4 text-lg leading-8 text-slate-600">
@@ -135,8 +136,17 @@ export function Examples() {
       </div>
 
       <p className="mt-6 text-sm text-slate-600">
-        Contrato completo de la API, ingesta por lotes, consulta programática y buenas prácticas en
-        la{" "}
+        La librería de Node se instala desde npm como{" "}
+        <a
+          href={NPM_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono font-medium text-primary-600 hover:text-primary-700"
+        >
+          {NPM_PACKAGE}
+        </a>
+        . Contrato completo de la API, ingesta por lotes, consulta programática y buenas prácticas
+        en la{" "}
         <Link href="/docs/integracion" className="font-medium text-primary-600 hover:text-primary-700">
           guía de integración
         </Link>
