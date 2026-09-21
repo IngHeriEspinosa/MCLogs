@@ -31,7 +31,7 @@ Cualquiera que pueda hacer una petición HTTP: NetSuite/SuiteScript, servicios N
 No, lo complementa. Sigue escribiendo tus logs locales; MCLog es la capa **centralizada** para lo que quieres poder consultar y correlacionar desde fuera. No mandes todo: manda lo que investigarías después.
 
 ### ¿Necesito instalar alguna librería?
-No. Un `POST` HTTP basta. Hay dos clientes listos por comodidad —[`@enviromentmc/mclog`](../packages/mclog/README.md) para Node y el [módulo SuiteScript](../integrations/netsuite/) para NetSuite— pero son opcionales.
+No. Un `POST` HTTP basta. Hay dos clientes listos por comodidad —[`@multicomputos-srl/mclog`](../packages/mclog/README.md) para Node y el [módulo SuiteScript](../integrations/netsuite/) para NetSuite— pero son opcionales.
 
 ### ¿Se puede usar en producción?
 Sí. Tiene guardias de configuración que impiden arrancar con secretos por defecto, rate limiting, HTTPS forzable y validación estricta. Lo que **debes** añadir tú: un cron de [purga](#la-base-de-datos-crece-sin-parar-qué-hago) y backups.
@@ -343,4 +343,4 @@ cd packages/mclog
 npm version patch          # o minor / major
 npm publish                # prepublishOnly ejecuta build + tests
 ```
-Requiere estar autenticado en npm con acceso a la organización `enviromentmc`.
+Requiere estar autenticado en npm con acceso a la organización `multicomputos-srl`.

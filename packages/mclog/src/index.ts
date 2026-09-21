@@ -1,7 +1,7 @@
 /**
  * Punto de entrada principal: solo el cliente REST, sin dependencias en runtime.
  *
- * El middleware Express (`validateLog`) vive en `@enviromentmc/mclog/express`
+ * El middleware Express (`validateLog`) vive en `@multicomputos-srl/mclog/express`
  * para no obligar a instalar express en proyectos que solo emiten logs.
  */
 

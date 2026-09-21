@@ -76,14 +76,14 @@ curl -X POST https://mclog.tu-dominio.com/api/logs/batch \
   ]}'
 ```
 
-## Node.js (con `@enviromentmc/mclog`)
+## Node.js (con `@multicomputos-srl/mclog`)
 
 ```bash
-npm install @enviromentmc/mclog
+npm install @multicomputos-srl/mclog
 ```
 
 ```ts
-import { createMCLogClient } from "@enviromentmc/mclog";
+import { createMCLogClient } from "@multicomputos-srl/mclog";
 
 const mclog = createMCLogClient({
   baseUrl: "https://mclog.tu-dominio.com",

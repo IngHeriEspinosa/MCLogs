@@ -145,7 +145,7 @@ Las herramientas solo son tan buenas como lo que se les da de comer. Tres cosas 
 **Manda la excepción, no solo su mensaje.** Con la clase del error y el stack, MCLog agrupa las repeticiones del mismo fallo; sin ellos, cada mensaje con un id distinto parece un problema diferente.
 
 ```ts
-// Node, con @enviromentmc/mclog
+// Node, con @multicomputos-srl/mclog
 try { await cobrar(pedido); }
 catch (err) { await mclog.captureException(err, { metadata: { pedidoId: pedido.id } }); }
 ```

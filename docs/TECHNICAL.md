@@ -393,14 +393,14 @@ src/
 
 ---
 
-## 8. Librería `@enviromentmc/mclog`
+## 8. Librería `@multicomputos-srl/mclog`
 
 Referencia completa en su [README](../packages/mclog/README.md).
 
 | Entry point | Exporta | Dependencias |
 |---|---|---|
-| `@enviromentmc/mclog` | `createMCLogClient` + tipos | **Ninguna** (fetch nativo, Node ≥18) |
-| `@enviromentmc/mclog/express` | `validateLog` | `express`, `express-validator` (peers opcionales) |
+| `@multicomputos-srl/mclog` | `createMCLogClient` + tipos | **Ninguna** (fetch nativo, Node ≥18) |
+| `@multicomputos-srl/mclog/express` | `validateLog` | `express`, `express-validator` (peers opcionales) |
 
 Separar los entry points es lo que permite que un emisor puro no arrastre Express. Puntos de diseño: los fallos no se propagan por defecto (devuelve `boolean`, hook `onError`), `sendBatch` trocea al tamaño máximo del servidor, y la librería nunca escribe en la consola del consumidor.
 

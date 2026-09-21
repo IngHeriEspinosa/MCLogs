@@ -8,7 +8,7 @@ Plataforma para capturar, consultar y gestionar los logs de **todas tus aplicaci
 |---|---|---|
 | [`Back_MCLog/`](Back_MCLog/) | API REST de ingesta y consulta de logs | Node.js · Express · TypeScript · Prisma · PostgreSQL |
 | [`frontend_mclog/`](frontend_mclog/) | Dashboard web de monitoreo | Next.js 14 (App Router) · React Query · Tailwind |
-| [`packages/mclog/`](packages/mclog/) | Librería npm `@enviromentmc/mclog` para apps Node.js | TypeScript · sin dependencias runtime |
+| [`packages/mclog/`](packages/mclog/) | Librería npm `@multicomputos-srl/mclog` para apps Node.js | TypeScript · sin dependencias runtime |
 | [`integrations/netsuite/`](integrations/netsuite/) | Librería SuiteScript 2.1 + ejemplos para NetSuite | SuiteScript 2.1 |
 | [`site/`](site/) | Landing y documentación pública ([sitio](https://inghieriespinosa.github.io/MCLogs)) | Next.js 14 (static export) · GitHub Pages |
 | [`docs/`](docs/) | Documentación completa del proyecto | — |
@@ -87,7 +87,7 @@ A partir de ahí puedes preguntar «¿qué está fallando en producción hoy?» 
 
 - **Cualquier lenguaje (API REST)** → [docs/INTEGRATION.md](docs/INTEGRATION.md) — ejemplos con curl, Node.js, Python y front-end.
 - **NetSuite / SuiteScript** → [integrations/netsuite/README.md](integrations/netsuite/README.md) — librería lista para subir al File Cabinet.
-- **Apps Node.js** → [packages/mclog/README.md](packages/mclog/README.md) — cliente tipado `@enviromentmc/mclog`, sin dependencias.
+- **Apps Node.js** → [packages/mclog/README.md](packages/mclog/README.md) — cliente tipado `@multicomputos-srl/mclog`, sin dependencias.
 
 La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del backend). No se necesitan usuarios ni JWT para enviar logs; los usuarios y JWT son solo para el dashboard.
 

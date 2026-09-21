@@ -192,11 +192,11 @@ Con la clase y el stack, MCLog agrupa las repeticiones del mismo fallo. Sin ello
 ## B.4 Desde Node.js
 
 ```bash
-npm install @enviromentmc/mclog
+npm install @multicomputos-srl/mclog
 ```
 
 ```ts
-import { createMCLogClient } from "@enviromentmc/mclog";
+import { createMCLogClient } from "@multicomputos-srl/mclog";
 
 const mclog = createMCLogClient({
   baseUrl: "https://mclog.tu-dominio.com",

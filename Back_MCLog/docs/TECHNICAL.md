@@ -108,7 +108,7 @@ Detalle del error: `errorName` (≤200), `errorCode` (string o número, ≤100),
 Atajo `error`: un `Error` o cualquier objeto con `name`/`message`/`code`/`stack` se reparte en esos campos planos (`normalizeErrorFields`) y aporta el `message` si no viene ninguno; los campos puestos a mano tienen prioridad. El `stack` como array de marcos se une con saltos de línea (NetSuite).
 Defaults del servidor: `service`=application, `host`=hostname de la petición, `traceId`=generado (uuid), `timestamp`=ahora, `fingerprint`=calculada para `error` y `warn`.
 
-Las mismas reglas se publican como middleware Express en `@enviromentmc/mclog/express` (`validateLog`, `validateLogBatch`). Si tocas una, actualiza la otra.
+Las mismas reglas se publican como middleware Express en `@multicomputos-srl/mclog/express` (`validateLog`, `validateLogBatch`). Si tocas una, actualiza la otra.
 
 ## Modelo de datos e índices
 

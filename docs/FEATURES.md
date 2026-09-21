@@ -242,7 +242,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 
 No hace falta ningún cliente —basta un `POST` HTTP— pero hay dos listos para usar. Guía completa en [INTEGRATION.md](INTEGRATION.md).
 
-### 9.1 Librería Node.js — `@enviromentmc/mclog`
+### 9.1 Librería Node.js — `@multicomputos-srl/mclog`
 
 **Código:** [packages/mclog/](../packages/mclog/)
 
@@ -252,7 +252,7 @@ Paquete npm publicable, con **cero dependencias en runtime** (usa `fetch` nativo
 - **Troceado automático** de lotes al tamaño máximo del servidor.
 - **A prueba de fallos**: si MCLog no responde, la función devuelve `false` y tu aplicación sigue. No escribe en tu consola; puedes engancharte con `onError` o pedir excepciones con `throwOnError`.
 - Defaults de aplicación, entorno, servicio, host y metadata para no repetirlos en cada llamada.
-- Entry point aparte `@enviromentmc/mclog/express` con el middleware `validateLog`, para que quien solo emita logs no arrastre Express.
+- Entry point aparte `@multicomputos-srl/mclog/express` con el middleware `validateLog`, para que quien solo emita logs no arrastre Express.
 
 ### 9.2 Librería NetSuite — SuiteScript 2.1
 

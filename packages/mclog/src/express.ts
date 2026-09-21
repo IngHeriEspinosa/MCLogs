@@ -1,5 +1,5 @@
 /**
- * Middleware Express opcional. Se importa desde `@enviromentmc/mclog/express`
+ * Middleware Express opcional. Se importa desde `@multicomputos-srl/mclog/express`
  * para que quien solo use el cliente REST no arrastre express ni express-validator.
  *
  * Requiere los peer dependencies `express` y `express-validator`.

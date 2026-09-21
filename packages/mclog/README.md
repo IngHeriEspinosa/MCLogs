@@ -1,4 +1,4 @@
-# @enviromentmc/mclog
+# @multicomputos-srl/mclog
 
 Cliente oficial del servicio de logs centralizados **MCLog**, para Node.js.
 
@@ -11,13 +11,13 @@ Cliente oficial del servicio de logs centralizados **MCLog**, para Node.js.
 ## Instalación
 
 ```bash
-npm install @enviromentmc/mclog
+npm install @multicomputos-srl/mclog
 ```
 
 ## Cliente REST
 
 ```ts
-import { createMCLogClient } from "@enviromentmc/mclog";
+import { createMCLogClient } from "@multicomputos-srl/mclog";
 
 const mclog = createMCLogClient({
   baseUrl: "https://mclog.tu-dominio.com",
@@ -187,7 +187,7 @@ npm install -D @types/express
 
 ```ts
 import express from "express";
-import { validateLog } from "@enviromentmc/mclog/express";
+import { validateLog } from "@multicomputos-srl/mclog/express";
 
 const app = express();
 app.use(express.json());
@@ -212,7 +212,7 @@ Para un endpoint de lotes con cuerpo `{ logs: [...] }` usa `validateLogBatch`, q
 las mismas reglas a cada entrada y señala el índice que falla (`logs[1].level`):
 
 ```ts
-import { validateLogBatch } from "@enviromentmc/mclog/express";
+import { validateLogBatch } from "@multicomputos-srl/mclog/express";
 
 app.post("/mis-logs/batch", ...validateLogBatch, (req, res) => {
   res.status(201).json({ recibidos: req.body.logs.length });
