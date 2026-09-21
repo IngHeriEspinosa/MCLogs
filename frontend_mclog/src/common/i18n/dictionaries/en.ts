@@ -2,6 +2,13 @@ import type { Dictionary } from "./es";
 
 /** English copy. Typed against the Spanish dictionary: a missing key fails the build. */
 export const en: Dictionary = {
+  // Patrocinador del proyecto. Se muestra en el login y al pie de la barra lateral.
+  sponsor: {
+    label: "Sponsored by",
+    name: "Multicomputos SRL",
+    url: "https://multicomputos.com",
+  },
+
   app: {
     name: "MCLog",
     console: "Console",
@@ -502,7 +509,7 @@ export const en: Dictionary = {
     heroBody:
       "Capture, group and query the logs of every application. Find the cause of a failure in seconds, not hours.",
     heroPoints: ["Errors grouped by fingerprint", "Traces across systems", "Briefs ready for AI agents"],
-    footer: "Self-hosted · open source · By Multicomputos SRL",
+    footer: "Sponsored by Multicomputos SRL",
   },
 
   apiKeys: {

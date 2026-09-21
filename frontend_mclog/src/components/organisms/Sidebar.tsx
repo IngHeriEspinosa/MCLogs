@@ -146,6 +146,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
             <Icon name={collapsed ? "chevronsRight" : "chevronsLeft"} className="h-[1.125rem] w-[1.125rem]" />
             {!collapsed && <span>{t.nav.collapse}</span>}
           </button>
+
+          {/* Patrocinador. Contraido no cabe el nombre, asi que se deja solo
+              el enlace con su titulo: el lector de pantalla lo sigue leyendo. */}
+          <a
+            href={t.sponsor.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${t.sponsor.label} ${t.sponsor.name}`}
+            className={`mt-1 block px-2.5 py-1 text-[0.6875rem] leading-tight text-rail-ink-2 transition-colors hover:text-rail-ink ${
+              collapsed ? "lg:px-0 lg:text-center" : ""
+            }`}
+          >
+            <span className={collapsed ? "lg:sr-only" : ""}>
+              {t.sponsor.label} <span className="font-semibold text-rail-ink">{t.sponsor.name}</span>
+            </span>
+            <span aria-hidden className={collapsed ? "hidden font-semibold lg:inline" : "hidden"}>
+              MC
+            </span>
+          </a>
         </div>
       </aside>
     </>

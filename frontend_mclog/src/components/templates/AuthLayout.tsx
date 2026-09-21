@@ -97,7 +97,17 @@ export const AuthLayout: React.FC<{ children: React.ReactNode; title: string; su
           </div>
         </div>
 
-        <p className="relative font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-rail-ink-2">{t.auth.footer}</p>
+        <p className="relative font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-rail-ink-2">
+          {t.sponsor.label}{" "}
+          <a
+            href={t.sponsor.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-rail-ink underline-offset-4 transition-colors hover:text-accent-400 hover:underline"
+          >
+            {t.sponsor.name}
+          </a>
+        </p>
       </aside>
 
       <main className="relative flex flex-col">

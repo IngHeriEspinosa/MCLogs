@@ -13,6 +13,13 @@ export const es = {
     tagline: "Logs centralizados",
   },
 
+  // Patrocinador del proyecto. Se muestra en el login y al pie de la barra lateral.
+  sponsor: {
+    label: "Patrocinado por",
+    name: "Multicomputos SRL",
+    url: "https://multicomputos.com",
+  },
+
   common: {
     all: "Todos",
     cancel: "Cancelar",
@@ -511,7 +518,7 @@ export const es = {
     heroBody:
       "Captura, agrupa y consulta los registros de tus aplicaciones. Encuentra la causa de un fallo en segundos, no en horas.",
     heroPoints: ["Errores agrupados por huella", "Trazas entre sistemas", "Briefs listos para agentes de IA"],
-    footer: "Autoalojado · open source · Por Multicomputos SRL",
+    footer: "Patrocinado por Multicomputos SRL",
   },
 
   apiKeys: {
