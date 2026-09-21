@@ -45,8 +45,10 @@ export default function HomePage() {
       </header>
 
       <main className="relative flex flex-1 items-center justify-center px-6 py-10">
-        <div className="w-full max-w-2xl text-center 3xl:max-w-3xl 4xl:max-w-4xl">
-          <h1 className="font-heading text-3xl font-bold leading-[1.12] tracking-[-0.012em] text-ink sm:text-4xl lg:text-5xl 3xl:text-6xl 4xl:text-7xl">
+        <div className="w-full max-w-5xl text-center 3xl:max-w-6xl 4xl:max-w-7xl">
+          {/* Si aun asi no cabe (movil), balance reparte las palabras entre
+              las lineas en vez de dejar una sola huerfana. */}
+          <h1 className="font-heading text-3xl font-bold leading-[1.12] tracking-[-0.012em] text-ink [text-wrap:balance] sm:text-4xl lg:text-5xl 3xl:text-6xl 4xl:text-7xl">
             {t.auth.heroTitle}
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-ink-3 3xl:mt-7 3xl:max-w-2xl 3xl:text-lg 4xl:max-w-3xl 4xl:text-xl">
