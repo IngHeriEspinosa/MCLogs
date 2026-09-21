@@ -22,7 +22,6 @@ FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3001
 ENV HOSTNAME=0.0.0.0
 
 # output: "standalone" deja en .next/standalone un servidor autonomo con solo
@@ -35,6 +34,8 @@ USER node
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://127.0.0.1:3001/login || exit 1
+  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT:-3001}/" || exit 1
 
-CMD ["node", "server.js"]
+# PORT se resuelve al arrancar, no al construir: Railway lo inyecta y compose no,
+# donde cae al 3001 que espera Caddy.
+CMD ["sh", "-c", "PORT=${PORT:-3001} node server.js"]
