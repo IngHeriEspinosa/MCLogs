@@ -344,6 +344,8 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 |---|---|
 | `GET /auth/me` | Cualquier sesión. Se relee de base de datos, no del JWT: el rol puede haber cambiado |
 | `PATCH /auth/me/password` | Cada uno la suya. Mínimo 10 caracteres y distinta de la actual |
+| `POST /auth/me/2fa/*` | Cada uno la suya. Verificación en dos pasos con app autenticadora (TOTP) y códigos de recuperación |
+| `DELETE /auth/me` | Cada uno la suya, con contraseña y código 2FA. **La cuenta root (`ADMIN_EMAIL`) no se puede eliminar ni degradar** |
 | Alta, cambio de rol, reseteo de contraseña y baja | `admin` |
 
 Cambiar la contraseña o el rol de alguien **revoca todos sus refresh tokens**: las sesiones abiertas en otros dispositivos dejan de valer y el nuevo rol se aplica en el siguiente token.
@@ -496,7 +498,7 @@ El modo en vivo solo se activa en la primera página y con el orden por fecha de
 | `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **admin** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **admin** | [13](#13-api-keys-con-permisos) |
-| `GET`/`PATCH` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
+| `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` · `/auth/me/2fa/*` | JWT | [14](#14-gestión-de-usuarios) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin** | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/login` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |
 | `GET` | `/health` | — | [10](#10-observabilidad-del-propio-servicio) |

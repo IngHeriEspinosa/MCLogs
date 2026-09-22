@@ -84,6 +84,9 @@ La `API_KEY` única heredada de la variable de entorno sigue viva para no romper
 | POST | `/auth/login` `/auth/refresh` `/auth/logout` | — | Ciclo de sesión |
 | GET | `/auth/me` | JWT | Usuario de la sesión |
 | PATCH | `/auth/me/password` | JWT | Cambio de contraseña propia (cierra las demás sesiones) |
+| DELETE | `/auth/me` | JWT | Elimina la propia cuenta (contraseña + 2FA si está activo). La cuenta root no puede |
+| POST | `/auth/login/2fa` | — | Segundo paso del login cuando la cuenta tiene 2FA |
+| POST | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | Alta y baja de la verificación en dos pasos (TOTP) |
 | GET · POST | `/auth/users` | JWT rol admin | Lista y alta de usuarios |
 | PATCH · DELETE | `/auth/users/:id` | JWT rol admin | Edita o elimina un usuario |
 | POST | `/mcp` | JWT o API key `read` | Servidor MCP para asistentes de IA (`MCP_ENABLED`) |

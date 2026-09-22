@@ -7,6 +7,10 @@ export type SortField = "timestamp" | "application" | "level" | "host" | "enviro
 export const SORT_FIELDS: readonly SortField[] = ["timestamp", "application", "level", "host", "environment"];
 export const PAGE_SIZES = [10, 25, 50, 100] as const;
 
+/** Campos de la busqueda avanzada de Registros: cada uno filtra una columna concreta. */
+export const ADVANCED_FIELDS = ["message", "service", "host", "traceId", "errorName", "errorCode"] as const;
+export type AdvancedField = (typeof ADVANCED_FIELDS)[number];
+
 export type LogFilters = {
   range: TimeRange;
   level: string;
@@ -15,6 +19,12 @@ export type LogFilters = {
   search: string;
   /** Huella de un fallo: se llega aqui desde la vista de errores agrupados. */
   fingerprint: string;
+  message: string;
+  service: string;
+  host: string;
+  traceId: string;
+  errorName: string;
+  errorCode: string;
   sortField: SortField;
   sortDir: "asc" | "desc";
   page: number;
@@ -28,6 +38,12 @@ const DEFAULTS: LogFilters = {
   application: "",
   search: "",
   fingerprint: "",
+  message: "",
+  service: "",
+  host: "",
+  traceId: "",
+  errorName: "",
+  errorCode: "",
   sortField: "timestamp",
   sortDir: "desc",
   page: 1,
@@ -44,6 +60,7 @@ const parse = (params: URLSearchParams): LogFilters => {
     application: params.get("application") ?? "",
     search: params.get("search") ?? "",
     fingerprint: params.get("fingerprint") ?? "",
+    ...(Object.fromEntries(ADVANCED_FIELDS.map((key) => [key, params.get(key) ?? ""])) as Record<AdvancedField, string>),
     sortField: SORT_FIELDS.includes(sortField as SortField) ? (sortField as SortField) : "timestamp",
     sortDir: params.get("sortDir") === "asc" ? "asc" : "desc",
     page: Math.max(1, parseInt(params.get("page") ?? "1", 10) || 1),
@@ -57,7 +74,7 @@ const serialize = (filters: LogFilters) => {
   if (!sameRange(filters.range, DEFAULTS.range)) {
     Object.entries(rangeToParams(filters.range)).forEach(([key, value]) => value && params.set(key, value));
   }
-  (["level", "environment", "application", "search", "fingerprint"] as const).forEach((key) => {
+  (["level", "environment", "application", "search", "fingerprint", ...ADVANCED_FIELDS] as const).forEach((key) => {
     if (filters[key]) params.set(key, filters[key]);
   });
   if (filters.sortField !== DEFAULTS.sortField) params.set("sortField", filters.sortField);
@@ -94,5 +111,7 @@ export function useLogFilters() {
 
   const activeCount = [filters.level, filters.environment, filters.application, filters.search, filters.fingerprint].filter(Boolean).length;
 
-  return { filters, setFilters, reset, activeCount };
+  const advancedCount = ADVANCED_FIELDS.filter((key) => filters[key]).length;
+
+  return { filters, setFilters, reset, activeCount, advancedCount };
 }

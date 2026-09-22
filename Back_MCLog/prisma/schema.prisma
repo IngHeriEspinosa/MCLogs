@@ -50,7 +50,19 @@ model User {
   email         String         @unique
   passwordHash  String
   role          String         @default("user")
+  /// Cuenta de arranque (ADMIN_EMAIL). No se puede borrar ni degradar.
+  isRoot        Boolean        @default(false)
   createdAt     DateTime       @default(now())
+
+  /// Autenticacion en dos pasos (TOTP, RFC 6238). El secreto se guarda en
+  /// cuanto se genera, pero no se exige hasta confirmarlo con un codigo.
+  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret   String?  @db.VarChar(64)
+  /// Ultimo paso de 30 s aceptado: impide reutilizar un codigo ya usado.
+  twoFactorLastStep Int?
+  /// sha256 hex de los codigos de recuperacion que quedan sin usar.
+  recoveryCodes     String[] @default([])
+
   refreshTokens RefreshToken[]
   apiKeys       ApiKey[]
 }

@@ -19,6 +19,12 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
             durationMs / 1000
         );
 
+        // El HEALTHCHECK del contenedor pide /health cada 30 s: registrar cada
+        // respuesta sana son miles de lineas al dia sin informacion. Solo se
+        // registra cuando falla, que es cuando interesa. La metrica de arriba
+        // sigue contando todas.
+        if (req.path === '/health' && res.statusCode < 400) return;
+
         const entry = {
             requestId: res.locals.requestId,
             traceId: res.locals.traceId,

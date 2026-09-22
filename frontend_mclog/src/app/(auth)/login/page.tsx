@@ -8,7 +8,7 @@ import { Input } from "@/components/atoms/Input";
 import { AuthLayout } from "@/components/templates/AuthLayout";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import type { Dictionary } from "@/common/i18n/dictionaries";
-import { useLogin } from "@/hooks/useAuth";
+import { useLogin, useLoginSecondFactor } from "@/hooks/useAuth";
 
 /**
  * Traduce el fallo del login al mensaje que corresponde.
@@ -28,26 +28,97 @@ const messageFor = (error: unknown, t: Dictionary): string => {
   return t.auth.serverError;
 };
 
+/** Fallo del segundo paso: un token intermedio caducado obliga a volver a la contrasena. */
+const secondFactorMessage = (error: unknown, t: Dictionary): string => {
+  if (!axios.isAxiosError(error)) return t.auth.serverError;
+  if (!error.response) return t.auth.networkError;
+  if (error.response.status === 429) return t.auth.tooManyAttempts;
+  if (error.response.status === 401) {
+    return /expired sign-in/i.test(String(error.response.data?.error)) ? t.auth.twoFactorExpired : t.auth.twoFactorInvalid;
+  }
+  return t.auth.serverError;
+};
+
+/** Destino tras entrar. Solo se acepta una ruta interna: un destino absoluto seria una redireccion abierta. */
+const redirectAfterLogin = () => {
+  // El guard del panel manda aqui con ?next= para devolver a la pagina que se pidio.
+  const next = new URLSearchParams(window.location.search).get("next");
+  window.location.href = next?.startsWith("/") && !next.startsWith("//") ? next : "/logs";
+};
+
 export default function LoginPage() {
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const login = useLogin();
+  const secondFactor = useLoginSecondFactor();
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      await login.mutateAsync({ email, password });
-      // El guard del panel manda aqui con ?next= para devolver a la pagina que
-      // se pidio. Solo se acepta una ruta interna: un destino absoluto seria
-      // una redireccion abierta hacia otro dominio.
-      const next = new URLSearchParams(window.location.search).get("next");
-      window.location.href = next?.startsWith("/") && !next.startsWith("//") ? next : "/logs";
+      const result = await login.mutateAsync({ email, password });
+      if (result.mfaRequired && result.mfaToken) {
+        setMfaToken(result.mfaToken);
+        return;
+      }
+      redirectAfterLogin();
     } catch {
       // el estado de error de la mutación muestra el mensaje
     }
   };
+
+  const submitCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!mfaToken) return;
+    try {
+      await secondFactor.mutateAsync({ mfaToken, code: code.trim() });
+      redirectAfterLogin();
+    } catch {
+      // el estado de error de la mutación muestra el mensaje
+    }
+  };
+
+  const backToPassword = () => {
+    setMfaToken(null);
+    setCode("");
+    setPassword("");
+    secondFactor.reset();
+  };
+
+  if (mfaToken) {
+    const verifying = secondFactor.isPending;
+    return (
+      <AuthLayout title={t.auth.twoFactorTitle} subtitle={t.auth.twoFactorSubtitle}>
+        <form className="flex flex-col gap-5" onSubmit={submitCode} aria-busy={verifying}>
+          <Field label={t.auth.twoFactorCode} hint={t.auth.twoFactorHint}>
+            <Input
+              icon="shield"
+              size="lg"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              disabled={verifying}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              className="font-mono tracking-[0.3em]"
+              autoFocus
+              required
+            />
+          </Field>
+          {secondFactor.isError && <Alert variant="error">{secondFactorMessage(secondFactor.error, t)}</Alert>}
+          <Button type="submit" variant="primary" size="lg" loading={verifying} iconRight="arrowRight" className="mt-1 w-full">
+            {t.auth.verify}
+          </Button>
+          <Button variant="ghost" icon="arrowLeft" onClick={backToPassword} disabled={verifying} className="self-center">
+            {t.auth.backToLogin}
+          </Button>
+        </form>
+      </AuthLayout>
+    );
+  }
 
   const pending = login.isPending;
 

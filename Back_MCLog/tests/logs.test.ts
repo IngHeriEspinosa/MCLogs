@@ -107,6 +107,32 @@ describe("Logs API", () => {
     expect(res.body.total).toBeGreaterThanOrEqual(5);
   });
 
+  it("filters by message, error name and error code separately (advanced search)", async () => {
+    const created = await request(app)
+      .post("/api/log")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({
+        application: "advanced-app",
+        level: "error",
+        environment: "production",
+        message: "payment gateway timeout",
+        error: { name: "GatewayTimeoutError", code: "ETIMEDOUT_42" },
+      });
+    expect(created.status).toBe(201);
+
+    const get = (query: string) => request(app).get(`/api/logs?${query}`).set("Authorization", `Bearer ${accessToken}`);
+
+    const byMessage = await get("message=GATEWAY%20timeout");
+    expect(byMessage.body.data.map((l: { application: string }) => l.application)).toEqual(["advanced-app"]);
+
+    // "advanced-app" esta en la aplicacion, no en el mensaje: el filtro de mensaje no lo encuentra.
+    expect((await get("message=advanced-app")).body.total).toBe(0);
+
+    expect((await get("errorName=gatewaytimeout")).body.total).toBe(1);
+    expect((await get("errorCode=etimedout_42&level=error")).body.total).toBe(1);
+    expect((await get("errorCode=etimedout_42&level=info")).body.total).toBe(0);
+  });
+
   it("sorts by application", async () => {
     const res = await request(app)
       .get("/api/logs?sort=application:asc")

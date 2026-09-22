@@ -275,6 +275,21 @@ export const swaggerSpec = swaggerJSDoc({
           security: [{ BearerAuth: [] }],
           responses: { 200: { description: "OK" }, 401: { description: "Sin sesión" } },
         },
+        delete: {
+          tags: ["auth"],
+          summary: "Eliminar la propia cuenta (no disponible para la cuenta root)",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", required: ["password"], properties: { password: { type: "string" }, code: { type: "string", description: "Obligatorio si tiene 2FA" } } } } },
+          },
+          responses: {
+            200: { description: "Eliminada" },
+            400: { description: "Contraseña o código incorrectos" },
+            403: { description: "La cuenta root no se puede eliminar" },
+            409: { description: "Es el último admin" },
+          },
+        },
       },
       "/auth/me/password": {
         patch: {
@@ -297,6 +312,49 @@ export const swaggerSpec = swaggerJSDoc({
             200: { description: "Cambiada" },
             400: { description: "Contraseña actual incorrecta o nueva inválida" },
           },
+        },
+      },
+      "/auth/login/2fa": {
+        post: {
+          tags: ["auth"],
+          summary: "Segundo paso del login: token intermedio + código TOTP o de recuperación",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", required: ["mfaToken", "code"], properties: { mfaToken: { type: "string" }, code: { type: "string" } } } } },
+          },
+          responses: { 200: { description: "Sesión abierta" }, 401: { description: "Código o token inválidos" } },
+        },
+      },
+      "/auth/me/2fa/setup": {
+        post: {
+          tags: ["auth"],
+          summary: "Generar secreto TOTP y QR (queda pendiente de confirmar)",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "secret, otpauthUri y qrCode (data URI SVG)" } },
+        },
+      },
+      "/auth/me/2fa/enable": {
+        post: {
+          tags: ["auth"],
+          summary: "Confirmar el alta del segundo factor; devuelve los códigos de recuperación una sola vez",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", required: ["code"], properties: { code: { type: "string" } } } } },
+          },
+          responses: { 200: { description: "Activado" }, 400: { description: "Código incorrecto" } },
+        },
+      },
+      "/auth/me/2fa/disable": {
+        post: {
+          tags: ["auth"],
+          summary: "Desactivar el segundo factor",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", required: ["password", "code"], properties: { password: { type: "string" }, code: { type: "string" } } } } },
+          },
+          responses: { 200: { description: "Desactivado" }, 400: { description: "Contraseña o código incorrectos" } },
         },
       },
       "/auth/users": {

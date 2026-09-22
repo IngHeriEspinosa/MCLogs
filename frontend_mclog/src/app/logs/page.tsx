@@ -1,9 +1,9 @@
 "use client";
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button, IconButton } from "@/components/atoms/Button";
+import { Button, ButtonLink, IconButton } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
 import { Menu } from "@/components/molecules/Menu";
 import { useToast } from "@/components/molecules/Toast";
@@ -68,13 +68,22 @@ function LogsView() {
   const notify = useToast();
   const queryClient = useQueryClient();
   const { filters, setFilters, activeCount } = useLogFilters();
+  const searchParams = useSearchParams();
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Instante de referencia de los rangos relativos: se fija al elegir el
   // rango y al refrescar, no en cada render, para que la consulta sea estable.
   const [now, setNow] = useState(() => Date.now());
   const rangeKey = JSON.stringify(filters.range);
-  useEffect(() => setNow(Date.now()), [rangeKey]);
+  // Solo al cambiar de rango, no al montar: el estado inicial ya trae un
+  // instante valido, y recalcularlo unos milisegundos despues cambiaba `from`,
+  // con lo que todas las consultas de la pagina salian dos veces.
+  const lastRangeKey = useRef(rangeKey);
+  useEffect(() => {
+    if (lastRangeKey.current === rangeKey) return;
+    lastRangeKey.current = rangeKey;
+    setNow(Date.now());
+  }, [rangeKey]);
   const resolved = resolveRange(filters.range, now);
 
   // La busqueda se escribe en local y llega a la URL con retardo.
@@ -278,6 +287,18 @@ function LogsView() {
             sortField={filters.sortField}
             sortDir={filters.sortDir}
             onSort={setFilters}
+            titleAction={
+              // Los mismos filtros viajan a Registros: se abre la misma vista, con mas espacio.
+              <ButtonLink
+                href={searchParams.toString() ? `/records?${searchParams.toString()}` : "/records"}
+                aria-label={t.logs.openRecords}
+                title={t.logs.openRecords}
+                variant="ghost"
+                size="xs"
+                icon="externalLink"
+                className="w-7 px-0"
+              />
+            }
             onWidenRange={
               isRelative(filters.range) && filters.range.preset !== "7d" && filters.range.preset !== "30d" && filters.range.preset !== "all"
                 ? () => setFilters({ range: { preset: "7d" } })

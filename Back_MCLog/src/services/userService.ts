@@ -9,12 +9,14 @@ export type UserRole = (typeof USER_ROLES)[number];
 const BCRYPT_COST = 12;
 
 /** Campos de usuario que se pueden devolver por la API: nunca el hash. */
-const publicFields = { id: true, email: true, role: true, createdAt: true } as const;
+const publicFields = { id: true, email: true, role: true, isRoot: true, twoFactorEnabled: true, createdAt: true } as const;
 
 export type PublicUser = {
   id: number;
   email: string;
   role: string;
+  isRoot: boolean;
+  twoFactorEnabled: boolean;
   createdAt: Date;
 };
 
@@ -76,6 +78,10 @@ export const updateUser = async (
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new UserServiceError("User not found", 404);
 
+  if (existing.isRoot && changes.role && changes.role !== "admin") {
+    throw new UserServiceError("The root account cannot be demoted", 403);
+  }
+
   // Quedarse sin ningun admin dejaria el servicio sin quien lo administre.
   if (changes.role && changes.role !== "admin" && existing.role === "admin" && (await countAdmins()) <= 1) {
     throw new UserServiceError("Cannot demote the last admin", 409);
@@ -100,11 +106,49 @@ export const deleteUser = async (id: number, requesterId: number): Promise<void>
   }
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new UserServiceError("User not found", 404);
-  if (existing.role === "admin" && (await countAdmins()) <= 1) {
-    throw new UserServiceError("Cannot delete the last admin", 409);
-  }
+  await assertDeletable(existing);
   // Los refresh tokens caen en cascada (onDelete: Cascade en el esquema).
   await prisma.user.delete({ where: { id } });
+};
+
+/** Reglas comunes a borrar una cuenta, la haga un admin o su titular. */
+const assertDeletable = async (user: { role: string; isRoot: boolean }) => {
+  if (user.isRoot) throw new UserServiceError("The root account cannot be deleted", 403);
+  if (user.role === "admin" && (await countAdmins()) <= 1) {
+    throw new UserServiceError("Cannot delete the last admin", 409);
+  }
+};
+
+/**
+ * El titular borra su propia cuenta. Se pide la contrasena, y el segundo factor
+ * si lo tiene activo, para que una sesion olvidada abierta no baste.
+ */
+export const deleteOwnAccount = async (
+  userId: number,
+  password: string,
+  verifySecondFactor: (userId: number) => Promise<boolean>,
+): Promise<void> => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new UserServiceError("User not found", 404);
+  await assertDeletable(user);
+
+  if (!(await bcrypt.compare(password, user.passwordHash))) {
+    throw new UserServiceError("Password is incorrect", 400);
+  }
+  if (user.twoFactorEnabled && !(await verifySecondFactor(userId))) {
+    throw new UserServiceError("Invalid verification code", 400);
+  }
+
+  await prisma.user.delete({ where: { id: userId } });
+};
+
+/** Confirma la contrasena del titular antes de una accion sensible. */
+export const assertPassword = async (userId: number, password: string): Promise<void> => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new UserServiceError("User not found", 404);
+  if (!(await bcrypt.compare(password, user.passwordHash))) {
+    throw new UserServiceError("Password is incorrect", 400);
+  }
 };
 
 export const changeOwnPassword = async (

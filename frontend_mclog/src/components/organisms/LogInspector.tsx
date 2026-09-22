@@ -15,11 +15,19 @@ import { useLogContext } from "@/hooks/useErrors";
 
 type LogInspectorProps = {
   log: LogRow;
-  /** "panel" junto a la tabla (pantallas anchas) o "drawer" sobre el contenido. */
-  mode: "panel" | "drawer";
+  /**
+   * "panel" junto a la tabla (pantallas anchas), "drawer" sobre el contenido,
+   * o "dialog": modal al 90 % de la pantalla, con el detalle a dos columnas.
+   */
+  mode: "panel" | "drawer" | "dialog";
   onClose: () => void;
   onSelect: (log: LogEntry) => void;
   onFilterFingerprint: (fingerprint: string) => void;
+  /** Solo en modo dialog: recorrer la pagina sin cerrar el detalle. */
+  onPrev?: () => void;
+  onNext?: () => void;
+  /** Posicion en la pagina actual, empezando en 1. */
+  position?: { index: number; total: number };
 };
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -30,19 +38,33 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [ta
  * perder el sitio; en pantallas estrechas se desliza encima como un cajon
  * modal, con el foco atrapado dentro mientras esta abierto.
  */
-export const LogInspector: React.FC<LogInspectorProps> = ({ log, mode, onClose, onSelect, onFilterFingerprint }) => {
+export const LogInspector: React.FC<LogInspectorProps> = ({
+  log,
+  mode,
+  onClose,
+  onSelect,
+  onFilterFingerprint,
+  onPrev,
+  onNext,
+  position,
+}) => {
   const { t, fmt, locale } = useI18n();
   const panelRef = useRef<HTMLElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const full: LogEntry | null = "streamKey" in log ? null : log;
   const context = useLogContext(full?.id ?? null);
+  const isDialog = mode === "dialog";
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
+      if (!isDialog || (event.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+      if (event.key === "ArrowLeft" && onPrev) onPrev();
+      if (event.key === "ArrowRight" && onNext) onNext();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, onPrev, onNext, isDialog]);
 
   // En modo cajon: foco dentro al abrir y de vuelta a donde estaba al cerrar.
   useEffect(() => {
@@ -51,6 +73,16 @@ export const LogInspector: React.FC<LogInspectorProps> = ({ log, mode, onClose, 
     panelRef.current?.focus();
     return () => previous?.focus?.();
   }, [mode]);
+
+  // En modo dialogo, <dialog> nativo: el navegador atrapa el foco y deja inerte
+  // el resto; al cerrar se devuelve a la fila desde la que se abrio.
+  useEffect(() => {
+    if (!isDialog) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    return () => previous?.focus?.();
+  }, [isDialog]);
 
   const trapFocus = (event: React.KeyboardEvent) => {
     if (mode !== "drawer" || event.key !== "Tab" || !panelRef.current) return;
@@ -88,6 +120,123 @@ export const LogInspector: React.FC<LogInspectorProps> = ({ log, mode, onClose, 
     { label: t.inspector.fields.id, value: log.id !== undefined ? String(log.id) : null, mono: true, copy: true },
   ];
 
+  const messageSection = (
+    <section>
+      <h3 className="eyebrow mb-2">{t.inspector.message}</h3>
+      <div className={`${isDialog ? "max-h-[40vh]" : "max-h-60"} overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[0.8125rem] leading-relaxed text-ink`}>
+        {log.message}
+      </div>
+    </section>
+  );
+
+  const actionsBar = (
+    <div className="flex flex-wrap gap-2">
+      {log.traceId && (
+        <ButtonLink href={`/trace/${encodeURIComponent(log.traceId)}`} size="sm" icon="route">
+          {t.inspector.viewTrace}
+        </ButtonLink>
+      )}
+      {log.fingerprint && (
+        <Button size="sm" icon="hash" onClick={() => onFilterFingerprint(log.fingerprint as string)}>
+          {t.inspector.similar}
+        </Button>
+      )}
+      <CopyButton text={() => JSON.stringify(log, null, 2)} label={t.inspector.copyJson} icon="braces" />
+      {full && (
+        <CopyButton
+          variant="soft"
+          icon="sparkles"
+          label={t.inspector.copyAi}
+          toast={t.toast.aiCopied}
+          text={() => buildLogBrief(full, context.data?.data ?? [], locale)}
+        />
+      )}
+    </div>
+  );
+
+  const propertiesSection = (
+    <section>
+      <h3 className="eyebrow mb-2">{t.inspector.properties}</h3>
+      <dl className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+        {properties
+          .filter((property) => property.value)
+          .map((property) => (
+            <React.Fragment key={property.label}>
+              <dt className="text-xs leading-6 text-ink-3">{property.label}</dt>
+              <dd className="group/value flex min-w-0 items-center gap-1.5">
+                <span className={`truncate text-ink ${property.mono ? "font-mono text-[0.8125rem]" : ""}`} title={property.value ?? undefined}>
+                  {property.value}
+                </span>
+                {property.copy && (
+                  <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/value:opacity-100">
+                    <CopyButton text={property.value as string} label={`${t.common.copy} ${property.label}`} iconOnly size="xs" variant="ghost" />
+                  </span>
+                )}
+              </dd>
+            </React.Fragment>
+          ))}
+      </dl>
+    </section>
+  );
+
+  const stackSection = full?.errorStack && (
+      <section>
+        <h3 className="eyebrow mb-2">{t.inspector.stack}</h3>
+        <CodeBlock code={full.errorStack} language="stack" maxHeight={isDialog ? "60vh" : "22rem"} />
+      </section>
+    );
+
+  const metadataSection = full?.metadata && Object.keys(full.metadata).length > 0 && (
+      <section>
+        <h3 className="eyebrow mb-2">{t.inspector.metadata}</h3>
+        <CodeBlock code={JSON.stringify(full.metadata, null, 2)} language="json" maxHeight={isDialog ? "60vh" : "22rem"} />
+      </section>
+    );
+
+  const contextSection = full && (
+      <section>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <h3 className="eyebrow">{t.inspector.context}</h3>
+          <span className="text-[0.6875rem] text-ink-3">{t.inspector.contextHint}</span>
+        </div>
+        {context.isLoading ? (
+          <div className="flex flex-col gap-1.5">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} className="h-6 w-full" />
+            ))}
+          </div>
+        ) : context.isError ? (
+          <p className="text-sm text-ink-3">{t.inspector.contextError}</p>
+        ) : (context.data?.data.length ?? 0) <= 1 ? (
+          <p className="text-sm text-ink-3">{t.inspector.contextEmpty}</p>
+        ) : (
+          <ol className="-mx-2 flex flex-col">
+            {context.data?.data.map((entry) => {
+              const target = entry.id === full.id;
+              return (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    disabled={target}
+                    onClick={() => onSelect(entry)}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
+                      target ? "bg-brand-soft/70" : "hover:bg-surface-2"
+                    }`}
+                  >
+                    <span className="w-16 shrink-0 text-right font-mono tabular-nums text-ink-3">
+                      {formatOffset(new Date(entry.timestamp).getTime() - origin)}
+                    </span>
+                    <LevelDot level={entry.level} />
+                    <span className={`truncate ${target ? "font-medium text-ink" : "text-ink-2"}`}>{entry.message}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
+    );
+
   const content = (
     <>
       <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -105,125 +254,72 @@ export const LogInspector: React.FC<LogInspectorProps> = ({ log, mode, onClose, 
             {log.service && log.service !== log.application && <span className="font-mono"> › {log.service}</span>}
           </p>
         </div>
-        <IconButton icon="x" label={t.inspector.close} onClick={onClose} className="-mr-2" />
+        <div className="-mr-2 flex shrink-0 items-center gap-1">
+          {isDialog && (onPrev || onNext) && (
+            <>
+              {position && (
+                <span className="mr-1 hidden font-mono text-xs tabular-nums text-ink-3 sm:inline">
+                  {t.inspector.position(fmt.number(position.index), fmt.number(position.total))}
+                </span>
+              )}
+              <IconButton icon="chevronLeft" label={t.inspector.prev} disabled={!onPrev} onClick={onPrev} variant="secondary" size="sm" />
+              <IconButton icon="chevronRight" label={t.inspector.next} disabled={!onNext} onClick={onNext} variant="secondary" size="sm" />
+              <span aria-hidden className="mx-1 h-5 w-px bg-line" />
+            </>
+          )}
+          <IconButton icon="x" label={t.inspector.close} onClick={onClose} />
+        </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
-        {!full && <Alert variant="info">{t.inspector.liveRow}</Alert>}
-
-        <section>
-          <h3 className="eyebrow mb-2">{t.inspector.message}</h3>
-          <div className="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[0.8125rem] leading-relaxed text-ink">
-            {log.message}
+      {isDialog ? (
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1.7fr)_minmax(22rem,1fr)] lg:overflow-hidden">
+          <div className="flex min-w-0 flex-col gap-5 px-6 py-5 lg:overflow-y-auto">
+            {!full && <Alert variant="info">{t.inspector.liveRow}</Alert>}
+            {messageSection}
+            {actionsBar}
+            {stackSection}
+            {metadataSection}
           </div>
-        </section>
-
-        <div className="flex flex-wrap gap-2">
-          {log.traceId && (
-            <ButtonLink href={`/trace/${encodeURIComponent(log.traceId)}`} size="sm" icon="route">
-              {t.inspector.viewTrace}
-            </ButtonLink>
-          )}
-          {log.fingerprint && (
-            <Button size="sm" icon="hash" onClick={() => onFilterFingerprint(log.fingerprint as string)}>
-              {t.inspector.similar}
-            </Button>
-          )}
-          <CopyButton text={() => JSON.stringify(log, null, 2)} label={t.inspector.copyJson} icon="braces" />
-          {full && (
-            <CopyButton
-              variant="soft"
-              icon="sparkles"
-              label={t.inspector.copyAi}
-              toast={t.toast.aiCopied}
-              text={() => buildLogBrief(full, context.data?.data ?? [], locale)}
-            />
-          )}
+          <div className="flex min-w-0 flex-col gap-5 border-t border-line bg-surface-2/40 px-6 py-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
+            {propertiesSection}
+            {contextSection}
+          </div>
         </div>
-
-        <section>
-          <h3 className="eyebrow mb-2">{t.inspector.properties}</h3>
-          <dl className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-            {properties
-              .filter((property) => property.value)
-              .map((property) => (
-                <React.Fragment key={property.label}>
-                  <dt className="text-xs leading-6 text-ink-3">{property.label}</dt>
-                  <dd className="group/value flex min-w-0 items-center gap-1.5">
-                    <span className={`truncate text-ink ${property.mono ? "font-mono text-[0.8125rem]" : ""}`} title={property.value ?? undefined}>
-                      {property.value}
-                    </span>
-                    {property.copy && (
-                      <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/value:opacity-100">
-                        <CopyButton text={property.value as string} label={`${t.common.copy} ${property.label}`} iconOnly size="xs" variant="ghost" />
-                      </span>
-                    )}
-                  </dd>
-                </React.Fragment>
-              ))}
-          </dl>
-        </section>
-
-        {full?.errorStack && (
-          <section>
-            <h3 className="eyebrow mb-2">{t.inspector.stack}</h3>
-            <CodeBlock code={full.errorStack} language="stack" maxHeight="22rem" />
-          </section>
-        )}
-
-        {full?.metadata && Object.keys(full.metadata).length > 0 && (
-          <section>
-            <h3 className="eyebrow mb-2">{t.inspector.metadata}</h3>
-            <CodeBlock code={JSON.stringify(full.metadata, null, 2)} language="json" maxHeight="22rem" />
-          </section>
-        )}
-
-        {full && (
-          <section>
-            <div className="mb-2 flex items-baseline justify-between gap-2">
-              <h3 className="eyebrow">{t.inspector.context}</h3>
-              <span className="text-[0.6875rem] text-ink-3">{t.inspector.contextHint}</span>
-            </div>
-            {context.isLoading ? (
-              <div className="flex flex-col gap-1.5">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-6 w-full" />
-                ))}
-              </div>
-            ) : context.isError ? (
-              <p className="text-sm text-ink-3">{t.inspector.contextError}</p>
-            ) : (context.data?.data.length ?? 0) <= 1 ? (
-              <p className="text-sm text-ink-3">{t.inspector.contextEmpty}</p>
-            ) : (
-              <ol className="-mx-2 flex flex-col">
-                {context.data?.data.map((entry) => {
-                  const target = entry.id === full.id;
-                  return (
-                    <li key={entry.id}>
-                      <button
-                        type="button"
-                        disabled={target}
-                        onClick={() => onSelect(entry)}
-                        className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
-                          target ? "bg-brand-soft/70" : "hover:bg-surface-2"
-                        }`}
-                      >
-                        <span className="w-16 shrink-0 text-right font-mono tabular-nums text-ink-3">
-                          {formatOffset(new Date(entry.timestamp).getTime() - origin)}
-                        </span>
-                        <LevelDot level={entry.level} />
-                        <span className={`truncate ${target ? "font-medium text-ink" : "text-ink-2"}`}>{entry.message}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </section>
-        )}
-      </div>
+      ) : (
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+          {!full && <Alert variant="info">{t.inspector.liveRow}</Alert>}
+          {messageSection}
+          {actionsBar}
+          {propertiesSection}
+          {stackSection}
+          {metadataSection}
+          {contextSection}
+        </div>
+      )}
     </>
   );
+
+  if (isDialog) {
+    return (
+      <dialog
+        ref={dialogRef}
+        aria-label={t.inspector.title}
+        onCancel={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+        onClick={(event) => {
+          if (event.target === dialogRef.current) onClose();
+        }}
+        className="m-auto h-[90vh] max-h-none w-[90vw] max-w-none flex-col overflow-hidden rounded-2xl border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-[rgb(4_10_14/0.55)] backdrop:backdrop-blur-[2px] open:flex open:animate-pop-in"
+      >
+        {content}
+        {(onPrev || onNext) && (
+          <footer className="hidden border-t border-line px-6 py-2 text-[0.6875rem] text-ink-3 lg:block">{t.inspector.navHint}</footer>
+        )}
+      </dialog>
+    );
+  }
 
   if (mode === "drawer") {
     return (

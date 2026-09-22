@@ -39,6 +39,8 @@ type LogTableProps = {
   sortField: SortField;
   sortDir: "asc" | "desc";
   onSort: (sort: { sortField?: SortField; sortDir?: "asc" | "desc" }) => void;
+  /** Accion junto al titulo, p. ej. el enlace a la vista de Registros. */
+  titleAction?: React.ReactNode;
 };
 
 const COLUMN = "border-b border-line px-3 align-middle";
@@ -69,6 +71,7 @@ export const LogTable: React.FC<LogTableProps> = ({
   sortField,
   sortDir,
   onSort,
+  titleAction,
 }) => {
   const { t, fmt } = useI18n();
   const bodyRef = useRef<HTMLTableSectionElement>(null);
@@ -96,7 +99,11 @@ export const LogTable: React.FC<LogTableProps> = ({
     <section className="min-w-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-card" aria-label={t.logs.tableLabel}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <h2 className="font-heading text-[0.9375rem] font-semibold text-ink">{t.logs.results(fmt.number(total))}</h2>
+          <h2 className="flex items-baseline gap-1.5 font-heading text-[0.9375rem] font-semibold text-ink">
+            <span className="font-mono text-xs font-medium tabular-nums text-ink-3">{fmt.number(total)}</span>
+            {t.logs.resultsLabel(total)}
+          </h2>
+          {titleAction}
           {fetching && !loading && <Spinner className="h-3.5 w-3.5 text-ink-3" />}
         </div>
         <div className="flex flex-wrap items-center gap-2">

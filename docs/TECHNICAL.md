@@ -218,7 +218,10 @@ Además de las métricas por defecto del proceso, `/metrics` publica
 | `/api/alerts/channels`, `/api/alerts/rules`, `/api/alerts/events` | JWT **admin** | Canales, reglas e historial de avisos. `POST /channels/:id/test` envía un aviso de prueba |
 | `GET /auth/me` | JWT | Usuario de la sesión, releído de base de datos |
 | `PATCH /auth/me/password` | JWT | Cambiar la propia contraseña; revoca todas las sesiones |
-| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** | Gestión de usuarios. No se permite borrarse a uno mismo ni dejar el servicio sin admin |
+| `DELETE /auth/me` | JWT | Eliminar la propia cuenta. Pide contraseña (y código 2FA si está activo); la cuenta root no puede |
+| `POST /auth/login/2fa` | — | Segundo paso del login: `mfaToken` devuelto por `/auth/login` + código TOTP o de recuperación |
+| `POST /auth/me/2fa/setup` · `/enable` · `/disable` | JWT | Verificación en dos pasos (TOTP, RFC 6238) con 8 códigos de recuperación de un solo uso |
+| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** | Gestión de usuarios. No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`ADMIN_EMAIL`) ni dejar el servicio sin admin |
 
 ### 3.6 Formato de errores
 

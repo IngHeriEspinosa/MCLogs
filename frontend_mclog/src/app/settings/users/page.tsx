@@ -99,7 +99,11 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
             </span>
             <span className="min-w-0">
               <span className="block truncate font-medium text-ink">{user.email}</span>
-              {isSelf && <Tag tone="accent" className="mt-0.5">{t.common.you}</Tag>}
+              <span className="mt-0.5 flex flex-wrap gap-1">
+                {isSelf && <Tag tone="accent">{t.common.you}</Tag>}
+                {user.isRoot && <Tag tone="brand">{t.users.root}</Tag>}
+                {user.twoFactorEnabled && <Tag tone="success" icon="shield">{t.users.twoFactor}</Tag>}
+              </span>
             </span>
           </div>
         </td>
@@ -109,7 +113,7 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
               size="sm"
               label={t.users.role}
               value={user.role}
-              disabled={update.isPending}
+              disabled={update.isPending || user.isRoot}
               onChange={(role) => {
                 setDone(null);
                 update.mutate({ id: user.id, role });
@@ -132,7 +136,7 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
             >
               {reset ? t.common.cancel : t.users.changePassword}
             </Button>
-            {!isSelf && (
+            {!isSelf && !user.isRoot && (
               <ConfirmButton onConfirm={() => remove.mutate(user.id)} confirmLabel={t.common.confirmRemove} pending={remove.isPending}>
                 {t.common.remove}
               </ConfirmButton>

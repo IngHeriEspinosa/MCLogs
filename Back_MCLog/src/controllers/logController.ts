@@ -128,7 +128,8 @@ const csvEscape = (value: unknown) => {
 };
 
 const parseFilters = (req: Request) => {
-    const { application, level, environment, search, service, host, traceId, fingerprint, from, to } = req.query;
+    const { application, level, environment, search, service, host, traceId, fingerprint, message, errorName, errorCode, from, to } =
+        req.query;
     return {
         application: application as string | undefined,
         level: level as string | undefined,
@@ -138,6 +139,9 @@ const parseFilters = (req: Request) => {
         host: host as string | undefined,
         traceId: traceId as string | undefined,
         fingerprint: fingerprint as string | undefined,
+        message: message as string | undefined,
+        errorName: errorName as string | undefined,
+        errorCode: errorCode as string | undefined,
         from: from ? new Date(from as string) : undefined,
         to: to ? new Date(to as string) : undefined,
         applicationsIn: allowedApplications(req)

@@ -52,6 +52,9 @@ export type CurrentUser = {
   id: number;
   email: string;
   role: "user" | "admin";
+  /** Cuenta de arranque del servicio: no se puede eliminar ni degradar. */
+  isRoot: boolean;
+  twoFactorEnabled: boolean;
   createdAt: string;
 };
 
@@ -76,11 +79,56 @@ export const useChangePassword = () =>
       client.patch("/auth/me/password", data),
   });
 
+/** Con el segundo factor activo, el login no abre sesion: devuelve un token para el paso 2. */
+export type LoginResponse = { mfaRequired?: boolean; mfaToken?: string };
+
 export const useLogin = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { email: string; password: string }) => client.post("/auth/login", data),
+    mutationFn: async (data: { email: string; password: string }) =>
+      (await client.post<LoginResponse>("/auth/login", data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["logs"] }),
+  });
+};
+
+export const useLoginSecondFactor = () =>
+  useMutation({
+    mutationFn: (data: { mfaToken: string; code: string }) => client.post("/auth/login/2fa", data),
+  });
+
+export type TwoFactorSetup = { secret: string; otpauthUri: string; qrCode: string };
+
+export const useStartTwoFactor = () =>
+  useMutation({
+    mutationFn: async () => (await client.post<{ data: TwoFactorSetup }>("/auth/me/2fa/setup")).data.data,
+  });
+
+export const useEnableTwoFactor = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (code: string) =>
+      (await client.post<{ data: { recoveryCodes: string[] } }>("/auth/me/2fa/enable", { code })).data.data
+        .recoveryCodes,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+};
+
+export const useDisableTwoFactor = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { password: string; code: string }) => client.post("/auth/me/2fa/disable", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+};
+
+export const useDeleteAccount = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { password: string; code?: string }) => client.delete("/auth/me", { data }),
+    onSuccess: () => {
+      qc.clear();
+      window.location.href = "/login";
+    },
   });
 };
 
@@ -106,6 +154,12 @@ export type LogsParams = {
   from?: string;
   to?: string;
   fingerprint?: string;
+  message?: string;
+  service?: string;
+  host?: string;
+  traceId?: string;
+  errorName?: string;
+  errorCode?: string;
 };
 
 const cleanParams = (params: Record<string, unknown>) =>

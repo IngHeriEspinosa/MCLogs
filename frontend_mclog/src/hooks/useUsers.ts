@@ -7,6 +7,8 @@ export type ManagedUser = {
   id: number;
   email: string;
   role: UserRole;
+  isRoot: boolean;
+  twoFactorEnabled: boolean;
   createdAt: string;
 };
 

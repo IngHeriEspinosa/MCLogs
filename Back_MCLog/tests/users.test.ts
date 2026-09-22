@@ -147,10 +147,10 @@ describe("Salvaguardas de administracion", () => {
     expect(res.status).toBe(409);
   });
 
-  it("impide quedarse sin ningun admin", async () => {
-    // Con un solo admin, degradarse a si mismo dejaria el servicio sin administracion.
+  it("impide degradar la cuenta root", async () => {
+    // El admin de ADMIN_EMAIL es root: ni el mismo puede quitarse el rol.
     const res = await request(app).patch(`/auth/users/${adminId}`).set(auth(adminToken)).send({ role: "user" });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
 
     const sigueSiendoAdmin = await request(app).get("/auth/me").set(auth(adminToken));
     expect(sigueSiendoAdmin.body.data.role).toBe("admin");

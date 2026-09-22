@@ -27,6 +27,10 @@ export const validateLogQuery: Array<ValidationChain | RequestHandler> = [
   query("traceId").optional().isString().isLength({ max: 128 }),
   query("fingerprint").optional().isString().isLength({ max: 64 }),
   query("search").optional().isString().isLength({ max: 300 }),
+  // Busqueda avanzada: cada campo por separado, en lugar de la busqueda libre.
+  query("message").optional().isString().isLength({ max: 300 }),
+  query("errorName").optional().isString().isLength({ max: 200 }),
+  query("errorCode").optional().isString().isLength({ max: 100 }),
   handle,
 ];
 

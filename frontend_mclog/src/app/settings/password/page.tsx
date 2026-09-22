@@ -8,6 +8,8 @@ import { Segmented } from "@/components/atoms/Segmented";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
+import { DeleteAccountCard } from "@/components/organisms/DeleteAccountCard";
+import { TwoFactorCard } from "@/components/organisms/TwoFactorCard";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
 import { LOCALES, Locale } from "@/common/i18n/config";
@@ -67,7 +69,10 @@ export default function AccountPage() {
                   <dt className="text-ink-3">{t.account.email}</dt>
                   <dd className="truncate font-medium text-ink">{me.data?.email ?? "—"}</dd>
                   <dt className="text-ink-3">{t.account.role}</dt>
-                  <dd>{me.data && <Tag tone={me.data.role === "admin" ? "brand" : "neutral"}>{t.nav.roles[me.data.role]}</Tag>}</dd>
+                  <dd className="flex flex-wrap gap-1.5">
+                    {me.data && <Tag tone={me.data.role === "admin" ? "brand" : "neutral"}>{t.nav.roles[me.data.role]}</Tag>}
+                    {me.data?.isRoot && <Tag tone="accent">{t.users.root}</Tag>}
+                  </dd>
                   <dt className="text-ink-3">{t.account.memberSince}</dt>
                   <dd className="text-ink-2">{me.data ? fmt.date(me.data.createdAt) : "—"}</dd>
                 </dl>
@@ -101,52 +106,58 @@ export default function AccountPage() {
               </Field>
             </div>
           </Card>
+
+          {me.data && <DeleteAccountCard user={me.data} />}
         </div>
 
-        <Card title={t.account.changePassword} description={t.account.note} divider>
-          <form className="flex flex-col gap-5" onSubmit={submit}>
-            <Field label={t.account.current}>
-              <Input
-                type="password"
-                icon="lock"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                autoComplete="current-password"
-                required
-              />
-            </Field>
-            <Field label={t.account.next} hint={t.account.nextHint(PASSWORD_MIN_LENGTH)}>
-              <Input
-                type="password"
-                icon="key"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                minLength={PASSWORD_MIN_LENGTH}
-                autoComplete="new-password"
-                required
-              />
-            </Field>
-            <Field label={t.account.repeat} error={localError ?? undefined}>
-              <Input
-                type="password"
-                icon="key"
-                value={repeated}
-                onChange={(event) => setRepeated(event.target.value)}
-                minLength={PASSWORD_MIN_LENGTH}
-                autoComplete="new-password"
-                invalid={!!localError}
-                required
-              />
-            </Field>
+        <div className="flex flex-col gap-4 3xl:gap-5">
+          <Card title={t.account.changePassword} description={t.account.note} divider>
+            <form className="flex flex-col gap-5" onSubmit={submit}>
+              <Field label={t.account.current}>
+                <Input
+                  type="password"
+                  icon="lock"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </Field>
+              <Field label={t.account.next} hint={t.account.nextHint(PASSWORD_MIN_LENGTH)}>
+                <Input
+                  type="password"
+                  icon="key"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  minLength={PASSWORD_MIN_LENGTH}
+                  autoComplete="new-password"
+                  required
+                />
+              </Field>
+              <Field label={t.account.repeat} error={localError ?? undefined}>
+                <Input
+                  type="password"
+                  icon="key"
+                  value={repeated}
+                  onChange={(event) => setRepeated(event.target.value)}
+                  minLength={PASSWORD_MIN_LENGTH}
+                  autoComplete="new-password"
+                  invalid={!!localError}
+                  required
+                />
+              </Field>
 
-            {change.isError && <Alert variant="error">{errorMessage(change.error, t.common.unknownError)}</Alert>}
-            {done && <Alert variant="success">{t.account.done}</Alert>}
+              {change.isError && <Alert variant="error">{errorMessage(change.error, t.common.unknownError)}</Alert>}
+              {done && <Alert variant="success">{t.account.done}</Alert>}
 
-            <Button type="submit" variant="primary" icon="check" loading={change.isPending} disabled={done}>
-              {t.account.changePassword}
-            </Button>
-          </form>
-        </Card>
+              <Button type="submit" variant="primary" icon="check" loading={change.isPending} disabled={done}>
+                {t.account.changePassword}
+              </Button>
+            </form>
+          </Card>
+
+          {me.data && <TwoFactorCard user={me.data} />}
+        </div>
       </div>
     </DashboardLayout>
   );
