@@ -1,12 +1,32 @@
 "use client";
 import React, { useState } from "react";
+import axios from "axios";
 import { Alert } from "@/components/atoms/Alert";
 import { Button, IconButton } from "@/components/atoms/Button";
 import { Field } from "@/components/atoms/Field";
 import { Input } from "@/components/atoms/Input";
 import { AuthLayout } from "@/components/templates/AuthLayout";
 import { useI18n } from "@/common/i18n/I18nProvider";
+import type { Dictionary } from "@/common/i18n/dictionaries";
 import { useLogin } from "@/hooks/useAuth";
+
+/**
+ * Traduce el fallo del login al mensaje que corresponde.
+ *
+ * La distincion importante es la ausencia de `response`: cuando el navegador no
+ * llega a recibir una respuesta —CORS mal configurado, DNS, backend caido— axios
+ * no puede decir mas, y todos esos casos son indistinguibles desde JavaScript.
+ * Presentarlos como "credenciales invalidas" manda a buscar el fallo al lado
+ * equivocado, asi que se nombran como problema de conexion.
+ */
+const messageFor = (error: unknown, t: Dictionary): string => {
+  if (!axios.isAxiosError(error)) return t.auth.serverError;
+  if (!error.response) return t.auth.networkError;
+  const status = error.response.status;
+  if (status === 401) return t.auth.invalid;
+  if (status === 429) return t.auth.tooManyAttempts;
+  return t.auth.serverError;
+};
 
 export default function LoginPage() {
   const { t } = useI18n();
@@ -67,7 +87,7 @@ export default function LoginPage() {
             }
           />
         </Field>
-        {login.isError && <Alert variant="error">{t.auth.invalid}</Alert>}
+        {login.isError && <Alert variant="error">{messageFor(login.error, t)}</Alert>}
         <Button type="submit" variant="primary" size="lg" loading={pending} iconRight="arrowRight" className="mt-1 w-full">
           {t.auth.submit}
         </Button>

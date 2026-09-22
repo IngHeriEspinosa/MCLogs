@@ -7,3 +7,5 @@ logs/
 
 # npm pack artifacts
 *.tgz
+
+deploy.tar
