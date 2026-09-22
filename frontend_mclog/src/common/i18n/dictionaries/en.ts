@@ -534,6 +534,8 @@ export const en: Dictionary = {
     subtitle: "Use your MCLog credentials.",
     email: "Email",
     password: "Password",
+    emailPlaceholder: "you@company.com",
+    passwordPlaceholder: "Your password",
     submit: "Sign in",
     invalid: "Invalid credentials.",
     twoFactorTitle: "Two-step verification",

@@ -12,15 +12,30 @@ const redirectToLogin = () => {
   }
 };
 
+// Endpoints donde un 401 no significa "sesion caducada": reintentarlos tras un
+// refresh no tiene sentido. /auth/me si se reintenta: es lo que decide si el
+// panel manda al login.
+const NO_REFRESH = /\/auth\/(login|refresh|logout)(\/|$)/;
+
+// Un unico refresh en vuelo: si varias peticiones caducan a la vez, todas
+// esperan al mismo en lugar de rotar el token cada una por su cuenta.
+let refreshing: Promise<unknown> | null = null;
+const refreshSession = () => {
+  refreshing ??= client.post("/auth/refresh", {}, { withCredentials: true }).finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+};
+
 client.interceptors.response.use(
   (resp) => resp,
   async (error) => {
     const original = error.config;
-    const isAuthEndpoint = original?.url?.includes("/auth/");
+    const isAuthEndpoint = NO_REFRESH.test(original?.url ?? "");
     if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
       try {
-        await client.post("/auth/refresh", {}, { withCredentials: true });
+        await refreshSession();
         return client(original);
       } catch (err) {
         redirectToLogin();

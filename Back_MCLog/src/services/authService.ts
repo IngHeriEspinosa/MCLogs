@@ -99,16 +99,30 @@ export const loginWithSecondFactor = async (mfaToken: string, code: string) => {
   return completeLogin(user);
 };
 
+/**
+ * Margen durante el que un refresh token ya rotado sigue valiendo. Al abrir el
+ * panel con el access token caducado salen varias peticiones a la vez con el
+ * mismo refresh token; sin este margen solo la primera rota y el resto recibe
+ * 401, lo que cerraba la sesion. Revocar (logout, cambio de contrasena) borra
+ * la fila, asi que el margen no resucita sesiones revocadas.
+ */
+const ROTATION_GRACE_MS = 30_000;
+
 export const refresh = async (refreshToken: string) => {
   try {
     const payload = jwt.verify(refreshToken, config.jwtRefreshSecret as Secret) as jwt.JwtPayload & { jti?: string };
     if (!payload.sub || !payload.jti) throw new Error("Invalid refresh token");
     const tokenRecord = await prisma.refreshToken.findUnique({ where: { token: payload.jti } });
-    if (!tokenRecord || tokenRecord.revokedAt || tokenRecord.expiresAt < new Date()) {
+    if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
       throw new Error("Refresh token expired");
     }
-    // rotate token
-    await prisma.refreshToken.delete({ where: { token: payload.jti } });
+    if (tokenRecord.revokedAt && Date.now() - tokenRecord.revokedAt.getTime() > ROTATION_GRACE_MS) {
+      throw new Error("Refresh token already used");
+    }
+    // rotate token: se marca como usado en lugar de borrarlo para aplicar el margen
+    if (!tokenRecord.revokedAt) {
+      await prisma.refreshToken.updateMany({ where: { token: payload.jti, revokedAt: null }, data: { revokedAt: new Date() } });
+    }
     const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
     if (!user) throw new Error("User not found");
     const tokens = await issueTokens(user.id, user.email, user.role);

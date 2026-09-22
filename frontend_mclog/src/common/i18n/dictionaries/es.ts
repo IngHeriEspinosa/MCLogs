@@ -543,6 +543,8 @@ export const es = {
     subtitle: "Accede con tus credenciales de MCLog.",
     email: "Correo",
     password: "Contraseña",
+    emailPlaceholder: "tu@empresa.com",
+    passwordPlaceholder: "Tu contraseña",
     submit: "Entrar",
     invalid: "Credenciales inválidas.",
     twoFactorTitle: "Verificación en dos pasos",

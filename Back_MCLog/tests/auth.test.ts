@@ -61,6 +61,14 @@ describe("Auth & Security", () => {
     expect(res.headers["set-cookie"]?.some((c: string) => c.startsWith("refresh_token="))).toBe(true);
   });
 
+  it("accepts the same refresh token from parallel requests", async () => {
+    await loginAdmin();
+    const results = await Promise.all(
+      [1, 2, 3].map(() => request(app).post("/auth/refresh").send({ refreshToken: adminRefreshToken }))
+    );
+    expect(results.map((res) => res.status)).toEqual([200, 200, 200]);
+  });
+
   it("invalidates refresh token after logout", async () => {
     const logoutRes = await request(app).post("/auth/logout").send({ refreshToken: adminRefreshToken });
     expect(logoutRes.status).toBe(200);

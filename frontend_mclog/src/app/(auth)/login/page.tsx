@@ -134,6 +134,7 @@ export default function LoginPage() {
             onChange={(event) => setEmail(event.target.value)}
             disabled={pending}
             autoComplete="email"
+            placeholder={t.auth.emailPlaceholder}
             autoFocus
             required
           />
@@ -147,6 +148,7 @@ export default function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
             disabled={pending}
             autoComplete="current-password"
+            placeholder={t.auth.passwordPlaceholder}
             required
             trailing={
               <IconButton
