@@ -20,17 +20,19 @@ Desglose completo en [docs/FEATURES.md](docs/FEATURES.md). En resumen:
 - **Ingesta** individual y por lotes (hasta 500 por petición), con captura de excepciones (clase, código y stack).
 - **Agrupación de errores** por huella: las repeticiones del mismo fallo son un grupo con su conteo, no N líneas sueltas.
 - **Acceso para IA** por MCP en `/mcp`: Claude Code, Cursor o Claude Desktop investigan los logs con ocho herramientas propias.
-- **Consulta** con filtros combinables (nivel, entorno, aplicación, servicio, host, traceId, huella, fechas, búsqueda libre).
+- **Consulta** con filtros combinables (nivel, entorno, aplicación, servicio, host, traceId, huella, fechas, búsqueda libre) y **búsqueda avanzada** por campo (mensaje, nombre y código del error) en la vista **Registros**.
 - **Traza y contexto**: una operación completa por `traceId` y lo ocurrido alrededor de cualquier log.
 - **Estadísticas** en vivo, con serie por hora y nivel para ver cuándo empezó un incidente.
 - **Exportación** CSV y NDJSON respetando los filtros activos.
 - **API keys con permisos** (`ingest` / `read` / `metrics`), acotables por aplicación, caducables y revocables.
-- **Usuarios y roles** administrables desde el dashboard, con cambio de contraseña y cierre de sesiones.
+- **Usuarios y roles** administrables desde el dashboard, con cuenta root protegida, cambio de contraseña y cierre de sesiones.
+- **Verificación en dos pasos** (TOTP con códigos de recuperación) y borrado de la propia cuenta.
+- **Lab**: escenarios de prueba que envían logs reales para ver cada pantalla en acción, y un compositor que muestra la petición en JSON y cURL.
 - **Alertas** por webhook firmado, correo y Telegram, con reglas de umbral o de error nuevo y silencio configurable.
 - **Logs en vivo** en el dashboard por Server-Sent Events.
 - **Retención automática** por días, más purga puntual por fecha y aplicación.
 - **Sesiones** con JWT, refresh rotativo de un solo uso y renovación transparente.
-- **Despliegue** con Docker Compose y Caddy, HTTPS automático y copias de seguridad diarias.
+- **Despliegue** en un VPS con Docker Compose y Caddy (HTTPS automático y copias de seguridad diarias), o repartido entre CapRover (API y base de datos) y Railway (dashboard).
 - **Observabilidad** del propio servicio: `/health`, `/metrics` Prometheus y logging estructurado.
 
 ## Inicio rápido (desarrollo local)
@@ -54,7 +56,9 @@ npm install
 npm run dev
 ```
 
-Abre **http://localhost:3001** e inicia sesión con el usuario admin definido en `Back_MCLog/.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`, por defecto `admin@example.com` / `ChangeMe123!`).
+Abre **http://localhost:3001**, pulsa **Iniciar sesión** y entra con el usuario admin definido en `Back_MCLog/.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`, por defecto `admin@example.com` / `ChangeMe123!`). Es la cuenta root: no se puede borrar ni degradar.
+
+> **Paso a paso:** la guía [Primeros pasos](docs/guias/primeros-pasos.md) recorre esta instalación con comprobaciones en cada paso, hasta ver tu primer log en el dashboard.
 
 > Nota: en desarrollo local el backend corre fuera de Docker y `.env` apunta a `localhost:5435`. Dentro de `docker compose up api` el contenedor usa su propia URL interna (`db:5432`), definida en `docker-compose.yml`.
 
@@ -73,9 +77,11 @@ curl -X POST http://localhost:3000/api/log \
   }'
 ```
 
+`dev-key` es la clave heredada del `.env` de desarrollo y solo sirve en local. Para cualquier otra cosa, crea una clave con permiso `ingest` en **Administración → API keys**. Sin escribir código, **Administración → Lab** envía escenarios de prueba completos.
+
 ## Conectar una IA a tus logs
 
-Crea una API key con permiso `read` en el dashboard (Ajustes → API keys) y registra el servidor MCP:
+Crea una API key con permiso `read` en el dashboard (**Administración → API keys**) y registra el servidor MCP:
 
 ```bash
 claude mcp add --transport http mclog https://mclog.tu-dominio.com/mcp   --header "Authorization: Bearer mclog_xxxxxxxx_tu-clave"
@@ -85,23 +91,24 @@ A partir de ahí puedes preguntar «¿qué está fallando en producción hoy?» 
 
 ## Cómo integrar tus aplicaciones
 
-- **Cualquier lenguaje (API REST)** → [docs/INTEGRATION.md](docs/INTEGRATION.md) — ejemplos con curl, Node.js, Python y front-end.
+- **Cualquier lenguaje (API REST)** → [docs/INTEGRATION.md](docs/INTEGRATION.md) — ejemplos con curl, Node.js y Python.
 - **NetSuite / SuiteScript** → [integrations/netsuite/README.md](integrations/netsuite/README.md) — librería lista para subir al File Cabinet.
 - **Apps Node.js** → [packages/mclog/README.md](packages/mclog/README.md) — cliente tipado `@multicomputos-srl/mclog`, sin dependencias.
 
-La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del backend). No se necesitan usuarios ni JWT para enviar logs; los usuarios y JWT son solo para el dashboard.
+La ingesta se autentica con el header **`x-api-key`** y una clave con permiso `ingest`, creada en **Administración → API keys**. No se necesitan usuarios ni JWT para enviar logs. La variable `API_KEY` del backend es una clave heredada y deprecada: no la uses para integraciones nuevas.
 
 ## Documentación
 
-Índice completo en [docs/README.md](docs/README.md).
+Índice completo en [docs/README.md](docs/README.md). Publicada también en web: **<https://ingheriespinosa.github.io/MCLogs/docs>**.
 
 | Documento | Contenido |
 |---|---|
+| [docs/guias/](docs/README.md#guías-paso-a-paso) | **Guías paso a paso**: instalar, integrar, investigar, proteger tu cuenta, desplegar |
 | [docs/FEATURES.md](docs/FEATURES.md) | Desglose de todas las funcionalidades |
 | [docs/TECHNICAL.md](docs/TECHNICAL.md) | Documentación técnica del sistema (API, datos, seguridad, despliegue) |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Manual de usuario: consultar, enviar logs y administrar |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura, decisiones de diseño y escalabilidad |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Despliegue en producción: VPS, Docker Compose, Caddy, backups |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Despliegue en producción: VPS con Docker Compose y Caddy, o CapRover + Railway |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Guía de integración REST para cualquier aplicación |
 | [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md) | Conectar Claude Code, Cursor o Claude Desktop por MCP |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Glosario de términos |
@@ -111,16 +118,16 @@ La ingesta se autentica con el header **`x-api-key`** (variable `API_KEY` del ba
 ## Tests
 
 ```bash
-# Backend — 150 tests (auth, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
+# Backend — 174 tests en 14 suites (auth, 2FA, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
 cd Back_MCLog
 docker compose up -d db       # requiere la DB en localhost:5435
 npm test
 
-# Librería — 83 tests
+# Librería — 95 tests
 cd packages/mclog
 npm test
 
-# Cliente NetSuite — 32 comprobaciones, sin dependencias ni cuenta de NetSuite
+# Cliente NetSuite — 40 comprobaciones, sin dependencias ni cuenta de NetSuite
 node integrations/netsuite/test_mclog_client.js
 ```
 

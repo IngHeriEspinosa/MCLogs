@@ -3,8 +3,9 @@
 API REST de captura y consulta centralizada de logs.
 
 - **Ingesta** por API key (`x-api-key`) o JWT: `POST /api/log` y `POST /api/logs/batch` (hasta 500 por lote).
-- **Consulta** por JWT: filtros, búsqueda, orden, paginación, export CSV/NDJSON, estadísticas y purga por fecha (admin).
-- **Seguridad**: JWT con refresh rotativo en cookies httpOnly, helmet, CORS con lista blanca, rate limits separados para ingesta y consulta, validación estricta, HTTPS forzable.
+- **Consulta** por JWT o API key con permiso `read`: filtros, búsqueda libre y avanzada por campo, orden, paginación, export CSV/NDJSON, estadísticas, errores agrupados, trazas y purga por fecha (admin).
+- **Seguridad**: JWT con refresh rotativo en cookies httpOnly, verificación en dos pasos (TOTP + códigos de recuperación), cuenta root protegida, borrado de la propia cuenta, helmet, CORS con lista blanca, rate limits separados para ingesta, consulta y login, validación estricta, HTTPS forzable.
+- **Operación**: alertas (webhook, correo, Telegram), retención automática, stream en vivo (SSE) y servidor MCP para asistentes de IA.
 - **Observabilidad**: `/health`, `/metrics` (Prometheus), Swagger en `/docs`, logging estructurado con requestId/traceId y duración.
 
 ## Arranque rápido
@@ -40,5 +41,5 @@ Swagger UI interactivo: `http://localhost:3000/docs`.
 
 ```bash
 docker compose up -d db
-npm test    # 150 tests (vitest + supertest contra DB real)
+npm test    # 174 tests en 14 suites (vitest + supertest contra DB real)
 ```

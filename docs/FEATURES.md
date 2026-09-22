@@ -27,6 +27,8 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 17. [Mantenimiento automático](#17-mantenimiento-automático)
 18. [Alertas](#18-alertas)
 19. [Logs en vivo](#19-logs-en-vivo)
+20. [Verificación en dos pasos (2FA)](#20-verificación-en-dos-pasos-2fa)
+21. [Lab de pruebas](#21-lab-de-pruebas)
 
 ---
 
@@ -34,7 +36,7 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 
 Recibe y almacena eventos de cualquier aplicación capaz de hacer una petición HTTP.
 
-**Quién:** aplicaciones emisoras, autenticadas con `x-api-key` (o con JWT de usuario).
+**Quién:** aplicaciones emisoras, autenticadas con una API key de permiso `ingest` (o con JWT de usuario, que es como envía el Lab).
 **Código:** [logRoutes.ts](../Back_MCLog/src/routes/logRoutes.ts) → [validateLog.ts](../Back_MCLog/src/middlewares/validateLog.ts) → [logController.ts](../Back_MCLog/src/controllers/logController.ts) → [logService.ts](../Back_MCLog/src/services/logService.ts)
 
 ### 1.1 Log individual — `POST /api/log`
@@ -43,7 +45,7 @@ Inserta un evento. Devuelve `201` con el registro creado (incluido su `id`).
 
 ```bash
 curl -X POST http://localhost:3000/api/log \
-  -H "Content-Type: application/json" -H "x-api-key: dev-key" \
+  -H "Content-Type: application/json" -H "x-api-key: $MCLOG_API_KEY" \
   -d '{"application":"facturacion","level":"error","environment":"production",
        "message":"Timeout en pasarela de pagos","metadata":{"orderId":991}}'
 ```
@@ -68,6 +70,9 @@ Pensado para procesos masivos —Map/Reduce de NetSuite, ETL, workers—: 1 peti
 | `traceId` | — | 128 chars | UUID generado por petición |
 | `spanId` | — | 128 chars | — |
 | `metadata` | — | objeto JSON libre | — |
+| `errorName` / `errorCode` / `errorStack` | — | 200 / 100 / 50 000 chars (se recortan) | — |
+| `error` | — | objeto con `name`/`message`/`code`/`stack` | se reparte en los tres anteriores ([15.1](#151-detalle-estructurado-del-error)) |
+| `fingerprint` | — | 64 chars | calculada para `error` y `warn` ([15.2](#152-huella)) |
 
 `message`, `errorStack` (50 000), `errorName` (200) y `errorCode` (100) **se recortan** a su tope, terminando en `…`, en vez de rechazarse: su tamaño depende de lo que pase en ejecución, y rechazarlos tumbaba el lote entero. La longitud original queda en `metadata.mclogTruncated`, p. ej. `{ "errorStack": 84211 }`. El resto de topes se siguen validando con `400`.
 
@@ -83,7 +88,7 @@ El servidor **completa** lo que la aplicación no envía: `service`, `host` y `t
 
 ## 2. Consulta y búsqueda
 
-`GET /api/logs` — listado paginado con filtros combinables. **Requiere JWT**: la API key nunca da acceso de lectura.
+`GET /api/logs` — listado paginado con filtros combinables. **Requiere JWT o una API key con permiso `read`**: una clave de ingesta nunca da acceso de lectura.
 
 **Código:** [validateLogQuery.ts](../Back_MCLog/src/middlewares/validateLogQuery.ts) → [logController.ts](../Back_MCLog/src/controllers/logController.ts) → [`buildWhere`](../Back_MCLog/src/services/logService.ts)
 
@@ -92,12 +97,19 @@ El servidor **completa** lo que la aplicación no envía: `service`, `host` y `t
 | Filtro | Comportamiento |
 |---|---|
 | `application`, `service`, `host` | Coincidencia parcial, **insensible a mayúsculas** (`contains`) |
-| `traceId` | Coincidencia **exacta** |
+| `traceId`, `fingerprint` | Coincidencia **exacta** |
 | `level`, `environment` | Valor exacto del enum |
 | `from` / `to` | Rango ISO-8601, **combinables** en una sola condición sobre `timestamp` |
 | `search` | Busca en `message`, `application`, `service`, `host` (parcial) **y** `traceId` (exacto), unidos por `OR` |
+| `message`, `errorName`, `errorCode` | **Búsqueda avanzada**: cada uno en su propio campo, coincidencia parcial e insensible a mayúsculas |
 
 Todos son opcionales y se acumulan con `AND`.
+
+### 2.1.1 Búsqueda libre frente a búsqueda avanzada
+
+`search` responde a "¿aparece este texto en algún sitio?": es rápida de escribir, pero un `timeout` puede coincidir con el mensaje de un log y con el nombre de un host a la vez. La **búsqueda avanzada** responde a preguntas precisas, como "errores `ECONNRESET` del servicio `checkout` cuyo mensaje dice `pago`": cada parámetro mira un solo campo y todos se combinan con `AND`.
+
+En el dashboard es la tarjeta **Búsqueda avanzada** de la pantalla **Registros**, con seis campos: mensaje, servicio, host, traceId exacto, nombre y código del error.
 
 ### 2.2 Paginación
 
@@ -132,8 +144,9 @@ Devuelve un registro completo con toda su metadata. `400` si el id no es numéri
 | `byLevel` | Conteo por nivel (debug/info/warn/error) |
 | `byApplication` | **Top 10** de aplicaciones más activas |
 | `byEnvironment` | Conteo por entorno |
+| `timeline` | Serie por hora y nivel, acotada con `hours` o `from`/`to` (y `application`, `environment`) |
 
-Las cinco consultas se lanzan en paralelo con `Promise.all`. El dashboard las refresca cada 60 segundos.
+Las consultas se lanzan en paralelo con `Promise.all`. El dashboard las refresca cada 60 segundos.
 
 ---
 
@@ -146,7 +159,7 @@ Las cinco consultas se lanzan en paralelo con `Promise.all`. El dashboard las re
 - **CSV** — cabecera `id, timestamp, application, service, host, level, environment, message, traceId`, con escapado correcto de comillas, comas y saltos de línea. Abre directo en Excel.
 - **NDJSON** — un objeto JSON completo por línea, **incluida la metadata**. Ideal para `jq`, ingestión en otra herramienta o procesado por streaming.
 
-Ignora la paginación y devuelve hasta `MAX_EXPORT_ROWS` (10 000 por defecto) filas — un tope explícito para no agotar la memoria del proceso con una consulta abierta.
+No pagina: devuelve hasta `MAX_EXPORT_ROWS` (10 000 por defecto) filas, o menos si se pasa `pageSize`. Es un tope explícito para no agotar la memoria del proceso con una consulta abierta.
 
 ---
 
@@ -159,7 +172,7 @@ Ignora la paginación y devuelve hasta `MAX_EXPORT_ROWS` (10 000 por defecto) fi
 
 `before` es obligatorio y debe ser ISO-8601 — no existe forma de borrar "todo" por accidente. Devuelve `{ "deleted": n }` y deja constancia de la operación en los logs del servicio.
 
-> La tabla `Log` **crece sin límite** si no se purga. Esta operación está pensada para ejecutarse desde un cron. Ver [USER_GUIDE.md](USER_GUIDE.md#c7-retención-de-logs).
+> La tabla `Log` **crece sin límite** si no se purga. Lo normal es dejarlo en manos de la retención automática (`RETENTION_DAYS`, ver [17](#17-mantenimiento-automático)); esta operación queda para limpiezas puntuales. Ver [USER_GUIDE.md](USER_GUIDE.md#c7-retención-de-logs).
 
 ---
 
@@ -171,7 +184,7 @@ Dos planos completamente separados, por diseño:
 |---|---|---|---|
 | **Ingesta** | Máquinas (NetSuite, scripts, servicios) | API key con permiso `ingest` | ❌ No |
 | **Consulta automatizada** | Asistentes de IA, integraciones | API key con permiso `read` | ✅ Solo sus aplicaciones |
-| **Consulta y administración** | Personas (dashboard) | JWT access + refresh | ✅ Sí |
+| **Consulta y administración** | Personas (dashboard) | JWT access + refresh, con segundo factor opcional | ✅ Sí |
 
 **Consecuencia de seguridad:** si una clave de ingesta se filtra, el atacante puede *escribir* logs basura, pero **no puede leer** los de nadie. Detalle de los permisos en [13](#13-api-keys-con-permisos).
 
@@ -180,6 +193,10 @@ Dos planos completamente separados, por diseño:
 ### 6.1 Login — `POST /auth/login`
 
 Email + contraseña (bcrypt, coste 12). Devuelve los tokens por **tres vías** simultáneas: body JSON, headers `x-access-token`/`x-refresh-token` y **cookies httpOnly** — así sirve tanto a un navegador como a un script.
+
+Si la cuenta tiene la **verificación en dos pasos** activa, la contraseña correcta no abre la sesión: la respuesta es `{ mfaRequired: true, mfaToken }` y hay que completar `POST /auth/login/2fa` con un código antes de 5 minutos. Ver [20](#20-verificación-en-dos-pasos-2fa).
+
+Los intentos fallidos están limitados a 10 cada 15 minutos por IP (`LOGIN_RATE_LIMIT_*`); los correctos no cuentan, así que un usuario legítimo nunca se bloquea a sí mismo.
 
 ### 6.2 Refresh con rotación — `POST /auth/refresh`
 
@@ -198,9 +215,11 @@ Cuando el access token expira, [`requireAuth`](../Back_MCLog/src/middlewares/req
 
 Revoca el refresh token en base de datos y limpia las cookies. Idempotente: un token inválido no produce error.
 
-### 6.5 Administrador inicial
+### 6.5 Administrador inicial: la cuenta root
 
 Al arrancar, si `ADMIN_EMAIL` y `ADMIN_PASSWORD` están definidos y el usuario no existe, se crea con rol `admin` ([`ensureAdminUser`](../Back_MCLog/src/services/authService.ts)). No hay que sembrar la base a mano.
+
+Esa cuenta es la **root** del servicio: nadie puede eliminarla ni quitarle el rol `admin`, tampoco ella misma, así que el servicio nunca se queda sin una puerta de entrada. En cada arranque se le devuelve el rol si lo hubiera perdido. Si `ADMIN_EMAIL` cambia, la nueva cuenta pasa a ser el root y la anterior queda como un admin normal. `ADMIN_PASSWORD` solo se usa al crearla: no pisa una contraseña cambiada después.
 
 ---
 
@@ -210,8 +229,8 @@ Al arrancar, si `ADMIN_EMAIL` y `ADMIN_PASSWORD` están definidos y el usuario n
 
 | Rol | Puede |
 |---|---|
-| `user` | Consultar, buscar, ver estadísticas y exportar |
-| `admin` | Todo lo anterior **+ purgar logs** (`DELETE /api/logs`) |
+| `user` | Consultar, buscar, ver estadísticas, exportar, generar reportes y gestionar su propia cuenta |
+| `admin` | Todo lo anterior **+ purgar logs** (`DELETE /api/logs`), API keys, usuarios, alertas y el Lab |
 
 Sin sesión → `401`. Con sesión pero rol insuficiente → `403`.
 
@@ -225,7 +244,8 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 
 | Funcionalidad | Detalle |
 |---|---|
-| **Login** | Formulario email/contraseña; el front nunca manipula tokens (viven en cookies httpOnly) |
+| **Portada** | Página pública en `/` con acceso al login; con sesión abierta lleva directo a Logs |
+| **Login** | Formulario email/contraseña y, si la cuenta tiene 2FA, un segundo paso con el código de la app o de recuperación. Tras entrar, vuelve a la página que se pidió. El front nunca manipula tokens (viven en cookies httpOnly) |
 | **Español / inglés** | Toda la interfaz traducida; el cambio es inmediato y se recuerda |
 | **Tema claro / oscuro / sistema** | Sin destello al cargar; con "sistema" sigue al sistema operativo |
 | **Hasta 4K** | La interfaz escala y aprovecha el ancho hasta 3840 px; el detalle del log pasa a columna lateral desde 1920 px |
@@ -236,10 +256,15 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Ordenación** | Por fecha, aplicación, nivel, host o entorno, asc/desc |
 | **Paginación** | 10 / 25 / 50 / 100 por página, con navegación anterior/siguiente |
 | **Inspector del log** | Propiedades, stack con el código propio resaltado, metadata, contexto de ±2 min y "Copiar para IA"; navegable con flechas |
+| **Registros** | La tabla sin resumen, con **búsqueda avanzada** por campo (mensaje, servicio, host, traceId exacto, nombre y código del error) y el detalle del log a pantalla completa, con ←/→ para recorrer la página |
+| **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición y brief para IA |
+| **Traza** | Una operación entre sistemas en línea temporal, con los saltos de tiempo entre pasos |
+| **Administración** | API keys, usuarios (con etiquetas Root y 2FA), alertas y el **Lab** de pruebas (ver [21](#21-lab-de-pruebas)) |
+| **Mi cuenta** | Preferencias, cambio de contraseña, verificación en dos pasos y eliminar la propia cuenta |
 | **Badges por severidad** | Color por nivel para localizar errores de un vistazo |
 | **Export** | CSV y NDJSON con los filtros activos |
 | **Reportes** | Informe Markdown para personas, brief para agentes de IA (Markdown) y datos en JSON; enmascarado de correos, IPs y tokens |
-| **Filtros en la URL** | `?range=7d&level=error&application=x` — copiar el enlace reproduce la vista exacta |
+| **Filtros en la URL** | `?range=7d&level=error&application=x`, incluida la búsqueda avanzada (`&errorCode=ECONNRESET`) — copiar el enlace reproduce la vista exacta |
 | **Estados de carga** | Skeletons al cargar; al refiltrar se mantiene la tabla anterior atenuada (sin parpadeo) |
 | **Sesión automática** | Un 401 dispara un reintento vía `/auth/refresh`; si falla, redirige a `/login` |
 
@@ -255,8 +280,9 @@ No hace falta ningún cliente —basta un `POST` HTTP— pero hay dos listos par
 
 Paquete npm publicable, con **cero dependencias en runtime** (usa `fetch` nativo, Node ≥18):
 
-- `createMCLogClient()` con helpers `debug` / `info` / `warn` / `error`, `send` y `sendBatch`.
-- **Troceado automático** de lotes al tamaño máximo del servidor.
+- `createMCLogClient()` con helpers `debug` / `info` / `warn` / `error`, `send`, `sendBatch` y `captureException`.
+- **Troceado automático** de lotes al tamaño máximo del servidor, por entradas y por bytes.
+- **Reintentos** ante fallos transitorios (red, timeout, `429`, `5xx`) con espera exponencial y jitter.
 - **A prueba de fallos**: si MCLog no responde, la función devuelve `false` y tu aplicación sigue. No escribe en tu consola; puedes engancharte con `onError` o pedir excepciones con `throwOnError`.
 - Defaults de aplicación, entorno, servicio, host y metadata para no repetirlos en cada llamada.
 - Entry point aparte `@multicomputos-srl/mclog/express` con el middleware `validateLog`, para que quien solo emita logs no arrastre Express.
@@ -265,7 +291,7 @@ Paquete npm publicable, con **cero dependencias en runtime** (usa `fetch` nativo
 
 **Código:** [integrations/netsuite/](../integrations/netsuite/)
 
-Módulo para subir al File Cabinet. Adjunta automáticamente en `metadata` el `scriptId`, `deploymentId`, `accountId`, `userId` y el **governance restante** — contexto que en NetSuite es caro de reconstruir después. Incluye ejemplos de User Event y Map/Reduce.
+Módulo para subir al File Cabinet. Adjunta automáticamente en `metadata` el `scriptId`, `deploymentId`, `executionContext`, `accountId`, `userId`, `userRole` y el **governance restante** — contexto que en NetSuite es caro de reconstruir después. `exception()` reparte un `SuiteScriptError` en campos de error para que se agrupe. Incluye ejemplos de User Event y Map/Reduce.
 
 ---
 
@@ -276,8 +302,8 @@ Quién vigila al vigilante. **Código:** [app.ts](../Back_MCLog/src/app.ts), [lo
 | Endpoint / mecanismo | Qué aporta |
 |---|---|
 | `GET /health` | Verifica servidor **y** base de datos (`SELECT 1`). `200 ok` / `503 degraded`. Para load balancers y uptime checks |
-| `GET /metrics` | Métricas Prometheus del proceso (CPU, memoria, event loop). **Protegido con API key** |
-| Log por petición | Una línea JSON con `requestId`, `traceId`, método, URL, status y duración en ms |
+| `GET /metrics` | Métricas Prometheus del proceso (CPU, memoria, event loop), duración de peticiones, logs ingeridos por aplicación y nivel, y conexiones en vivo. **Protegido con API key** de permiso `metrics` |
+| Log por petición | Una línea JSON con `requestId`, `traceId`, método, URL, status y duración en ms. Los `/health` correctos se omiten para no ahogar el resto |
 | Redacción de secretos | Con `LOG_LEVEL=debug` también registra el body, pero redacta `password`, `token`, `authorization`, `auth`, `refreshtoken`, `accesstoken` |
 | Fichero rotado | `logs/app.log`, 10 MB × 5 ficheros |
 | Reintentos de arranque | Si la base no está lista, reintenta 10 veces cada 3 s antes de rendirse |
@@ -293,22 +319,22 @@ Quién vigila al vigilante. **Código:** [app.ts](../Back_MCLog/src/app.ts), [lo
 |---|---|
 | **Cabeceras HTTP** | `helmet` con su configuración por defecto |
 | **CORS** | Lista blanca desde `CORS_ORIGINS`, con credenciales. Peticiones sin `Origin` (curl, health checks) permitidas |
-| **Rate limiting doble** | `ingestLimiter` 2000/min y `queryLimiter` 600/15 min, **independientes**: un dashboard intensivo no puede bloquear la ingesta, ni al revés |
+| **Rate limiting triple** | `ingestLimiter` 2000/min, `queryLimiter` 600/15 min y `loginLimiter` 10 fallos/15 min, **independientes**: un dashboard intensivo no puede bloquear la ingesta, ni al revés, y el login resiste la fuerza bruta |
 | **Límite de cuerpo** | 3 MB (`BODY_LIMIT`) |
 | **API key en tiempo constante** | `crypto.timingSafeEqual`, para no filtrar la clave por diferencias de tiempo |
+| **Verificación en dos pasos** | TOTP con códigos de recuperación, anti-reutilización de códigos; ver [20](#20-verificación-en-dos-pasos-2fa) |
+| **Cuentas protegidas** | La cuenta root y el último admin no se pueden eliminar ni degradar |
 | **Cookies** | `httpOnly` siempre; `secure` y `sameSite` configurables; `secure` automático en producción |
-| **HTTPS forzable** | `FORCE_HTTPS=1` rechaza peticiones no cifradas |
+| **HTTPS forzable** | `FORCE_HTTPS=1` rechaza peticiones no cifradas (salvo las de loopback, que es el healthcheck del contenedor) |
 | **Validación en el borde** | `express-validator` en cada endpoint: tipos, enums, longitudes y formatos ISO |
 | **Sin SQL injection** | Prisma parametriza todo; la ordenación usa lista blanca, no interpolación |
-| **Guardia de producción** | `assertProductionConfig()` **impide arrancar** con `NODE_ENV=production` si quedan secretos por defecto o `CORS_ORIGINS` vacío |
+| **Guardia de producción** | `assertProductionConfig()` **impide arrancar** con `NODE_ENV=production` si quedan secretos o contraseñas de ejemplo, si los dos secretos JWT son iguales o si `CORS_ORIGINS` está vacío |
 
 ---
 
 ## 12. Documentación de API interactiva
 
-`GET /docs` — Swagger UI (OpenAPI 3) generado desde [swagger.ts](../Back_MCLog/src/config/swagger.ts). Permite explorar y probar los endpoints desde el navegador sin escribir un curl.
-
----
+`GET /docs` — Swagger UI (OpenAPI 3) generado desde [swagger.ts](../Back_MCLog/src/config/swagger.ts). Permite explorar y probar los endpoints desde el navegador sin escribir un curl. `GET /openapi.json` entrega la misma especificación en crudo, para generar clientes.
 
 ---
 
@@ -350,7 +376,13 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 
 Cambiar la contraseña o el rol de alguien **revoca todos sus refresh tokens**: las sesiones abiertas en otros dispositivos dejan de valer y el nuevo rol se aplica en el siguiente token.
 
-Dos operaciones están bloqueadas para que el servicio no se quede sin administración: nadie puede borrarse a sí mismo, ni eliminar o degradar al último `admin`.
+Tres operaciones están bloqueadas para que el servicio no se quede sin administración:
+
+- nadie puede borrarse a sí mismo desde la administración de usuarios (para eso está `DELETE /auth/me`);
+- nadie puede eliminar ni degradar la cuenta **root** (`403`);
+- nadie puede eliminar ni degradar al último `admin` (`409`).
+
+Desde **Mi cuenta**, cada usuario puede **eliminar su propia cuenta**. Le pide su contraseña, el código 2FA si lo tiene activo, y escribir `ELIMINAR`. Sus sesiones desaparecen con él; las API keys que creó siguen funcionando.
 
 ---
 
@@ -480,6 +512,54 @@ Acepta los mismos filtros de nivel, aplicación y entorno, y respeta el alcance 
 
 El modo en vivo solo se activa en la primera página y con el orden por fecha descendente: en cualquier otra vista, anteponer filas nuevas mentiría sobre lo que se está mirando.
 
+---
+
+## 20. Verificación en dos pasos (2FA)
+
+Una contraseña robada ya no basta para entrar: además hace falta el código de 6 dígitos que genera el móvil del usuario.
+
+**Quién:** cualquier usuario, sobre su propia cuenta. **Código:** [twoFactorService.ts](../Back_MCLog/src/services/twoFactorService.ts) · [totp.ts](../Back_MCLog/src/utils/totp.ts) · [TwoFactorCard.tsx](../frontend_mclog/src/components/organisms/TwoFactorCard.tsx)
+
+| Paso | Qué ocurre |
+|---|---|
+| **Alta** | En **Mi cuenta**, el usuario escanea un QR con su app (Google Authenticator, Microsoft Authenticator, 1Password…) y confirma con un código. Recibe **8 códigos de recuperación**, que se muestran una sola vez |
+| **Login** | Tras la contraseña, la pantalla pide el código. Vale el de la app o uno de recuperación |
+| **Baja** | Pide la contraseña y un código |
+
+Detalles de diseño:
+
+- **TOTP estándar** (RFC 6238: SHA1, 6 dígitos, 30 s), implementado en el propio servicio sin dependencias. El QR también se genera en el servidor, como SVG: el secreto no pasa por ningún servicio externo.
+- **Un código no se puede reutilizar**: se guarda el último paso aceptado, con una actualización atómica que impide que dos peticiones simultáneas con el mismo código ganen las dos.
+- **Códigos de recuperación de un solo uso**, guardados como hash, que se comparan sin distinguir mayúsculas ni guiones.
+- **El token intermedio** (`mfaToken`, 5 min) tiene secreto y audiencia propios: no sirve como sesión.
+- **Límite de intentos**: el segundo paso, el alta y la baja comparten el limitador del login (10 fallos / 15 min por IP).
+- **Sin puerta trasera**: un admin ve quién tiene el 2FA activo (etiqueta **2FA** en Usuarios) pero no puede desactivarlo en otra cuenta. La recuperación sin códigos es un procedimiento de base de datos documentado en la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#recuperar-una-cuenta-con-2fa).
+
+---
+
+## 21. Lab de pruebas
+
+Una forma de ver MCLog funcionando **sin esperar a que algo falle**: escenarios que envían logs reales y enlazan a la pantalla donde se ve el resultado.
+
+**Quién:** solo `admin`. **Código:** [app/lab/](../frontend_mclog/src/app/lab/) · [common/lab/](../frontend_mclog/src/common/lab/) · [useLab.ts](../frontend_mclog/src/hooks/useLab.ts)
+
+| Escenario | Qué demuestra |
+|---|---|
+| Tráfico normal | Resumen, gráfico de actividad y filtros con 120 registros variados |
+| Error agrupado | 25 timeouts con datos distintos → **una** fila en Errores |
+| Traza distribuida | Una operación por cuatro servicios con el mismo traceId, que falla al final |
+| Pico de incidente | 80 errores en 5 minutos → pico en Actividad y disparo de reglas de umbral |
+| Error nuevo | Una huella nunca vista → reglas de tipo "Error nuevo" |
+| Datos sensibles | Correos, IPs y tokens ficticios → que los briefs para IA los enmascaran |
+| Stream en vivo | 20 logs uno a uno → el modo **En vivo** de Logs |
+
+Además, un **compositor** envía un log a medida y muestra la petición equivalente en JSON y cURL, útil como plantilla de integración.
+
+- Todo va a aplicaciones con prefijo `lab-`.
+- Por defecto se envía al entorno `development`, para no contaminar métricas ni alertas de producción.
+- **Borrar datos del lab** limpia solo esas aplicaciones.
+- La ingesta usa la sesión del admin: no hace falta crear una API key para probar.
+
 ## Resumen de endpoints
 
 | Método | Ruta | Auth | Funcionalidad |
@@ -498,9 +578,10 @@ El modo en vivo solo se activa en la primera página y con el orden por fecha de
 | `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **admin** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **admin** | [13](#13-api-keys-con-permisos) |
-| `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` · `/auth/me/2fa/*` | JWT | [14](#14-gestión-de-usuarios) |
+| `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
+| `POST` | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | [20](#20-verificación-en-dos-pasos-2fa) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin** | [14](#14-gestión-de-usuarios) |
-| `POST` | `/auth/login` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |
+| `POST` | `/auth/login` · `/auth/login/2fa` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |
 | `GET` | `/health` | — | [10](#10-observabilidad-del-propio-servicio) |
 | `GET` | `/metrics` | Clave `metrics` | [10](#10-observabilidad-del-propio-servicio) |
 | `GET` | `/docs` · `/openapi.json` | — | [12](#12-documentación-de-api-interactiva) |

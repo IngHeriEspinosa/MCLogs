@@ -1,6 +1,6 @@
 /**
  * Ejemplo: Map/Reduce que acumula logs y los envía en lote en summarize
- * (1 sola llamada HTTPS = mínimo consumo de governance).
+ * (una llamada HTTPS por cada 500 entradas = mínimo consumo de governance).
  *
  * @NApiVersion 2.1
  * @NScriptType MapReduceScript
@@ -35,11 +35,21 @@ define(['/SuiteScripts/lib/mclog_client'], (mclog) => {
         });
 
         summary.mapSummary.errors.iterator().each((key, error) => {
+            // NetSuite entrega cada error serializado como JSON. Pasarlo en
+            // `error` (y no en metadata) reparte su clase y su stack en campos
+            // propios, y asi MCLog agrupa las repeticiones del mismo fallo.
+            let parsed;
+            try {
+                parsed = JSON.parse(error);
+            } catch (e) {
+                parsed = { message: String(error) };
+            }
             entries.push({
                 level: 'error',
                 ...APP,
                 message: `Error en map para clave ${key}`,
-                metadata: { error: error }
+                error: parsed,
+                metadata: { key: key }
             });
             return true;
         });

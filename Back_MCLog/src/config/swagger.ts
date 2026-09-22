@@ -6,12 +6,22 @@ const logQueryParams = [
   { in: "query", name: "application", schema: { type: "string" } },
   { in: "query", name: "service", schema: { type: "string" } },
   { in: "query", name: "host", schema: { type: "string" } },
-  { in: "query", name: "traceId", schema: { type: "string" } },
+  { in: "query", name: "traceId", schema: { type: "string" }, description: "Coincidencia exacta" },
+  { in: "query", name: "fingerprint", schema: { type: "string", maxLength: 64 }, description: "Huella de agrupación, exacta" },
   { in: "query", name: "level", schema: { type: "string", enum: ["debug", "info", "warn", "error"] } },
   { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
   { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
   { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
-  { in: "query", name: "search", schema: { type: "string" } },
+  {
+    in: "query",
+    name: "search",
+    schema: { type: "string", maxLength: 300 },
+    description: "Busca a la vez en message, application, service, host y traceId",
+  },
+  // Busqueda avanzada: cada campo por separado, "contiene" sin distinguir mayusculas.
+  { in: "query", name: "message", schema: { type: "string", maxLength: 300 }, description: "El mensaje contiene el texto" },
+  { in: "query", name: "errorName", schema: { type: "string", maxLength: 200 }, description: "El nombre del error contiene el texto" },
+  { in: "query", name: "errorCode", schema: { type: "string", maxLength: 100 }, description: "El código de error contiene el texto" },
   {
     in: "query",
     name: "sort",
@@ -22,7 +32,8 @@ const logQueryParams = [
     in: "query",
     name: "format",
     schema: { type: "string", enum: ["json", "csv", "ndjson"] },
-    description: "csv/ndjson exportan hasta MAX_EXPORT_ROWS registros aplicando los mismos filtros",
+    description:
+      "csv/ndjson exportan con los mismos filtros; pageSize actúa como límite de filas, con tope MAX_EXPORT_ROWS. El CSV no incluye los campos de error",
   },
 ];
 
@@ -33,7 +44,7 @@ export const swaggerSpec = swaggerJSDoc({
       title: "MCLog API",
       version: "2.0.0",
       description:
-        "Servicio centralizado de captura y consulta de logs. Ingesta vía API key (x-api-key) o JWT; consultas vía JWT.",
+        "Servicio centralizado de captura y consulta de logs. Ingesta vía API key con scope ingest (x-api-key o Authorization: Bearer) o JWT; consultas vía JWT o API key con scope read.",
     },
     paths: {
       "/api/log": {
@@ -54,6 +65,8 @@ export const swaggerSpec = swaggerJSDoc({
             201: { description: "Creado" },
             400: { description: "Validación" },
             401: { description: "Credenciales inválidas" },
+            403: { description: "La clave no tiene scope ingest o la aplicación queda fuera de su alcance" },
+            413: { description: "El body supera BODY_LIMIT" },
             429: { description: "Rate limit excedido" },
           },
         },
@@ -89,7 +102,8 @@ export const swaggerSpec = swaggerJSDoc({
         get: {
           tags: ["consulta"],
           summary: "Listar / exportar logs",
-          security: [{ BearerAuth: [] }],
+          description: "Todos los filtros se combinan entre sí (Y).",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: logQueryParams,
           responses: {
             200: { description: "OK (json paginado, csv o ndjson según format)" },
@@ -113,8 +127,15 @@ export const swaggerSpec = swaggerJSDoc({
       "/api/logs/stats": {
         get: {
           tags: ["consulta"],
-          summary: "Estadísticas: totales, últimas 24h, por nivel, por aplicación y por entorno",
-          security: [{ BearerAuth: [] }],
+          summary: "Estadísticas: totales, últimas 24h, por nivel, por aplicación, por entorno y línea temporal",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [
+            { in: "query", name: "application", schema: { type: "string" } },
+            { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
+            { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744 }, description: "Ventana relativa en horas" },
+            { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
+            { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
+          ],
           responses: { 200: { description: "OK" }, 401: { description: "Token inválido" } },
         },
       },
@@ -330,7 +351,10 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["auth"],
           summary: "Generar secreto TOTP y QR (queda pendiente de confirmar)",
           security: [{ BearerAuth: [] }],
-          responses: { 200: { description: "secret, otpauthUri y qrCode (data URI SVG)" } },
+          responses: {
+            200: { description: "secret, otpauthUri y qrCode (data URI SVG)" },
+            409: { description: "El 2FA ya está activo: desactívalo antes" },
+          },
         },
       },
       "/auth/me/2fa/enable": {
@@ -342,7 +366,11 @@ export const swaggerSpec = swaggerJSDoc({
             required: true,
             content: { "application/json": { schema: { type: "object", required: ["code"], properties: { code: { type: "string" } } } } },
           },
-          responses: { 200: { description: "Activado" }, 400: { description: "Código incorrecto" } },
+          responses: {
+            200: { description: "Activado: `{ data: { recoveryCodes } }` (8 códigos de un solo uso)" },
+            400: { description: "Código incorrecto" },
+            409: { description: "Ya estaba activo, o no se llamó antes a /setup" },
+          },
         },
       },
       "/auth/me/2fa/disable": {
@@ -393,8 +421,25 @@ export const swaggerSpec = swaggerJSDoc({
           summary: "Cambiar rol o contraseña de un usuario (revoca sus sesiones)",
           security: [{ BearerAuth: [] }],
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  description: "Al menos uno de los dos campos",
+                  properties: {
+                    role: { type: "string", enum: ["user", "admin"] },
+                    password: { type: "string", minLength: 10 },
+                  },
+                },
+              },
+            },
+          },
           responses: {
             200: { description: "Actualizado" },
+            400: { description: "Ni role ni password" },
+            403: { description: "La cuenta root no se puede degradar" },
             409: { description: "No se puede degradar al último admin" },
           },
         },
@@ -405,6 +450,7 @@ export const swaggerSpec = swaggerJSDoc({
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
           responses: {
             200: { description: "Eliminado" },
+            403: { description: "La cuenta root no se puede eliminar" },
             409: { description: "No puedes borrarte a ti mismo ni eliminar al último admin" },
           },
         },
@@ -458,6 +504,22 @@ export const swaggerSpec = swaggerJSDoc({
             },
           },
           responses: { 201: { description: "Creado" }, 400: { description: "Configuración incompleta para ese tipo" } },
+        },
+      },
+      "/api/alerts/channels/{id}": {
+        patch: {
+          tags: ["alertas"],
+          summary: "Editar un canal (nombre, config o enabled)",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: { 200: { description: "Actualizado" }, 404: { description: "No encontrado" } },
+        },
+        delete: {
+          tags: ["alertas"],
+          summary: "Eliminar un canal",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: { 200: { description: "Eliminado" }, 404: { description: "No encontrado" } },
         },
       },
       "/api/alerts/channels/{id}/test": {
@@ -518,6 +580,22 @@ export const swaggerSpec = swaggerJSDoc({
           responses: { 201: { description: "Creada" } },
         },
       },
+      "/api/alerts/rules/{id}": {
+        patch: {
+          tags: ["alertas"],
+          summary: "Editar una regla (mismos campos que al crearla, todos opcionales)",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: { 200: { description: "Actualizada" }, 404: { description: "No encontrada" } },
+        },
+        delete: {
+          tags: ["alertas"],
+          summary: "Eliminar una regla y su historial",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: { 200: { description: "Eliminada" }, 404: { description: "No encontrada" } },
+        },
+      },
       "/api/alerts/events": {
         get: {
           tags: ["alertas"],
@@ -575,7 +653,14 @@ export const swaggerSpec = swaggerJSDoc({
             required: true,
             content: { "application/json": { schema: { type: "object", required: ["email", "password"], properties: { email: { type: "string" }, password: { type: "string" } } } } },
           },
-          responses: { 200: { description: "Tokens emitidos (body + cookies httpOnly)" }, 401: { description: "Credenciales inválidas" } },
+          responses: {
+            200: {
+              description:
+                "Tokens emitidos (body + cookies httpOnly). Si la cuenta tiene 2FA, en su lugar `{ mfaRequired: true, mfaToken }` sin cookies: completa el login en /auth/login/2fa antes de 5 minutos.",
+            },
+            401: { description: "Credenciales inválidas" },
+            429: { description: "Demasiados intentos fallidos (LOGIN_RATE_LIMIT_*)" },
+          },
         },
       },
       "/auth/refresh": {

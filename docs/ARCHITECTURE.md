@@ -30,14 +30,41 @@ MCLog centraliza los logs de múltiples aplicaciones en una base PostgreSQL, exp
                        ▼
              ┌───────────────────┐        ┌─────────────────────────┐
              │  frontend_mclog   │        │  Canales de aviso       │
-             │  Next.js 14 SPA   │        │  webhook · correo ·     │
+             │  Next.js 14       │        │  webhook · correo ·     │
              │   (puerto 3001)   │        │  Telegram               │
              └───────────────────┘        └─────────────────────────┘
                                                       ▲
                                           planificador cada minuto
 ```
 
-En producción, un proxy Caddy sirve el dashboard y la API bajo el mismo dominio y es lo único que publica puertos. Ver [DEPLOYMENT.md](DEPLOYMENT.md).
+## Topologías de despliegue
+
+Las mismas dos imágenes (API y dashboard) se despliegan de dos formas. Guía completa en [DEPLOYMENT.md](DEPLOYMENT.md).
+
+**Opción A — un VPS con Docker Compose.** Caddy sirve dashboard y API bajo **el mismo dominio** y es lo único que publica puertos. Sin CORS entre orígenes y con cookies `SameSite=Lax`.
+
+```
+Internet ──443──► Caddy ─┬─ /api/* /auth/* /mcp /docs /health ──► api:3000 ──► db:5432
+  (un dominio)           └─ todo lo demás ─────────────────────► web:3001
+                                              backup (pg_dump diario) ──► db
+```
+
+**Opción B — CapRover + Railway.** La API y PostgreSQL son **dos apps separadas** en CapRover, así que la API se puede redesplegar sin tocar la base, que no tiene dominio público. El dashboard vive en Railway, en **otro dominio**.
+
+```
+Navegador ──► dashboard.tu-dominio.com (Railway, Next standalone)
+    │
+    └──XHR con cookies──► api.tu-dominio.com (CapRover, nginx + TLS) ──► srv-captain--mclog-db:5432
+                          CORS_ORIGINS = origen exacto del dashboard
+```
+
+Al separar los dominios, el navegador trata la API como otro origen:
+
+- `CORS_ORIGINS` debe listar el dashboard.
+- `NEXT_PUBLIC_API_URL` se fija al compilar el dashboard.
+- Las cookies de sesión exigen HTTPS. Si los dominios no comparten sitio, además `COOKIE_SAMESITE=none`.
+
+Por eso conviene usar **subdominios del mismo dominio raíz**.
 
 ## Autenticación: credenciales con alcance
 
@@ -46,7 +73,7 @@ En producción, un proxy Caddy sirve el dashboard y la API bajo el mismo dominio
 | API key `ingest` | Escribir logs | Aplicaciones emisoras |
 | API key `read` | Consultar logs y usar MCP | Asistentes de IA, integraciones |
 | API key `metrics` | Leer `/metrics` | Prometheus |
-| JWT de usuario | Consultar; con rol `admin`, también administrar | Personas, desde el dashboard |
+| JWT de usuario | Consultar y enviar; con rol `admin`, también administrar | Personas, desde el dashboard (y el Lab) |
 
 Decisiones clave:
 
@@ -57,6 +84,9 @@ Decisiones clave:
 - Las claves se aceptan en `x-api-key` y en `Authorization: Bearer`, porque los clientes MCP solo permiten cabeceras estándar. Un `Bearer` sin forma de clave MCLog se trata como JWT.
 - El **refresh token se rota** en cada uso y se persiste por `jti`; logout lo revoca, y cambiar contraseña o rol revoca todos los del usuario.
 - `requireAuth` reintenta con el refresh token cuando el access token expiró, renovando cookies en la misma respuesta.
+- **Segundo factor opcional (TOTP).** Con él activo, la contraseña solo produce un `mfaToken` de 5 minutos, firmado con un secreto derivado y una audiencia propia para que nunca valga como sesión. La sesión se abre en `/auth/login/2fa` con un código de la app o de recuperación. El último paso TOTP aceptado se guarda para que un código no se pueda reutilizar.
+- **Cuenta root.** La de `ADMIN_EMAIL` queda marcada al arrancar y no se puede borrar ni degradar: el servicio nunca se queda sin una puerta de entrada. Un admin tampoco puede quitar el 2FA de otro usuario; si pudiera, una sesión de admin robada bastaría para tomar cualquier cuenta.
+- **Tres limitadores independientes**: ingesta (por clave), consulta (por clave o IP) y login (solo fallos, por IP), para que ninguno pueda agotar la cuota de los otros.
 
 ## Modelo de datos
 
@@ -96,7 +126,9 @@ Se calcula en el servidor para `error` y `warn`. Un emisor puede mandar la suya 
 ### Otras entidades
 
 ```prisma
-model User         { id, email @unique, passwordHash, role, createdAt, refreshTokens[], apiKeys[] }
+model User         { id, email @unique, passwordHash, role, isRoot, createdAt,
+                     twoFactorEnabled, twoFactorSecret?, twoFactorLastStep?, recoveryCodes[],
+                     refreshTokens[], apiKeys[] }
 model RefreshToken { id, token @unique (jti), userId → User, expiresAt, revokedAt? }
 model ApiKey       { id, name, prefix @unique, keyHash @unique, scopes[], applications[],
                      createdById? → User, expiresAt?, lastUsedAt?, revokedAt? }
@@ -108,7 +140,7 @@ model AlertEvent   { id, ruleId → AlertRule, triggeredAt, count, sampleLogIds[
 
 ## Flujo de una petición de ingesta
 
-1. `helmet` → CORS → `express.json` (límite 3 MB) → `requestContext` (requestId/traceId) → `requestLogger`.
+1. `helmet` → CORS → `cookieParser` → `express.json` (límite 3 MB) → `requestContext` (requestId/traceId) → `requestLogger` → `enforceHttps`.
 2. `ingestLimiter` (2000 req/min por defecto), contabilizado **por clave** y no por IP, para que una integración ruidosa no consuma la cuota de las que comparten salida.
 3. `requireIngest` → `normalizeErrorFields` (vuelca el objeto `error` a columnas) → validación → cálculo de huella → `createLog`/`createLogsBatch` → 201.
 4. Se emite el evento en memoria que alimenta el stream en vivo.
@@ -155,9 +187,13 @@ Los notificadores viven tras una interfaz común y se registran en una tabla sus
 - Exportaciones limitadas a `MAX_EXPORT_ROWS` (10 000) para no agotar memoria.
 - Paginación obligatoria (máx. 200 por página) con `findMany` + `count` en una transacción.
 - Purga en lotes de 5000 filas cediendo el control entre uno y otro: un único `DELETE` sobre millones de filas bloquearía la tabla y competiría con la ingesta.
-- El proceso es **stateless**: escala horizontalmente detrás de un balanceador sin cambios.
+- Sesiones, claves y logs viven en PostgreSQL, así que la API puede correr en varias instancias detrás de un balanceador.
 
-**Al escalar horizontalmente, dos cosas dejan de comportarse igual:** el rate limiting es por instancia (vive en memoria), así que el límite efectivo se multiplica; y `SCHEDULER_ENABLED` debe quedar activo en una sola, porque varias purgas o evaluaciones simultáneas compiten sin aportar nada.
+**Al escalar horizontalmente, tres cosas dejan de comportarse igual:**
+
+- **Rate limiting**: vive en memoria y es por instancia, así que el límite efectivo se multiplica.
+- **Planificador**: `SCHEDULER_ENABLED` debe quedar activo en una sola instancia, porque varias purgas o evaluaciones simultáneas compiten sin aportar nada.
+- **Stream en vivo**: su bus y su tope de conexiones son por instancia.
 
 **Camino de crecimiento (en orden de necesidad):**
 
@@ -174,13 +210,17 @@ Los notificadores viven tras una interfaz común y se registran en una tabla sus
 - `GET /metrics` publica, además de las métricas del proceso, la duración de las peticiones por método, ruta y estado (etiquetada por **patrón** de ruta y no por URL, que generaría una serie por cada id), los logs ingeridos por aplicación y nivel, y las conexiones en vivo abiertas.
 - Logs propios: winston JSON a consola y `logs/app.log` (rotación 10 MB × 5). Una línea por petición; el body solo en `LOG_LEVEL=debug`, con secretos redactados.
 - En producción, los 5xx responden un mensaje genérico: el detalle queda en el log, localizable por `requestId`.
-- `assertProductionConfig()` impide arrancar en producción con secretos por defecto o CORS abierto.
+- `assertProductionConfig()` impide arrancar en producción con secretos por defecto, secretos JWT iguales o CORS abierto.
+- `FORCE_HTTPS` exime a las peticiones de loopback: el `HEALTHCHECK` del contenedor llama por HTTP plano desde dentro y, sin la exención, el orquestador lo reiniciaría en bucle.
 
 ## Frontend
 
-- Next.js 14 App Router; todo el dashboard es client-side (los datos son privados y dinámicos, el SSR no aporta).
+- Next.js 14 App Router con `output: "standalone"`. La portada pública (`/`) y todo el dashboard son client-side: los datos son privados y dinámicos, y el SSR no aporta.
 - React Query gestiona cache y reintentos; `placeholderData: keepPreviousData` evita parpadeos al paginar.
-- El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla: el guard de sesión es el propio backend.
+- El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla; `DashboardLayout` hace lo mismo con `?next=` si `/auth/me` falla. El guard de sesión es el propio backend.
+- El login es una pequeña máquina de estados de dos pasos: contraseña y, si la cuenta tiene 2FA, código. El `mfaToken` solo vive en memoria del formulario.
+- **Registros** reutiliza tabla, filtros e inspector de Logs, y suma seis filtros por campo que viajan en la URL.
+- **Lab** envía logs reales con la sesión del admin, en lotes de 100 o de uno en uno para el stream. Hay un `AbortController` por escenario, y todo va a aplicaciones `lab-*`, que se purgan de una vez.
 - Los filtros viven en la URL: compartir el enlace reproduce la vista exacta.
 - Los enlaces de administración se ocultan según el rol, y **las páginas lo comprueban por su cuenta**: ocultar un enlace no es un control de acceso.
 - El gráfico de actividad rellena en el cliente las horas sin registros, porque la API solo devuelve las que tienen filas y pintarlas seguidas juntaría horas no contiguas.
@@ -195,12 +235,14 @@ src/
   middlewares/      auth (clave/JWT/rol), validación, rate limits, contexto, logging, errores
   routes/           authRoutes, logRoutes, apiKeyRoutes, alertRoutes
   controllers/      logController, analysisController, streamController
-  services/         logService, analysisService, authService, apiKeyService, userService
+  services/         logService, analysisService, authService, apiKeyService, userService, twoFactorService
   alerts/           evaluator + notifiers (webhook, email, telegram)
   mcp/              server (herramientas) + router (transporte HTTP)
   events/           bus en memoria para el stream en vivo
   jobs/             planificador de retención, limpieza y alertas
-  utils/            fingerprint
-prisma/             schema + migrations (0001–0007)
-tests/              vitest + supertest contra DB real (11 suites)
+  utils/            fingerprint, totp (RFC 6238), qrCode (QR a SVG, sin dependencias)
+prisma/             schema + migrations (0001–0008)
+tests/              vitest + supertest contra DB real (14 suites, 174 tests)
+entrypoint.sh       aplica las migraciones y arranca (imagen Docker / CapRover)
+captain-definition  despliegue en CapRover con el mismo Dockerfile
 ```

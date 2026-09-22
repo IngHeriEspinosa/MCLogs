@@ -36,6 +36,11 @@ body {
   @apply mt-4;
 }
 
+/* Los H1 del cuerpo parten un documento largo en "Partes" (el manual). */
+.prose h1 {
+  @apply font-heading text-3xl font-extrabold tracking-tight text-slate-900 mt-16 mb-6 scroll-mt-20;
+}
+
 .prose h2 {
   @apply font-heading text-2xl font-bold text-slate-900 mt-12 mb-4 pb-2 border-b border-slate-200 scroll-mt-20;
 }
@@ -53,6 +58,7 @@ body {
   @apply float-left -ml-5 pr-1 text-slate-300 no-underline opacity-0 transition-opacity;
 }
 
+.prose h1:hover .anchor,
 .prose h2:hover .anchor,
 .prose h3:hover .anchor,
 .prose .anchor:focus {
@@ -73,6 +79,113 @@ body {
 
 .prose ol {
   @apply list-decimal pl-6 space-y-2;
+}
+
+/* Listas numeradas de primer nivel como pasos: numero en un circulo y una
+   linea que los une, para seguir un procedimiento sin perderse. El contador
+   arranca donde indica el Markdown (style="counter-reset" lo pone el render).
+   Las listas anidadas conservan la numeracion normal. */
+.prose > ol {
+  @apply list-none pl-0 space-y-0;
+}
+
+.prose > ol > li {
+  counter-increment: step;
+  @apply relative pl-11 pb-5;
+}
+
+.prose > ol > li:last-child {
+  @apply pb-0;
+}
+
+.prose > ol > li::before {
+  content: counter(step);
+  @apply absolute left-0 top-0 flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 font-heading text-sm font-bold text-white;
+}
+
+.prose > ol > li:not(:last-child)::after {
+  content: "";
+  @apply absolute left-[0.8125rem] top-8 bottom-1 w-0.5 rounded-full bg-primary-100;
+}
+
+.prose > ol > li > * + * {
+  @apply mt-3;
+}
+
+.prose li > ul,
+.prose li > ol {
+  @apply mt-2;
+}
+
+/* Avisos (> [!NOTE], > [!TIP]…), con el mismo aspecto en todos los documentos. */
+.prose .callout {
+  @apply rounded-lg border-l-4 px-4 py-3;
+}
+
+.prose .callout > * + * {
+  @apply mt-2;
+}
+
+.prose .callout-title {
+  @apply flex items-center gap-2 font-heading text-sm font-semibold uppercase tracking-wide;
+}
+
+.prose .callout-icon {
+  @apply flex h-5 w-5 flex-none items-center justify-center rounded-full text-xs font-bold text-white;
+}
+
+.prose .callout-note {
+  @apply border-sky-500 bg-sky-50 text-slate-700;
+}
+.prose .callout-note .callout-title {
+  @apply text-sky-800;
+}
+.prose .callout-note .callout-icon {
+  @apply bg-sky-600;
+}
+
+.prose .callout-tip {
+  @apply border-emerald-500 bg-emerald-50 text-slate-700;
+}
+.prose .callout-tip .callout-title {
+  @apply text-emerald-800;
+}
+.prose .callout-tip .callout-icon {
+  @apply bg-emerald-600;
+}
+
+.prose .callout-important {
+  @apply border-violet-500 bg-violet-50 text-slate-700;
+}
+.prose .callout-important .callout-title {
+  @apply text-violet-800;
+}
+.prose .callout-important .callout-icon {
+  @apply bg-violet-600;
+}
+
+.prose .callout-warning {
+  @apply border-amber-500 bg-amber-50 text-slate-700;
+}
+.prose .callout-warning .callout-title {
+  @apply text-amber-900;
+}
+.prose .callout-warning .callout-icon {
+  @apply bg-amber-600;
+}
+
+.prose .callout-caution {
+  @apply border-red-500 bg-red-50 text-slate-700;
+}
+.prose .callout-caution .callout-title {
+  @apply text-red-800;
+}
+.prose .callout-caution .callout-icon {
+  @apply bg-red-600;
+}
+
+.prose kbd {
+  @apply rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[0.8em] text-slate-700 shadow-sm;
 }
 
 .prose blockquote {

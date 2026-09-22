@@ -14,26 +14,31 @@ src/
     layout.tsx                 Server component: fuentes, script de tema, idioma desde cookie
     providers.tsx              QueryClient + ThemeProvider + I18nProvider + ToastProvider
     icon.svg                   Favicon (el mismo isotipo que el sitio público)
-    page.tsx                   Logs: filtros, resumen, tabla, inspector y modo en vivo
+    page.tsx                   Portada pública; con sesión abierta redirige a /logs
+    logs/page.tsx              Logs: filtros, resumen, tabla, inspector y modo en vivo
+    records/page.tsx           Registros: solo tabla, búsqueda avanzada por campo e inspector a pantalla completa
     errors/page.tsx            Errores agrupados por huella
     reports/page.tsx           Generador de reportes (Markdown, brief para IA, JSON)
     trace/[traceId]/page.tsx   Una operación completa, con línea temporal en cascada
+    lab/page.tsx               Lab: escenarios de prueba y compositor de logs (admin)
     settings/api-keys/page.tsx Claves con permisos (admin)
     settings/users/page.tsx    Usuarios y roles (admin)
     settings/alerts/page.tsx   Canales, reglas e historial de avisos (admin)
-    settings/password/page.tsx Mi cuenta: sesión, preferencias y contraseña
-    (auth)/login/page.tsx      Login
+    settings/password/page.tsx Mi cuenta: sesión, preferencias, contraseña, 2FA y zona de peligro
+    (auth)/login/page.tsx      Login en uno o dos pasos (contraseña + código TOTP)
   common/
     api/                       client (axios + refresh), download, errorMessage, logout
     i18n/                      config, format (Intl), I18nProvider, dictionaries/{es,en}
     theme/                     config (cookie + script anti-destello), ThemeProvider
     time/                      range (rangos relativos/absolutos ↔ URL), timeline (serie horaria)
     reports/                   collect, build, markdown, redact
+    lab/                       scenarios (los 7 escenarios y el prefijo lab-), run (envío y purga)
     clipboard.ts               Copiar con respaldo para contextos sin HTTPS
   hooks/
-    useAuth.ts                 Sesión, logs y estadísticas + tipos
+    useAuth.ts                 Sesión, login en dos pasos, 2FA, borrar cuenta, logs y estadísticas + tipos
     useErrors.ts               Grupos de error, traza, contexto, inventario de aplicaciones
-    useLogFilters.ts           Filtros de la vista de logs, con la URL como fuente de verdad
+    useLogFilters.ts           Filtros de Logs y Registros (incluida la búsqueda avanzada), con la URL como fuente de verdad
+    useLab.ts                  Ejecución de escenarios, compositor y purga del Lab
     useOptions.ts              Opciones traducidas de los selects de filtro
     useFloating.ts             Posicionamiento de paneles flotantes y cierre al pulsar fuera
     useElementSize.ts          Tamaño real de un elemento (gráficos)
@@ -45,7 +50,9 @@ src/
     molecules/                 Card, Select, Menu, Dialog, Toast, Calendar, DateRangePicker,
                                DatePicker, StatTile, Sparkline, ActivityChart, Distribution,
                                CodeBlock, MarkdownView, CopyButton, ConfirmButton, Portal
-    organisms/                 Sidebar, Topbar, LogFilterBar, LogOverview, LogTable, LogInspector
+    organisms/                 Sidebar, Topbar, LogFilterBar, LogOverview, LogTable, LogInspector,
+                               AdvancedLogSearch, LabScenarioCard, LabComposer,
+                               TwoFactorCard, DeleteAccountCard
     templates/                 DashboardLayout, AuthLayout
   config/api.ts                API_BASE desde NEXT_PUBLIC_API_URL
 ```
@@ -77,9 +84,14 @@ src/
 
 ## Datos y estado
 
-- **Sesión**: tokens en cookies httpOnly del backend; el interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla. Es el único guard: la fuente de verdad es el backend.
+- **Sesión**: tokens en cookies httpOnly del backend. Hay dos guardas, y la fuente de verdad es siempre el backend:
+  - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla.
+  - `DashboardLayout` pide `/auth/me` y, si falla, manda a `/login?next=<ruta>`. Tras entrar, el login vuelve a esa ruta (solo rutas internas: empieza por `/` y no por `//`); si no hay `next`, va a `/logs`. Se conserva la ruta, no los parámetros de la URL.
 - **Autorización visual, nunca como control**: el menú oculta la administración a quien no es admin, pero cada página comprueba el rol y el backend lo exige igualmente.
-- **Filtros en la URL** (`useLogFilters`): rango (`range=24h` o `from`/`to` en ISO), nivel, entorno, aplicación, búsqueda, huella, orden y página. Los enlaces antiguos con `from`/`to` de un `datetime-local` siguen funcionando.
+- **Filtros en la URL** (`useLogFilters`):
+  - Rango (`range=24h` o `from`/`to` en ISO), nivel, entorno, aplicación, búsqueda, huella, orden y página.
+  - Los seis campos de la búsqueda avanzada: `message`, `service`, `host`, `traceId`, `errorName`, `errorCode`. `advancedCount` cuenta cuántos hay activos, para el distintivo de la tarjeta.
+  - Los enlaces antiguos con `from`/`to` de un `datetime-local` siguen funcionando.
 - **Rangos relativos estables**: "últimas 24 h" se resuelve contra un instante fijado al elegir el rango o al refrescar, no en cada render; si no, la clave de la consulta cambiaría en bucle.
 - **Refetch sin saltos**: `keepPreviousData` mantiene tablas y gráficos visibles, atenuados, mientras llegan los datos nuevos.
 - **El resumen respeta rango, aplicación y entorno** (lo que acepta `/api/logs/stats`), no la búsqueda ni el nivel. Los totales de la serie salen de sumar la serie horaria; con "Todo el histórico", de los totales históricos del backend.
@@ -90,7 +102,13 @@ src/
 - **Paneles flotantes** (`useFloating` + `Portal`): `position: fixed` con coordenadas de ventana, para que ninguna tabla con `overflow` los recorte; se abren hacia arriba si abajo no caben. Si el ancla está dentro de un `<dialog>` modal, el panel se monta dentro del diálogo (la *top layer* taparía cualquier cosa montada en `<body>`).
 - **Calendario**: tabindex móvil y teclado completo (flechas, RePag/AvPag, Inicio/Fin). El selector de rangos pone primero los rangos rápidos y detrás el rango a medida con horas.
 - **Dialog**: `<dialog>` nativo, que ya atrapa el foco y deja inerte el resto.
-- **Inspector del log**: en modo cajón atrapa el foco y lo devuelve al cerrar; `Esc` lo cierra en los dos modos. Con el inspector abierto, las flechas recorren la tabla y van cambiando el detalle.
+- **Inspector del log**, en tres modos:
+  - `drawer` (cajón superpuesto): atrapa el foco y lo devuelve al cerrar.
+  - `panel` (columna fija junto a la tabla desde 1920 px).
+  - `dialog` (Registros): modal al 90 % de la pantalla, con el detalle a dos columnas (mensaje, acciones, stack y metadata a la izquierda; propiedades y contexto a la derecha). Lleva botones anterior/siguiente, la posición "N de M en esta página", y responde a `←`/`→`. Un clic en el fondo lo cierra. Abrir desde el contexto un log que no está en la página lo muestra sin navegación.
+
+  `Esc` cierra el inspector en todos los modos. Con el inspector abierto, las flechas recorren la tabla y van cambiando el detalle.
+- **Búsqueda avanzada** (`AdvancedLogSearch`): seis campos con debounce de 350 ms. Los valores se recortan antes de pasar a la URL, así que una búsqueda se puede compartir con el enlace. La tarjeta se pliega, y el estado queda en la preferencia `records-advanced`. **Limpiar filtros** no toca estos campos: tienen su propio botón.
 
 ## Gráficos
 
@@ -124,6 +142,64 @@ Todo se construye en el navegador (`common/reports`): nada sale de él hasta que
 - Solo se activa en la primera página, con orden por fecha descendente y un rango abierto hasta ahora. En cualquier otra vista, anteponer filas nuevas mentiría sobre lo que se está mirando.
 - Mientras está activo se refresca la tabla cada 15 s y se vacía el buffer, para que las filas del stream se sustituyan por las del servidor, con id y metadata completos.
 
+## Login en dos pasos
+
+`(auth)/login/page.tsx` es una pequeña máquina de estados:
+
+1. **Contraseña**: `useLogin` llama a `POST /auth/login`. Si la respuesta trae `mfaRequired`, se guarda el `mfaToken` en memoria (nunca en storage) y se pasa al paso 2; si no, la sesión ya está abierta.
+2. **Código**: `useLoginSecondFactor` envía `{ mfaToken, code }` a `POST /auth/login/2fa`. El campo acepta el código de 6 dígitos o un código de recuperación. **Volver** descarta el token y limpia la contraseña.
+
+Mapeo de errores:
+
+| Respuesta | Mensaje |
+|---|---|
+| `401` en el paso 1 | `auth.invalid` |
+| `401` en el paso 2 con token caducado | `auth.twoFactorExpired` (el `mfaToken` dura 5 min): el mensaje pide volver al paso 1 con **Volver** |
+| `401` en el paso 2 | `auth.twoFactorInvalid` |
+| `429` | `auth.tooManyAttempts` |
+| Sin respuesta / otro | `networkError` / `serverError` |
+
+## Mi cuenta: 2FA y zona de peligro
+
+- **`TwoFactorCard`**:
+  - `useStartTwoFactor` pide `/auth/me/2fa/setup` y muestra el QR (data URI SVG del backend, `<img>` de 176 px) y la clave manual con botón de copiar.
+  - `useEnableTwoFactor` confirma con el código. El campo solo admite dígitos, y el botón se habilita con 6.
+  - Los 8 códigos de recuperación se muestran en un diálogo que **no se puede descartar** salvo con "Ya los he guardado".
+  - `useDisableTwoFactor` pide contraseña y código.
+- **`DeleteAccountCard`**:
+  - Para la cuenta root muestra un aviso en lugar del botón.
+  - El diálogo exige contraseña, el código (solo si el 2FA está activo) y escribir la palabra de confirmación del diccionario (`ELIMINAR` / `DELETE`).
+  - Al terminar, `useDeleteAccount` limpia la caché y redirige a `/login`.
+- `CurrentUser` (de `/auth/me`) incluye `isRoot` y `twoFactorEnabled`. Usuarios (admin) los muestra como etiquetas **Root** y **2FA**, y deshabilita el cambio de rol y el borrado del root.
+
+## Lab
+
+Escenarios que envían **logs reales** a la API con la sesión del admin: la ingesta acepta el JWT igual que una API key `ingest`. Viven en `common/lab/`:
+
+- **`scenarios.ts`** define los siete escenarios:
+
+  | id | Qué envía |
+  |---|---|
+  | `traffic` | 120 logs repartidos en la última hora |
+  | `grouping` | 25 veces el mismo timeout |
+  | `trace` | 7 logs con un traceId, fallo en billing |
+  | `incident` | 80 en 5 minutos |
+  | `newError` | 3, con huella nueva en cada ejecución |
+  | `sensitive` | 6 con datos personales ficticios |
+  | `live` | 20, uno cada 750 ms |
+
+  Cada escenario construye un `LabPlan` (logs, modo `batch` o `stream`, enlaces al resultado). Todas las aplicaciones llevan el prefijo `lab-`.
+- **`run.ts`**:
+  - En modo `batch` envía en trozos de 100 (muy por debajo de `MAX_BATCH_SIZE`); en `stream`, de uno en uno con 750 ms de pausa.
+  - Detener a medias no es un error: lo enviado cuenta.
+  - `purgeLab` borra con `DELETE /api/logs` por cada aplicación `lab-*` conocida o presente en el inventario. La purga filtra por nombre exacto, y la fecha límite es "mañana" para no dejar logs con la hora adelantada.
+- **`useLab.ts`**:
+  - Un `AbortController` por escenario, así que se pueden ejecutar varios a la vez y detener uno solo.
+  - Al salir de la página se aborta todo.
+  - Al acabar se invalidan las consultas de logs, grupos, aplicaciones y trazas.
+- El entorno de destino por defecto es `development`, para no contaminar métricas ni disparar alertas de producción.
+- El compositor ("Log a medida") muestra la misma petición en JSON y cURL. El cURL usa `window.location.origin` si `NEXT_PUBLIC_API_URL` está vacía.
+
 ## Acciones destructivas
 
 `ConfirmButton` pide un segundo clic y se desarma solo a los 5 s. Se usa en lugar de `window.confirm`, que bloquea el hilo, no se puede estilar y algunos navegadores suprimen.
@@ -136,7 +212,17 @@ Todo se construye en el navegador (`common/reports`): nada sale de él hasta que
 NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
-En producción detrás de Caddy, **déjala sin definir**: las peticiones salen relativas al mismo dominio y desaparecen tanto el CORS entre orígenes como la necesidad de cookies `SameSite=None`. Para un despliegue con dominios separados, pásala como `--build-arg` al construir la imagen, y configura en el backend `CORS_ORIGINS` con el dominio del dashboard y `COOKIE_SECURE=1`.
+Es una variable **de compilación**: Next la incrusta en el bundle, así que cambiarla exige reconstruir la imagen.
+
+- **Detrás de Caddy (mismo dominio)**: **déjala sin definir**. Las peticiones salen relativas al mismo dominio, y así desaparecen tanto el CORS entre orígenes como la necesidad de cookies `SameSite=None`.
+- **Dominios separados** (por ejemplo, el dashboard en Railway y la API en CapRover):
+  - Pásala como `--build-arg` (en Railway, como variable del servicio, que también llega al build).
+  - En el backend, configura `CORS_ORIGINS` con el dominio exacto del dashboard y `COOKIE_SECURE=1`.
+  - Si los dominios no comparten sitio, configura también `COOKIE_SAMESITE=none`.
+
+  Ver [DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
+
+La imagen (`Dockerfile`, Node 20) usa `output: "standalone"` y escucha en `PORT`, o en 3001 si no se define: Railway inyecta `PORT` y Compose no.
 
 **El build necesita acceso a `fonts.googleapis.com`** para descargar las tipografías (después se sirven desde el propio dashboard). Detrás de un proxy corporativo que intercepta TLS, Node no confía en su certificado por defecto; con Node 22.15+ basta con `NODE_OPTIONS=--use-system-ca`, que usa el almacén de certificados del sistema sin desactivar la verificación.
 

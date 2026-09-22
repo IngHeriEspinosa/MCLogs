@@ -1,12 +1,26 @@
 # MCLog — Despliegue en producción
 
-Guía para poner MCLog en un VPS con Docker Compose y Caddy. Caddy obtiene y renueva el certificado HTTPS automáticamente, y sirve el dashboard y la API bajo el mismo dominio.
+Cómo poner MCLog en producción, escrito para quien administra el servidor. Para usar la aplicación una vez desplegada, ver [USER_GUIDE.md](USER_GUIDE.md).
 
-Escrito para quien administra el servidor. Para usar la aplicación una vez desplegada, ver [USER_GUIDE.md](USER_GUIDE.md).
+Hay dos formas soportadas. Las dos usan las mismas imágenes (`Back_MCLog/Dockerfile` y `frontend_mclog/Dockerfile`):
+
+| | Opción A — VPS con Docker Compose | Opción B — CapRover + Railway |
+|---|---|---|
+| **Dónde** | Todo en un solo servidor | API y base de datos en CapRover; dashboard en Railway |
+| **Dominios** | Uno solo: dashboard y API bajo el mismo | Dos: uno para el dashboard y otro para la API |
+| **HTTPS** | Caddy, automático | El de CapRover y el de Railway |
+| **Copias de seguridad** | Servicio `backup` incluido | Por tu cuenta (ver [Copias en la opción B](#copias-de-seguridad-en-la-opción-b)) |
+| **Cuándo elegirla** | Por defecto: es la más simple de operar | Si ya tienes CapRover y Railway, o quieres redesplegar el dashboard y la API por separado |
+
+> **¿Prefieres ir paso a paso?** Las guías [Desplegar en un VPS](guias/desplegar-vps.md) y [Desplegar en CapRover y Railway](guias/desplegar-caprover-railway.md) recorren cada opción de principio a fin, con comprobaciones.
 
 ---
 
-## 1. Qué se despliega
+## Opción A — VPS con Docker Compose
+
+Caddy obtiene y renueva el certificado HTTPS automáticamente, y sirve el dashboard y la API bajo el mismo dominio.
+
+### A.1 Qué se despliega
 
 ```
                          Internet
@@ -16,6 +30,7 @@ Escrito para quien administra el servidor. Para usar la aplicación una vez desp
                     └───┬────────┬───┘
          /api /auth     │        │    todo lo demás
          /mcp /health   │        │
+         /metrics /docs │        │
                  ┌──────▼──┐  ┌──▼──────┐
                  │   api   │  │   web   │   sin puertos publicados
                  │  :3000  │  │  :3001  │
@@ -29,11 +44,14 @@ Escrito para quien administra el servidor. Para usar la aplicación una vez desp
 
 Solo Caddy publica puertos. La base de datos, la API y el dashboard quedan en la red interna de Docker y no son alcanzables desde fuera del host.
 
-**Servir ambos bajo el mismo dominio no es un detalle estético.** Elimina el CORS entre orígenes y permite cookies `SameSite=Lax`, que es la configuración de sesión más robusta. Con dominios separados hacen falta `SameSite=None` y una lista blanca de CORS exacta, y las sesiones se caen en cuanto algo no cuadra.
+**Servir ambos bajo el mismo dominio no es un detalle estético:**
 
----
+- Elimina el CORS entre orígenes.
+- Permite cookies `SameSite=Lax`, que es la configuración de sesión más robusta.
 
-## 2. Requisitos
+Con dominios separados (opción B) también funciona, pero hay que configurar CORS y cookies con cuidado.
+
+### A.2 Requisitos
 
 | Requisito | Detalle |
 |---|---|
@@ -44,9 +62,7 @@ Solo Caddy publica puertos. La base de datos, la API y el dashboard quedan en la
 
 > NetSuite es SaaS: para que sus scripts puedan enviar logs, la API tiene que ser alcanzable desde Internet por HTTPS. No vale una IP privada ni un túnel local.
 
----
-
-## 3. Primer despliegue
+### A.3 Primer despliegue
 
 ```bash
 git clone <url-del-repositorio> mclog
@@ -67,8 +83,8 @@ openssl rand -hex 32
 | `MCLOG_DOMAIN` | El dominio que ya resuelve al VPS, sin `https://` |
 | `POSTGRES_PASSWORD` | Contraseña larga y aleatoria |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Dos valores **distintos** de `openssl rand -hex 32` |
-| `API_KEY` | Aleatoria. Es la clave heredada; lo normal es no repartirla y crear claves con scopes desde el dashboard |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales del primer administrador. El valor de `.env.example` es público: el arranque lo rechaza en producción |
+| `API_KEY` | Aleatoria. Es la clave heredada y deprecada; lo normal es no repartirla y crear claves con permisos desde el dashboard |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales de la **cuenta root** (el primer administrador, que no se puede borrar ni degradar). El valor de `.env.example` es público: el arranque lo rechaza en producción |
 | `CORS_ORIGINS` / `PUBLIC_DASHBOARD_URL` | `https://<tu dominio>`, exacto y sin barra final |
 | `RETENTION_DAYS` | Días de logs a conservar. `0` desactiva la purga y la tabla crecerá sin límite |
 
@@ -85,37 +101,18 @@ docker compose -f docker-compose.prod.yml ps
 curl https://<tu dominio>/health
 ```
 
-`/health` debe responder `{"status":"ok","database":"up",...}`. Entra en `https://<tu dominio>` con las credenciales de administrador y **cambia la contraseña** desde **Mi cuenta**.
+`/health` debe responder `{"status":"ok","database":"up",...}`. Después sigue con [Después del primer arranque](#después-del-primer-arranque).
 
-> **El arranque falla a propósito** si `NODE_ENV=production` y queda algún `CAMBIAR-...` sin rellenar, los dos secretos JWT son iguales o `CORS_ORIGINS` está vacío. El mensaje lista de una vez todo lo que falta. Es la guardia de configuración, no un error.
+> **El arranque falla a propósito** si `NODE_ENV=production` y se da cualquiera de estos casos:
+> - queda algún `CAMBIAR-...` sin rellenar;
+> - los dos secretos JWT son iguales;
+> - `CORS_ORIGINS` está vacío.
+>
+> El mensaje lista de una vez todo lo que falta. Es la guardia de configuración, no un error.
 
----
+### A.4 Operación
 
-## 4. Después del primer arranque
-
-### 4.1 Crear las claves de las integraciones
-
-Desde **Administración → API keys**. El secreto se muestra **una sola vez**: cópialo en ese momento, porque en la base solo queda su hash.
-
-| Para qué | Scopes | Aplicaciones |
-|---|---|---|
-| Que una app envíe sus logs | `ingest` | La suya, para que no pueda escribir en nombre de otra |
-| Que una IA lea errores | `read` | Las que deba ver |
-| Prometheus | `metrics` | — |
-
-Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nada**. Es la razón de separar los scopes.
-
-### 4.2 Conectar tus aplicaciones
-
-- Cualquier lenguaje → [INTEGRATION.md](INTEGRATION.md)
-- NetSuite → [../integrations/netsuite/README.md](../integrations/netsuite/README.md)
-- Node.js → [../packages/mclog/README.md](../packages/mclog/README.md)
-
----
-
-## 5. Operación
-
-### Ver el estado y los logs del propio servicio
+#### Ver el estado y los logs del propio servicio
 
 ```bash
 cd mclog/deploy
@@ -124,7 +121,7 @@ docker compose -f docker-compose.prod.yml logs -f api
 docker compose -f docker-compose.prod.yml logs -f caddy   # problemas de certificado
 ```
 
-### Actualizar a una versión nueva
+#### Actualizar a una versión nueva
 
 ```bash
 git pull
@@ -142,7 +139,7 @@ docker compose -f docker-compose.prod.yml exec backup /scripts/backup.sh
 ls -lh backups/
 ```
 
-Restaurar:
+Restaurar (sobrescribe los datos actuales y pide confirmación):
 
 ```bash
 docker compose -f docker-compose.prod.yml stop api
@@ -153,30 +150,203 @@ docker compose -f docker-compose.prod.yml start api
 
 > Las copias viven en el mismo disco que la base. **Cópialas fuera del VPS** (S3, Spaces, otro servidor): si pierdes el disco, las pierdes con él. Un `rsync` o `rclone` en cron basta.
 
-### Rotar la clave heredada o los secretos JWT
+---
 
-Cambiar `JWT_ACCESS_SECRET` o `JWT_REFRESH_SECRET` invalida todas las sesiones abiertas y obliga a volver a entrar. Cambiar `API_KEY` deja fuera a los emisores que aún la usen, hasta que los actualices. Las claves creadas desde el dashboard se rotan de una en una sin cortar el servicio: creas la nueva, actualizas al emisor y revocas la vieja.
+## Opción B — CapRover + Railway
+
+La API y la base de datos corren en un servidor con **CapRover**, cada una como una app distinta, y el dashboard en **Railway**.
+
+```
+Navegador ──► https://mclog.tu-dominio.com            (Railway: frontend_mclog)
+    │
+    └── peticiones con cookies ──► https://api-mclog.tu-dominio.com   (CapRover: app mclog-api)
+                                          │  red interna de CapRover
+                                          ▼
+                                   srv-captain--mclog-db:5432          (CapRover: app mclog-db, sin dominio)
+```
+
+**Por qué dos apps en CapRover y no una:** así se redespliega la API sin tocar la base. La base de datos nunca recibe dominio público: la API la alcanza por la red interna de CapRover. El nginx de CapRover ya hace TLS y el enrutado, así que Caddy no hace falta.
+
+### B.1 Requisitos
+
+| Requisito | Detalle |
+|---|---|
+| CapRover | Un servidor con CapRover instalado y su dominio comodín configurado (`*.captain.tu-dominio.com` o similar) |
+| CLI | `npm install -g caprover` en tu equipo, para desplegar |
+| Railway | Una cuenta y un proyecto. El repositorio conectado desde GitHub |
+| DNS | Un subdominio para la API y otro para el dashboard, **del mismo dominio raíz** (recomendado, ver [B.5](#b5-dos-dominios-cors-y-cookies)) |
+
+### B.2 La base de datos (CapRover)
+
+1. En CapRover, **Apps → One-Click Apps/Databases → PostgreSQL**.
+2. Nombre de la app: `mclog-db`. Versión 16. Pon un usuario, una contraseña larga y aleatoria y la base `mclog`.
+3. **No** actives dominio ni HTTPS para esta app, ni publiques el puerto 5432. La API la alcanzará como `srv-captain--mclog-db:5432`.
+
+### B.3 La API (CapRover)
+
+1. **Apps → Create a new app** → nombre `mclog-api`.
+2. En **HTTP Settings**:
+   - Conecta el dominio de la API (`api-mclog.tu-dominio.com`), pulsa **Enable HTTPS** y marca **Force HTTPS by redirecting all HTTP traffic to HTTPS**.
+   - **Container HTTP Port: `3000`.** Si lo dejas en `80`, verás un `502` de nginx aunque la app esté sana.
+3. En **App Configs → Environmental Variables**, añade como mínimo:
+
+   ```bash
+   NODE_ENV=production
+   DATABASE_URL=postgresql://<usuario>:<contraseña>@srv-captain--mclog-db:5432/mclog?schema=public
+   JWT_ACCESS_SECRET=<openssl rand -hex 32>
+   JWT_REFRESH_SECRET=<otro distinto>
+   API_KEY=<openssl rand -hex 32>        # clave heredada: no la repartas
+   ADMIN_EMAIL=tu-correo@tu-dominio.com  # cuenta root
+   ADMIN_PASSWORD=<contraseña fuerte>
+   CORS_ORIGINS=https://mclog.tu-dominio.com
+   PUBLIC_DASHBOARD_URL=https://mclog.tu-dominio.com
+   TRUST_PROXY=1
+   FORCE_HTTPS=1
+   COOKIE_SECURE=1
+   COOKIE_SAMESITE=lax                   # "none" si los dominios no comparten dominio raíz (B.5)
+   RETENTION_DAYS=30
+   ```
+
+   El resto de variables tiene valores por defecto razonables; la lista completa está en [TECHNICAL.md](TECHNICAL.md#5-configuración).
+4. Despliega desde tu equipo, en la carpeta del backend:
+
+   ```bash
+   cd Back_MCLog
+   caprover deploy        # elige el servidor y la app mclog-api
+   ```
+
+   CapRover construye la imagen con el `Dockerfile` que indica `captain-definition`. Al arrancar, `entrypoint.sh` aplica las migraciones y lanza el servidor, que crea la cuenta root.
+5. Comprueba:
+
+   ```bash
+   curl https://api-mclog.tu-dominio.com/health
+   # → {"status":"ok","database":"up",...}
+   ```
+
+### B.4 El dashboard (Railway)
+
+1. En Railway, **New → GitHub Repo** y elige el repositorio.
+2. En **Settings** del servicio:
+   - **Root Directory**: `frontend_mclog`. Railway detecta el `Dockerfile`.
+   - **Networking → Custom Domain**: `mclog.tu-dominio.com`, y crea en tu DNS el `CNAME` que te indica.
+3. En **Variables**, añade:
+
+   ```bash
+   NEXT_PUBLIC_API_URL=https://api-mclog.tu-dominio.com
+   ```
+
+   Es una variable **de compilación**: Next la incrusta en el código del navegador. Railway la pasa al build porque el `Dockerfile` la declara con `ARG`. Si la cambias, hay que redesplegar.
+4. No definas `PORT`: Railway lo inyecta y la imagen escucha en él.
+5. Despliega y abre `https://mclog.tu-dominio.com`. Deberías ver la portada de MCLog; pulsa **Iniciar sesión** y entra con la cuenta root.
+
+### B.5 Dos dominios: CORS y cookies
+
+Con el dashboard y la API en dominios distintos, el navegador trata la API como otro origen. Tres cosas tienen que cuadrar:
+
+| Qué | Dónde | Valor |
+|---|---|---|
+| El origen del dashboard | `CORS_ORIGINS` (API) | `https://mclog.tu-dominio.com`, **exacto**: con `https`, sin barra final |
+| La URL de la API | `NEXT_PUBLIC_API_URL` (dashboard, al compilar) | `https://api-mclog.tu-dominio.com` |
+| Las cookies de sesión | `COOKIE_SECURE`, `COOKIE_SAMESITE` (API) | `1` y `lax` o `none` (abajo) |
+
+**`lax` o `none`:**
+
+- **Mismo dominio raíz** (`mclog.tu-dominio.com` y `api-mclog.tu-dominio.com`): el navegador los considera el mismo *sitio*, así que `COOKIE_SAMESITE=lax` funciona y es lo más seguro. **Es la configuración recomendada.**
+- **Dominios de sitios distintos** (por ejemplo, el `*.up.railway.app` de Railway frente al dominio de CapRover): hace falta `COOKIE_SAMESITE=none` con `COOKIE_SECURE=1`. Algunos navegadores bloquean igualmente las cookies de terceros, y entonces la sesión se cae. Usa dominios propios.
+
+**La API siempre por HTTPS.** Con HTTP plano, las contraseñas y los tokens viajan en claro, y las cookies `secure` ni siquiera se guardan.
+
+### Copias de seguridad en la opción B
+
+CapRover no trae copias automáticas de la base. Como mínimo, programa un volcado diario desde el servidor de CapRover y sácalo de la máquina:
+
+```bash
+# En el servidor de CapRover; el contenedor de la base se llama srv-captain--mclog-db.<id>
+docker exec $(docker ps -qf name=srv-captain--mclog-db) \
+  pg_dump -U <usuario> -Fc mclog > /var/backups/mclog_$(date +%F).dump
+```
+
+Llévate esos ficheros fuera del servidor (S3, Spaces, otro host) con `rclone` o `rsync`, y **prueba a restaurar uno** de vez en cuando: una copia que nunca se ha restaurado no es una copia.
+
+### Actualizar a una versión nueva
+
+- **API**: `cd Back_MCLog && caprover deploy`. Las migraciones se aplican solas al arrancar.
+- **Dashboard**: Railway redespliega con cada push a la rama conectada, o desde **Deployments → Redeploy**.
+
+Haz una copia de la base antes si la versión trae cambios de esquema.
 
 ---
 
-## 6. Resolución de problemas
+## Después del primer arranque
+
+Lo mismo para las dos opciones.
+
+### Proteger la cuenta root
+
+1. Entra en el dashboard con `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+2. En **Mi cuenta → Cambiar contraseña**, pon una contraseña nueva. Te devolverá al login.
+3. En **Mi cuenta → Verificación en dos pasos**, actívala y guarda los códigos de recuperación fuera del servidor. Ver [USER_GUIDE.md § A.7](USER_GUIDE.md#a7-tu-cuenta-y-su-seguridad).
+
+La cuenta root no se puede borrar ni degradar. Para el día a día, crea usuarios con su propio correo en **Administración → Usuarios**.
+
+### Crear las claves de las integraciones
+
+Desde **Administración → API keys → Nueva clave**. El secreto se muestra **una sola vez**: cópialo en ese momento, porque en la base solo queda su hash.
+
+| Para qué | Permisos | Aplicaciones |
+|---|---|---|
+| Que una app envíe sus logs | `ingest` (Enviar logs) | La suya, para que no pueda escribir en nombre de otra |
+| Que una IA lea errores | `read` (Consultar logs y errores) | Las que deba ver |
+| Prometheus | `metrics` (Leer métricas Prometheus) | — |
+
+Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nada**. Es la razón de separar los permisos.
+
+### Comprobar que todo funciona
+
+**Administración → Lab → Tráfico normal → Ejecutar** envía 120 logs de prueba (al entorno **Desarrollo**). Si aparecen en **Logs**, la cadena completa funciona. Bórralos después con **Borrar datos del lab**.
+
+### Conectar tus aplicaciones
+
+- Cualquier lenguaje → [INTEGRATION.md](INTEGRATION.md)
+- NetSuite → [guías/integrar-netsuite](guias/integrar-netsuite.md)
+- Node.js → [guías/integrar-node](guias/integrar-node.md)
+- Asistentes de IA → [AI_INTEGRATION.md](AI_INTEGRATION.md)
+
+---
+
+## Rotar la clave heredada o los secretos JWT
+
+- **`JWT_ACCESS_SECRET` o `JWT_REFRESH_SECRET`**: cambiarlos invalida todas las sesiones abiertas y obliga a volver a entrar. También invalida los inicios de sesión con 2FA que estén a medias.
+- **`API_KEY`**: cambiarla deja fuera a los emisores que aún la usen, hasta que los actualices.
+- **Claves creadas desde el dashboard**: se rotan de una en una sin cortar el servicio. Creas la nueva, actualizas al emisor y revocas la vieja.
+- **`ADMIN_EMAIL`**: si lo cambias, la cuenta nueva pasa a ser el root y la anterior queda como admin normal.
+
+---
+
+## Resolución de problemas
 
 | Síntoma | Causa habitual |
 |---|---|
-| Caddy no consigue certificado | El DNS no apunta todavía al VPS, o el puerto 80 está cerrado. Mira `logs caddy` |
-| La API no arranca y habla de configuración insegura | Quedan secretos de desarrollo, `CORS_ORIGINS` vacío o el `ADMIN_PASSWORD` de ejemplo en `deploy/.env` |
-| `/health` responde `503 degraded` | La API vive pero no alcanza PostgreSQL. Revisa `logs db` y `POSTGRES_PASSWORD` |
-| La sesión se cae al navegar | `CORS_ORIGINS` o `PUBLIC_DASHBOARD_URL` no coinciden **exactamente** con el dominio, o falta `TRUST_PROXY=1` |
-| El disco se llena | `RETENTION_DAYS=0` o demasiado alto. Mira el tamaño con `docker compose exec db psql -U mclog -d mclog -c "\dt+"` |
+| Caddy no consigue certificado (A) | El DNS no apunta todavía al VPS, o el puerto 80 está cerrado. Mira `logs caddy` |
+| **`502 Bad Gateway` en CapRover con la app sana** (B) | **Container HTTP Port** sigue en `80`. Ponlo en `3000`. Síntoma típico: los logs de la app dicen `Server is running` y el healthcheck da 200, pero desde fuera hay 502 |
+| La API se reinicia en bucle y el log dice "Configuración insegura para producción" | Quedan secretos o contraseñas de ejemplo, los dos secretos JWT son iguales o `CORS_ORIGINS` está vacío. El mensaje lista cada problema |
+| El contenedor se reinicia en bucle con `FORCE_HTTPS=1` | Imagen antigua: el healthcheck interno recibía `400 HTTPS required`. Las versiones actuales eximen a las peticiones de loopback; actualiza |
+| `/health` responde `503 degraded` | La API vive pero no alcanza PostgreSQL. Revisa la base y `DATABASE_URL` (en B, el host `srv-captain--mclog-db`) |
+| El dashboard muestra "No se pudo contactar con el servidor" (B) | `NEXT_PUBLIC_API_URL` mal puesta o sin HTTPS, o `CORS_ORIGINS` no coincide **exactamente** con el origen del dashboard. Mira la consola del navegador |
+| La sesión se cae al navegar | `CORS_ORIGINS` o `PUBLIC_DASHBOARD_URL` no coinciden exactamente con el dominio, falta `TRUST_PROXY=1`, o (B) los dominios son de sitios distintos y `COOKIE_SAMESITE` no es `none` ([B.5](#b5-dos-dominios-cors-y-cookies)) |
+| `unable to get local issuer certificate` al hacer `caprover deploy` o `docker build` | Un proxy corporativo intercepta TLS. Apunta `NODE_EXTRA_CA_CERTS` al certificado raíz de la empresa; nunca uses `NODE_TLS_REJECT_UNAUTHORIZED=0` |
+| El disco se llena | `RETENTION_DAYS=0` o demasiado alto. Mira el tamaño con `psql -c "\dt+"` dentro del contenedor de la base |
 | Los emisores reciben `429` | Superan el límite de ingesta. Agrupa en lotes antes de subir `INGEST_RATE_LIMIT_MAX` |
+| El stream **En vivo** no muestra nada detrás de un proxy propio | El proxy acumula la respuesta. Caddy ya lo resuelve (`flush_interval -1`) y la API manda `X-Accel-Buffering: no` para nginx |
 
 ---
 
-## 7. Escalar
+## Escalar
 
-El backend es **stateless**: todo el estado vive en PostgreSQL, así que se pueden levantar varias réplicas de `api` detrás de Caddy sin cambios. Dos advertencias:
+Sesiones, claves y logs viven en PostgreSQL, así que se pueden levantar varias réplicas de la API detrás del proxy. Tres advertencias:
 
 1. **El rate limiting es por instancia** (vive en memoria), así que el límite efectivo se multiplica por el número de réplicas.
-2. **Deja `SCHEDULER_ENABLED=1` en una sola instancia.** Varias purgas simultáneas compiten por las mismas filas sin aportar nada.
+2. **Deja `SCHEDULER_ENABLED=1` en una sola instancia.** Varias purgas o evaluaciones de alertas simultáneas compiten por las mismas filas sin aportar nada.
+3. **El stream en vivo es por instancia**: cada cliente ve los logs que entraron por su réplica.
 
 El orden recomendado de evolución (particionado de la tabla, réplicas de lectura, cola intermedia) está en [ARCHITECTURE.md](ARCHITECTURE.md#rendimiento-y-escalabilidad).

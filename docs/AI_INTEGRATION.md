@@ -13,13 +13,17 @@ En el dashboard, **Administración → API keys → Nueva clave**:
 | Campo | Valor |
 |---|---|
 | Nombre | Algo reconocible, p. ej. `Claude Code — equipo backend` |
-| Permisos | Solo **`read`** |
+| Permisos | Solo **Consultar logs y errores** (`read`) |
 | Aplicaciones | Las que deba ver. Vacío = todas |
 | Caducidad | Opcional, recomendable para claves repartidas |
 
 Copia el secreto en ese momento: en la base de datos solo queda su hash, así que **no se puede recuperar después**.
 
 > Dale `read` y nada más. Una clave de lectura no puede escribir logs falsos, ni purgar, ni administrar nada. Si además la acotas a una aplicación, el asistente no verá ni un registro de las demás, tampoco pidiendo un log concreto por su id.
+
+La conexión por MCP usa **solo la clave**: la verificación en dos pasos de tu usuario no interviene, y el asistente nunca necesita tu contraseña.
+
+> **¿Aún no tienes logs que investigar?** Un admin puede generar unos de prueba en **Administración → Lab** (por ejemplo, **Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
 
 ---
 

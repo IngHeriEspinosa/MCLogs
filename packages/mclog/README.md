@@ -27,9 +27,13 @@ const mclog = createMCLogClient({
 });
 
 await mclog.info("Servidor iniciado");
-await mclog.warn("Cache no disponible, usando fallback");
-await mclog.error("Fallo al procesar pedido", { orderId: 42, error: err.message });
+await mclog.warn("Cache no disponible, usando fallback", { cache: "redis" });
+await mclog.error("Stock insuficiente", { orderId: 42 });
 ```
+
+`debug`, `info`, `warn` y `error` reciben el mensaje y, opcionalmente, un objeto de
+metadata. Para registrar una **excepción** usa `captureException` (abajo) en lugar de
+meter `err.message` en la metadata: así el servicio puede agrupar las repeticiones.
 
 ### Capturar una excepción
 
@@ -58,10 +62,23 @@ await mclog.captureException(err, {
 });
 ```
 
+`captureException` usa el nivel `error` (se puede cambiar con `level`), y como mensaje
+el de la excepción o, si no tiene, `"Unhandled exception"`. Admite también el resto de
+campos de una entrada (`service`, `traceId`, `fingerprint`…).
+
 El mismo reparto ocurre si pasas `error` a `send`:
 
 ```ts
 await mclog.send({ level: "error", message: "Fallo al facturar", error: err });
+```
+
+Si necesitas el reparto sin enviar nada, por ejemplo para tu propio logger, usa
+`extractError`:
+
+```ts
+import { extractError } from "@multicomputos-srl/mclog";
+
+extractError(err); // → { message, errorName, errorCode, errorStack } (solo los que existan)
 ```
 
 ### Entrada completa
@@ -75,6 +92,10 @@ await mclog.send({
   metadata: { orderId: 42 },
 });
 ```
+
+En `send`, todo es opcional: `application`, `environment`, `service` y `host` toman el
+valor por defecto del cliente, `level` es `info` si no se indica, y `message`, el de
+`error` o una cadena vacía.
 
 ### Lotes
 
@@ -90,6 +111,11 @@ await mclog.sendBatch(
   registros.map((r) => ({ level: "info", message: r.mensaje, metadata: r }))
 );
 ```
+
+Cada trozo se envía y se reintenta **por su cuenta**. Si uno falla definitivamente, los
+demás se siguen enviando, `sendBatch` resuelve a `false` y `onError` se invoca una vez
+por cada trozo fallido. Con `throwOnError: true`, en cambio, la promesa se rechaza con el
+primer trozo que falle.
 
 ### Opciones
 
@@ -125,8 +151,8 @@ veces que se repitan, y solo gastarían cuota.
 
 La espera entre intentos es exponencial con jitter (`retryBaseMs` × 2ⁿ, ±50 %). El jitter
 importa cuando caen varias instancias a la vez: sin él volverían todas al mismo tiempo y
-repetirían la avalancha. Si el servidor manda `Retry-After` en un `429`, esa cabecera
-manda sobre el cálculo.
+repetirían la avalancha. Si la respuesta trae `Retry-After` (típico de un `429` o un
+`503`), esa cabecera manda sobre el cálculo.
 
 ```ts
 const mclog = createMCLogClient({
@@ -160,8 +186,12 @@ O bórralo todo y gestiona tú las excepciones con `throwOnError: true`.
 
 ## La API key
 
-La clave se manda en `x-api-key` y necesita el scope **`ingest`**. Se crean desde
-`POST /api/keys` en el servicio, o desde el dashboard.
+La clave se manda en `x-api-key` y necesita el scope **`ingest`**. Se crea desde el
+dashboard, en **Administración → API keys** (hace falta rol admin), o con `POST /api/keys`.
+El secreto se muestra una sola vez: guárdalo en una variable de entorno, nunca en el código.
+
+Evita la `API_KEY` heredada de la configuración del servidor: está deprecada, es una sola
+para todos los emisores y no se puede acotar ni rotar sin cortar a todos.
 
 Una clave puede además estar acotada a ciertas aplicaciones. Si mandas un log de una
 aplicación fuera de su alcance, el servicio responde `403` con la lista permitida:
@@ -228,6 +258,16 @@ app.post("/mis-logs/batch", ...validateLogBatch, (req, res) => {
 > exactamente lo mismo, objeto `error` incluido: un cuerpo que pase por aquí pasa por el
 > servicio. La única excepción es el número máximo de entradas por lote, que fija el
 > servidor con `MAX_BATCH_SIZE` y este paquete no puede conocer.
+
+`validateLog` y `validateLogBatch` ya incluyen dos pasos previos, que también se exportan
+por si montas tu propia cadena de validación:
+
+| Middleware | Qué hace |
+|---|---|
+| `normalizeErrorFields` | Reparte el objeto `error` de cada entrada en `errorName`, `errorCode`, `errorStack` y `message` (lo escrito a mano manda) |
+| `truncateLongFields` | Recorta `message`, `errorName`, `errorCode` y `errorStack` a su tope y anota la longitud original en `metadata.mclogTruncated`. Va después de `normalizeErrorFields` |
+
+Los dos funcionan igual con una entrada suelta o con `{ logs: [...] }`.
 
 
 ## Contrato de una entrada

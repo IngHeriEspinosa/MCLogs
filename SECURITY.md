@@ -67,11 +67,21 @@ Antes de poner MCLog en producción:
 
 - Cambia `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `API_KEY`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`.
   Los valores de `.env.example` son públicos por definición.
+- Tras el primer arranque, entra con la cuenta root (`ADMIN_EMAIL`), cambia su contraseña y
+  **activa la verificación en dos pasos**. Pide lo mismo a cada administrador: en **Administración →
+  Usuarios**, la etiqueta **2FA** muestra quién la tiene.
+- Guarda los códigos de recuperación fuera del servidor. A propósito, un admin no puede quitar el
+  2FA de otra cuenta; la recuperación sin códigos es un procedimiento de base de datos.
 - Emite una API key por emisor, con el permiso mínimo (`ingest`) y acotada a su aplicación. Si se
-  filtra una, revócala sin tocar a los demás.
-- No expongas PostgreSQL fuera de la red de Docker.
-- Usa el `Caddyfile` incluido: resuelve el HTTPS y aplica HSTS, `X-Frame-Options` y
-  `X-Content-Type-Options`.
+  filtra una, revócala sin tocar a los demás. No repartas la clave heredada `API_KEY`.
+- No expongas PostgreSQL fuera de la red interna (Docker o CapRover).
+- Sirve la API **siempre por HTTPS**. Con el despliegue de Docker Compose, usa el `Caddyfile`
+  incluido: resuelve el HTTPS y aplica HSTS, `X-Frame-Options` y `X-Content-Type-Options`. Con
+  dashboard y API en dominios distintos, usa subdominios del mismo dominio raíz, `COOKIE_SECURE=1`
+  y un `CORS_ORIGINS` exacto.
+- No guardes credenciales (contraseñas de base de datos, tokens de plataformas, API keys) en
+  ficheros del repositorio, aunque estén en `.gitignore`: un fichero ignorado sigue copiándose en
+  zips, copias de seguridad y capturas de pantalla.
 - Mantén las copias de seguridad diarias activas y comprueba de vez en cuando que se restauran.
 - Ajusta la retención al mínimo que te sirva. Un log que ya no existe no se puede filtrar.
 

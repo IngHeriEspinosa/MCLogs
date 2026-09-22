@@ -11,10 +11,15 @@ export function DocsToc({ headings }: { headings: DocHeading[] }) {
       </h2>
       <ul className="mt-3 space-y-1.5">
         {headings.map((heading) => (
-          <li key={heading.id} className={heading.level === 3 ? "pl-4" : undefined}>
+          <li
+            key={heading.id}
+            className={heading.level === 1 ? "pt-2 first:pt-0" : heading.level === 3 ? "pl-4" : undefined}
+          >
             <a
               href={`#${heading.id}`}
-              className="block text-slate-600 transition-colors hover:text-primary-600"
+              className={`block transition-colors hover:text-primary-600 ${
+                heading.level === 1 ? "font-semibold text-slate-900" : "text-slate-600"
+              }`}
             >
               {heading.text}
             </a>

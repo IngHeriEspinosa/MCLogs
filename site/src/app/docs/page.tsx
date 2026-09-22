@@ -1,22 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { DOCS, DOC_GROUPS } from "@/lib/docs";
+import { DOCS, DOC_GROUPS, groupAnchor } from "@/lib/docs";
 import { GITHUB_REPO, NPM_PACKAGE, NPM_URL, repoFile } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Documentación",
   description:
-    "Toda la documentación de MCLog: funcionalidades, manual de usuario, integración por API REST, conexión con asistentes de IA, despliegue, arquitectura y referencia técnica.",
+    "Toda la documentación de MCLog: guías paso a paso, funcionalidades, manual de usuario, integración por API REST, conexión con asistentes de IA, despliegue, arquitectura y referencia técnica.",
   alternates: { canonical: "/docs" },
 };
 
 /** Atajos por perfil, equivalentes a la tabla de entrada de docs/README.md. */
 const SHORTCUTS = [
-  { role: "Nuevo en el proyecto", href: "/docs/funcionalidades", label: "Funcionalidades" },
-  { role: "Vas a usar el dashboard", href: "/docs/manual-de-usuario", label: "Manual de usuario" },
-  { role: "Vas a integrar una app", href: "/docs/integracion", label: "Guía de integración" },
-  { role: "Quieres conectar una IA", href: "/docs/integracion-ia", label: "Integración MCP" },
-  { role: "Vas a desplegar", href: "/docs/despliegue", label: "Despliegue en producción" },
+  { role: "Es tu primera vez", href: "/docs/primeros-pasos", label: "Primeros pasos" },
+  { role: "Quieres verlo funcionar ya", href: "/docs/probar-con-el-lab", label: "Probar con el Lab" },
+  { role: "Algo falla en producción", href: "/docs/investigar-un-incidente", label: "Investigar un incidente" },
+  { role: "Vas a integrar una app", href: "/docs/integrar-node", label: "Integrar Node.js" },
+  { role: "Vas a integrar NetSuite", href: "/docs/integrar-netsuite", label: "Integrar NetSuite" },
+  { role: "Quieres conectar una IA", href: "/docs/conectar-una-ia", label: "Conectar una IA" },
+  { role: "Acabas de recibir tu usuario", href: "/docs/proteger-tu-cuenta", label: "Proteger tu cuenta" },
+  { role: "Vas a desplegar", href: "/docs/desplegar-en-un-vps", label: "Desplegar en un VPS" },
   { role: "Buscas una respuesta rápida", href: "/docs/faq", label: "Preguntas frecuentes" },
 ];
 
@@ -29,8 +32,10 @@ export default function DocsIndexPage() {
         </h1>
         <p className="mt-4 text-lg leading-8 text-slate-600">
           Todo lo necesario para instalar MCLog, enviarle logs desde tus aplicaciones, investigarlos
-          y mantener el servicio. Es la misma documentación que vive en el repositorio: si
-          encuentras algo mal, puedes corregirlo con un pull request.
+          y mantener el servicio. Si es tu primera vez, empieza por las guías paso a paso: cada una
+          recorre un proceso de principio a fin, con comprobaciones y solución de problemas. Es la
+          misma documentación que vive en el repositorio: si encuentras algo mal, puedes corregirlo
+          con un pull request.
         </p>
       </header>
 
@@ -58,7 +63,7 @@ export default function DocsIndexPage() {
         if (docs.length === 0) return null;
 
         return (
-          <section key={group.id} className="mt-14">
+          <section key={group.id} id={groupAnchor(group.label)} className="mt-14">
             <h2 className="font-heading text-2xl font-bold tracking-tight text-slate-900">
               {group.label}
             </h2>

@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { DOCS, DOC_GROUPS } from "@/lib/docs";
+import { DOCS } from "@/lib/docs";
 import { GITHUB_REPO, NPM_PACKAGE, NPM_URL, SPONSOR, repoFile } from "@/lib/site";
 import { GitHubIcon, Logo } from "./Brand";
 
 const YEAR = new Date().getFullYear();
+
+/** Seleccion corta para el pie: el indice completo esta en /docs. */
+const FOOTER_DOCS = ["primeros-pasos", "investigar-un-incidente", "desplegar-en-un-vps", "funcionalidades", "manual-de-usuario"];
 
 export function SiteFooter() {
   return (
@@ -44,15 +47,15 @@ export function SiteFooter() {
         <div>
           <h2 className="font-heading text-sm font-semibold text-slate-900">Documentación</h2>
           <ul className="mt-3 space-y-2 text-sm">
-            {DOC_GROUPS.slice(0, 2).flatMap((group) =>
-              DOCS.filter((doc) => doc.group === group.id).map((doc) => (
+            {FOOTER_DOCS.map((slug) => DOCS.find((doc) => doc.slug === slug))
+              .filter((doc): doc is NonNullable<typeof doc> => Boolean(doc))
+              .map((doc) => (
                 <li key={doc.slug}>
                   <Link href={`/docs/${doc.slug}`} className="text-slate-600 hover:text-primary-600">
                     {doc.title}
                   </Link>
                 </li>
-              ))
-            )}
+              ))}
             <li>
               <Link href="/docs" className="font-medium text-slate-700 hover:text-primary-600">
                 Ver toda la documentación →

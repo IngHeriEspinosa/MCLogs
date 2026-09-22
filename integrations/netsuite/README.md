@@ -13,18 +13,29 @@ Envía los logs de todos tus scripts de NetSuite al servicio centralizado MCLog 
 
 ## Instalación (5 minutos)
 
-1. **Sube la librería al File Cabinet**
+> La misma instalación, detallada y con comprobaciones en cada paso: [Integrar NetSuite paso a paso](../../docs/guias/integrar-netsuite.md).
+
+1. **Crea una API key para NetSuite** en el dashboard de MCLog:
+   1. Entra con un usuario admin y abre **Administración → API keys → Nueva clave**.
+   2. Ponle un **Nombre** reconocible (por ejemplo, `NetSuite producción`).
+   3. Marca solo el permiso **Enviar logs** (`ingest`).
+   4. Opcionalmente, en **Aplicaciones**, acótala a los nombres de aplicación que vas a usar.
+   5. Pulsa **Crear clave** y **cópiala ahora**: es la única vez que se muestra.
+
+   > No uses la variable `API_KEY` del backend: está deprecada, es la misma para todos los emisores y no se puede acotar ni rotar sin cortarlos a todos.
+
+2. **Configura la librería**: edita las constantes al inicio de `mclog_client.js`:
+   ```js
+   const MCLOG_URL = 'https://tu-servidor-mclog.com'; // URL pública de tu API MCLog, sin barra final
+   const MCLOG_API_KEY = 'mclog_...';                 // la clave del paso 1
+   const DEFAULT_ENVIRONMENT = 'production';          // entorno si una llamada no indica otro
+   ```
+
+3. **Sube la librería al File Cabinet**:
    - Documents → Files → File Cabinet → `SuiteScripts/lib/`
    - Sube `mclog_client.js`.
 
-2. **Configura la librería** — edita las dos constantes al inicio del archivo:
-   ```js
-   const MCLOG_URL = 'https://tu-servidor-mclog.com'; // URL pública de tu API MCLog
-   const MCLOG_API_KEY = 'tu-api-key';                // el valor de API_KEY del backend
-   ```
-   > La API key es la variable `API_KEY` del `.env` del backend MCLog. En producción usa una clave larga y aleatoria.
-
-3. **Úsala en cualquier script**:
+4. **Úsala en cualquier script**:
    ```js
    define(['/SuiteScripts/lib/mclog_client'], (mclog) => {
        const appLog = mclog.createLogger({
@@ -32,10 +43,17 @@ Envía los logs de todos tus scripts de NetSuite al servicio centralizado MCLog 
            environment: 'production'
        });
 
-       appLog.info('Proceso iniciado');
-       appLog.error('Algo falló', { recordId: 123, error: 'detalle' });
+       appLog.info('Proceso iniciado', { recordId: 123 });
+
+       try {
+           // ...
+       } catch (e) {
+           appLog.exception('Fallo al crear la factura', e, { recordId: 123 });
+       }
    });
    ```
+
+5. **Comprueba** en el dashboard, en **Logs**, filtrando por la aplicación `MiSuiteApp`, que llegan los registros.
 
 ## API de la librería
 
@@ -43,13 +61,16 @@ Envía los logs de todos tus scripts de NetSuite al servicio centralizado MCLog 
 Crea un logger preconfigurado con `application` y `environment`:
 ```js
 const appLog = mclog.createLogger({ application: 'MiApp', environment: 'production' });
-appLog.debug(mensaje, metadata?);
-appLog.info(mensaje, metadata?);
-appLog.warn(mensaje, metadata?);
-appLog.error(mensaje, metadata?);
-appLog.exception(mensaje, error, metadata?);   // para bloques catch
+appLog.debug(mensaje, metadata?, extra?);
+appLog.info(mensaje, metadata?, extra?);
+appLog.warn(mensaje, metadata?, extra?);
+appLog.error(mensaje, metadata?, extra?);
+appLog.exception(mensaje, error, metadata?, extra?);   // para bloques catch
 appLog.batch([{ level: 'info', message: '...' }, ...]);
 ```
+
+`extra` sobrescribe los valores por defecto del logger solo en esa llamada, por
+ejemplo `{ traceId: 'pedido-42', service: 'facturacion' }`.
 
 ### `exception(mensaje, error, metadata?)` — para los `catch`
 
@@ -81,12 +102,31 @@ mclog.send('error', {
     environment: 'production',     // opcional (default en la librería)
     service: 'nombre_del_script',  // opcional (default: scriptId actual)
     traceId: 'id-de-correlacion',  // opcional
-    metadata: { cualquier: 'dato' } // opcional
+    metadata: { cualquier: 'dato' }, // opcional
+    error: e,                      // opcional: excepción capturada (se reparte en los campos de error)
+    errorName: 'MI_ERROR',         // opcional: manda sobre el de `error`
+    errorCode: 'E42',              // opcional
+    errorStack: '...'              // opcional
 });
 ```
 
+Si falta `message`, se usa el de `error`. `environment` cae en la constante
+`DEFAULT_ENVIRONMENT` (`production`), **no** en `development` como la librería npm.
+
+La librería **no envía** `fingerprint`, `spanId` ni `timestamp`, aunque los pongas: la
+huella la calcula el servidor y la hora es la de llegada. Tampoco recorta campos: el
+servidor recorta los largos por su cuenta.
+
+### `errorFields(error)`
+
+Devuelve `{ errorName, errorCode, errorStack }` de una excepción (solo los que existan),
+con el stack de NetSuite ya unido en una cadena. Útil si quieres el mismo reparto para
+otro destino.
+
 ### `sendBatch(entries)` — lote
-Ideal en **Map/Reduce** y **Scheduled Scripts**: acumula los logs en un array y envíalos en `summarize` en lugar de uno a uno.
+Ideal en **Map/Reduce** y **Scheduled Scripts**: acumula los logs en un array y envíalos en `summarize` en lugar de uno a uno. Cada entrada acepta los mismos campos que `send`, más `level` (por defecto `info`).
+
+> En `summarize`, NetSuite entrega los errores de `mapSummary`/`reduceSummary` **serializados como JSON**. Haz `JSON.parse` y pásalos en `error`, no dentro de `metadata`: así MCLog agrupa las repeticiones. Lo tienes resuelto en `ejemplo_map_reduce.js`.
 
 Se trocea solo, en lotes de como mucho 500 entradas (el `MAX_BATCH_SIZE` del servidor) y 1 MB (por debajo de los 3 MB de su `BODY_LIMIT`). Importa: el servidor rechaza **entero** el lote que pase de cualquiera de los dos topes, con `400` o con `413`. Un `summarize` que acumula una entrada por clave fallida pasa de 500 con facilidad, y 500 errores con stacks de unos 7 KB ya pesan 4 MB: sin trocear se perdían todos los logs de esa ejecución. Una entrada que por sí sola pase de 1 MB viaja en una petición propia, para que si el servidor la rechaza no arrastre a las demás.
 
@@ -109,12 +149,13 @@ Cada log incluye automáticamente en `metadata`: `scriptId`, `deploymentId`, `ex
 node integrations/netsuite/test_mclog_client.js
 ```
 
-Simula `define()` y los módulos `N/https`, `N/log` y `N/runtime`, y comprueba el payload que saldría por el cable: troceo de lotes, reparto de excepciones y contexto automático. No necesita dependencias ni una cuenta de NetSuite, y corre en CI.
+Simula `define()` y los módulos `N/https`, `N/log` y `N/runtime`, y comprueba el payload que saldría por el cable: troceo de lotes, reparto de excepciones y contexto automático (40 comprobaciones). No necesita dependencias ni una cuenta de NetSuite, y corre en CI.
 
 Lo que no cubre: todo lo que dependa del runtime real (governance, límites de `https`, comportamiento de un `SuiteScriptError` de verdad). Eso solo se ve en una cuenta.
 
 ## Requisitos del lado MCLog
 
 - El backend debe estar accesible por HTTPS desde internet (NetSuite es SaaS).
-- La ingesta usa el header `x-api-key` contra `POST /api/log` y `POST /api/logs/batch` — no requiere usuarios ni JWT.
+- La ingesta usa el header `x-api-key` contra `POST /api/log` y `POST /api/logs/batch`, con una clave de permiso `ingest`. No requiere usuarios ni JWT.
+- Si la clave está acotada a ciertas aplicaciones, un log de otra aplicación devuelve `403` y se registra con `N/log`.
 - Límite de ingesta por defecto: 2000 peticiones/minuto (configurable con `INGEST_RATE_LIMIT_MAX`).

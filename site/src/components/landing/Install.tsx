@@ -21,11 +21,11 @@ cd ../frontend_mclog && npm install && npm run dev`;
 const STEPS = [
   {
     title: "Levántalo",
-    body: "Requiere Node.js 20+ y Docker. En local son tres comandos; en producción, un docker compose up con Caddy resolviendo el HTTPS por su cuenta.",
+    body: "Requiere Node.js 20+ y Docker. En local son tres comandos; en producción, un docker compose up con Caddy resolviendo el HTTPS por su cuenta, o CapRover y Railway.",
   },
   {
     title: "Crea una API key",
-    body: "Desde Ajustes → API keys del dashboard, con permiso de solo ingesta y acotada a una aplicación. Una clave por emisor.",
+    body: "Desde Administración → API keys del dashboard, con permiso de solo ingesta y acotada a una aplicación. Una clave por emisor.",
   },
   {
     title: "Manda tu primer log",
@@ -63,6 +63,9 @@ export function Install() {
           </ol>
 
           <div className="mt-8 flex flex-wrap gap-4 text-sm font-medium">
+            <Link href="/docs/primeros-pasos" className="text-primary-600 hover:text-primary-700">
+              Guía paso a paso: primeros pasos →
+            </Link>
             <Link href="/docs/despliegue" className="text-primary-600 hover:text-primary-700">
               Guía de despliegue en producción →
             </Link>

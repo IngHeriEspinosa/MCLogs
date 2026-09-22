@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DocsSidebar } from "@/components/DocsSidebar";
 import { DocsToc } from "@/components/DocsToc";
-import { DOCS, getDoc, getDocMeta } from "@/lib/docs";
+import Link from "next/link";
+import { DOCS, DOC_GROUPS, getAdjacentDocs, getDoc, getDocMeta } from "@/lib/docs";
 
 interface PageProps {
   params: { slug: string };
@@ -33,6 +34,9 @@ export default function DocPage({ params }: PageProps) {
   const doc = getDoc(params.slug);
   if (!doc) notFound();
 
+  const { prev, next } = getAdjacentDocs(doc.slug);
+  const groupLabel = DOC_GROUPS.find((group) => group.id === doc.group)?.label;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
       <div className="lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-12">
@@ -45,6 +49,9 @@ export default function DocPage({ params }: PageProps) {
         <div className="min-w-0 xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-10">
           <article className="min-w-0">
             <header className="border-b border-slate-200 pb-6">
+              {groupLabel && (
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary-700">{groupLabel}</p>
+              )}
               <h1 className="font-heading text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
                 {doc.title}
               </h1>
@@ -55,7 +62,32 @@ export default function DocPage({ params }: PageProps) {
                 usuario: el riesgo de inyeccion es el de cualquier commit. */}
             <div className="prose mt-8" dangerouslySetInnerHTML={{ __html: doc.html }} />
 
-            <footer className="mt-16 border-t border-slate-200 pt-6">
+            {(prev || next) && (
+              <nav aria-label="Seguir leyendo" className="mt-16 grid gap-4 sm:grid-cols-2">
+                {prev ? (
+                  <Link
+                    href={`/docs/${prev.slug}`}
+                    className="rounded-xl border border-slate-200 p-4 transition-colors hover:border-primary-300 hover:bg-primary-50/40"
+                  >
+                    <span className="block text-xs font-medium uppercase tracking-wide text-slate-500">← Anterior</span>
+                    <span className="mt-1 block font-medium text-primary-700">{prev.title}</span>
+                  </Link>
+                ) : (
+                  <span className="hidden sm:block" />
+                )}
+                {next && (
+                  <Link
+                    href={`/docs/${next.slug}`}
+                    className="rounded-xl border border-slate-200 p-4 text-right transition-colors hover:border-primary-300 hover:bg-primary-50/40"
+                  >
+                    <span className="block text-xs font-medium uppercase tracking-wide text-slate-500">Siguiente →</span>
+                    <span className="mt-1 block font-medium text-primary-700">{next.title}</span>
+                  </Link>
+                )}
+              </nav>
+            )}
+
+            <footer className="mt-10 border-t border-slate-200 pt-6">
               <a
                 href={doc.githubUrl}
                 target="_blank"

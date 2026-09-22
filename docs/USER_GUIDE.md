@@ -8,29 +8,38 @@ Este manual cubre los tres perfiles que usan MCLog:
 
 Si no sabes qué significa alguna palabra, está en el [Glosario](GLOSSARY.md). Si algo no funciona, mira el [FAQ](FAQ.md).
 
+> **¿Prefieres ir paso a paso?** Las [guías](README.md#guías-paso-a-paso) recorren cada proceso de principio a fin, con comprobaciones: instalar MCLog, enviar tu primer log, investigar un incidente, proteger tu cuenta, desplegar…
+
 ---
 
 # Parte A — Consultar logs (dashboard)
 
 ## A.1 Entrar
 
-1. Abre el dashboard. En desarrollo: **http://localhost:3001**
-2. Escribe tu correo y contraseña. Te las da el administrador del servicio.
-3. Entras directo a la pantalla de logs.
+1. Abre el dashboard. En desarrollo: **http://localhost:3001**. Verás la portada de MCLog; pulsa **Iniciar sesión**.
+2. Escribe tu **Correo** y tu **Contraseña** y pulsa **Entrar**. Te los da el administrador del servicio.
+3. **Si tienes activada la verificación en dos pasos**, aparece una segunda pantalla. Escribe el **Código de verificación** de 6 dígitos de tu app autenticadora y pulsa **Verificar**.
+   - Sin el móvil a mano, escribe en el mismo campo uno de tus **códigos de recuperación**.
+   - Tienes 5 minutos. Si ves "El intento de inicio de sesión ha caducado", pulsa **Volver** y empieza de nuevo.
+4. Entras en la pantalla de logs o, si la sesión te había echado de otra página, vuelves a ella.
 
 **Sobre tu sesión:** se renueva sola mientras estés usando la aplicación, así que no te va a echar en mitad de una investigación. Si dejas la pestaña abandonada mucho tiempo, al volver te llevará al login.
+
+> Tras **10 intentos fallidos en 15 minutos**, el login responde "Demasiados intentos. Prueba de nuevo más tarde.". Espera a que pase la ventana: los intentos correctos no cuentan.
 
 A la izquierda tienes el menú de secciones (en el móvil se abre con el botón ☰). Las de administración solo aparecen si tu usuario es `admin`:
 
 | Sección | Para qué |
 |---|---|
-| **Logs** | Resumen, gráfico de actividad y la tabla de registros, con filtros y descargas |
+| **Logs** | Resumen, gráfico de actividad y la tabla de registros, con filtros, modo en vivo y descargas |
+| **Registros** | Solo la tabla, con **búsqueda avanzada** por campo y el detalle a pantalla completa |
 | **Errores** | Los fallos agrupados por causa. Casi siempre, el mejor sitio para empezar |
 | **Reportes** | Informes en Markdown y briefs para agentes de IA |
 | **Alertas** | Avisos automáticos por webhook, correo o Telegram (admin) |
 | **API keys** | Claves para que las máquinas envíen o consulten (admin) |
 | **Usuarios** | Alta, roles y contraseñas (admin) |
-| **Mi cuenta** | Tus datos, tus preferencias y tu contraseña |
+| **Lab** | Escenarios de prueba que envían logs reales para ver cada pantalla en acción (admin) |
+| **Mi cuenta** | Tus datos, tus preferencias, tu contraseña, la verificación en dos pasos y la eliminación de tu cuenta |
 
 Arriba a la derecha, en todas las pantallas, cambias el **idioma** (español / inglés) y el **tema** (claro, oscuro o el de tu sistema). Se recuerdan en ese navegador.
 
@@ -96,6 +105,31 @@ El botón **Exportar** descarga los logs **con los filtros que tengas puestos**,
 
 Desde el mismo menú, **Informe Markdown** y **Brief para agentes IA** abren la pantalla de Reportes con tu rango y ámbito, y lo generan al momento.
 
+## A.2.1 Registros y la búsqueda avanzada
+
+**Registros** es la tabla de logs a secas: sin resumen ni modo en vivo, pensada para encontrar un registro concreto y leerlo cómodo. Se llega desde el menú o con el icono junto al número de registros de la tabla de Logs, que la abre con los mismos filtros.
+
+Arriba tiene la misma barra de filtros que Logs. Debajo está la tarjeta **Búsqueda avanzada**, con seis campos que buscan **cada uno en su propio campo del log**, a diferencia de **Buscar**, que mira en todos a la vez:
+
+| Campo | Busca en | Ejemplo |
+|---|---|---|
+| **Mensaje contiene** | El mensaje | `timeout` |
+| **Servicio** | El servicio | `checkout` |
+| **Host** | La máquina | `web-01` |
+| **Trace ID exacto** | El traceId, **completo** | el id entero |
+| **Nombre del error** | La clase de la excepción | `TypeError` |
+| **Código de error** | El código del error | `ECONNRESET` |
+
+Cómo se combinan:
+
+- Todos los campos que rellenes se aplican **a la vez (Y)**: `Servicio = checkout` + `Código de error = ECONNRESET` devuelve solo los ECONNRESET de checkout.
+- Admiten texto parcial y no distinguen mayúsculas, **salvo el Trace ID**, que tiene que ser exacto.
+- También se suman a los filtros de arriba (rango, nivel, entorno, aplicación).
+- **Limpiar filtros** no toca la búsqueda avanzada; para eso está **Limpiar búsqueda avanzada**. El número junto al título te dice cuántos campos tienes activos.
+- Todo va en la URL: copia el enlace y quien lo abra verá la misma búsqueda.
+
+**Clic en un registro** para abrirlo a pantalla completa, con el mensaje, el stack y la metadata a la izquierda y las propiedades y el contexto a la derecha. Recorre la página sin cerrar con **Registro anterior** / **Registro siguiente** o con <kbd>←</kbd> <kbd>→</kbd>; <kbd>Esc</kbd> o un clic fuera lo cierra.
+
 ## A.3 La pantalla de errores
 
 Aquí está la diferencia entre mirar logs y entender qué está roto.
@@ -152,9 +186,51 @@ La vista previa muestra el documento formateado o el Markdown tal cual, con su t
 
 La vieja forma (filtrar por nivel y hora en la tabla y rebuscar) sigue funcionando y a veces es lo que quieres. Pero para "qué está roto", empezar por Errores te ahorra el paso de descubrir que las cuarenta líneas que estás leyendo son el mismo problema.
 
-## A.7 Consejos
+## A.7 Tu cuenta y su seguridad
+
+Todo está en **Mi cuenta**, abajo en el menú.
+
+### Cambiar la contraseña
+
+Escribe la **Contraseña actual** y dos veces la **Contraseña nueva** (mínimo 10 caracteres y distinta de la actual). Al guardarla se cierran tus sesiones **en todos los dispositivos, incluido este**, y vuelves al login.
+
+### Activar la verificación en dos pasos
+
+Con ella, quien robe tu contraseña sigue sin poder entrar: además hace falta un código de tu móvil. Necesitas una app autenticadora (Google Authenticator, Microsoft Authenticator, 1Password o cualquier otra compatible con TOTP).
+
+1. En la tarjeta **Verificación en dos pasos**, pulsa **Activar verificación en dos pasos**.
+2. Abre tu app, añade una cuenta nueva y **escanea el código QR**. Si no puedes escanearlo, copia la clave que aparece debajo e introdúcela a mano en la app.
+3. La app empieza a mostrar códigos de 6 dígitos que cambian cada 30 segundos. Escribe el actual y pulsa **Verificar y activar**.
+4. Aparecen tus **8 códigos de recuperación**. Pulsa **Copiar** y guárdalos en un sitio seguro fuera del móvil, como un gestor de contraseñas. **No se vuelven a mostrar.**
+5. Pulsa **Ya los he guardado**. La tarjeta pasa a **Activada**.
+
+Desde ahora, cada inicio de sesión te pedirá el código ([A.1](#a1-entrar)).
+
+> **Si "Código incorrecto o caducado" aparece con un código recién leído**, casi siempre es la hora del móvil: los códigos dependen del reloj. Activa la hora automática en el teléfono.
+
+### Si pierdes el móvil
+
+- **Tienes los códigos de recuperación**: entra usando uno de ellos en lugar del código de 6 dígitos. Después, en **Mi cuenta**, pulsa **Desactivar** (con tu contraseña y otro código de recuperación) y vuelve a activarla con el móvil nuevo. Cada código sirve una sola vez.
+- **No tienes los códigos**: pide ayuda al administrador del servicio. No puede quitarte el 2FA desde el dashboard, a propósito; el procedimiento está en la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#recuperar-una-cuenta-con-2fa).
+
+### Desactivar la verificación en dos pasos
+
+**Desactivar** → escribe tu **Contraseña actual** y un **Código de la app o de recuperación** → **Desactivar**. Tu cuenta queda protegida solo por la contraseña.
+
+### Eliminar tu cuenta
+
+En la tarjeta **Zona de peligro**:
+
+1. Pulsa **Eliminar mi cuenta**.
+2. Escribe tu contraseña en **Confirma con tu contraseña** y, si tienes la verificación en dos pasos, un código.
+3. Escribe **ELIMINAR** para confirmar y pulsa **Eliminar definitivamente**.
+
+Se borra tu usuario y se cierran todas tus sesiones; las API keys que creaste siguen funcionando. **No se puede deshacer.** La cuenta root del servicio y la del último administrador no se pueden eliminar.
+
+## A.8 Consejos
 
 - **El rango de tiempo es el filtro que más se queda puesto sin querer.** Si ves "No hay registros que coincidan" y esperabas resultados, amplíalo primero.
+- **Para una búsqueda precisa, usa Registros.** La búsqueda avanzada evita que un texto coincida en el campo equivocado.
 - **Empieza por Errores, no por Logs**, salvo que ya sepas qué buscas.
 - **Primera aparición reciente = sospechoso principal.** Es la señal más barata que tienes.
 - **La metadata es donde está lo bueno.** El mensaje dice *qué* falló; la metadata suele decir *con qué datos*.
@@ -169,7 +245,7 @@ Guía completa con ejemplos por lenguaje en [INTEGRATION.md](INTEGRATION.md). Re
 ## B.1 Lo que necesitas
 
 - La **URL** del servicio (ej. `https://mclog.tu-dominio.com`)
-- Una **API key con permiso `ingest`**, que te da el administrador desde el dashboard.
+- Una **API key con permiso `ingest`**, que te da el administrador desde el dashboard (**Administración → API keys**).
 
 No necesitas usuario ni contraseña para enviar logs: eso es solo para consultar. Pide que la clave venga **acotada a tu aplicación**: así, si se filtra, no puede escribir en nombre de otra ni leer nada.
 
@@ -188,6 +264,8 @@ curl -X POST https://mclog.tu-dominio.com/api/log \
 ```
 
 Solo esos cuatro campos son obligatorios. El servidor rellena el resto.
+
+> **¿Quieres ver la petición antes de programarla?** Un admin puede componer un log en **Lab → Log a medida**: la pantalla muestra la petición equivalente en JSON y en cURL, lista para copiar.
 
 ## B.3 Registrar un error como es debido
 
@@ -249,7 +327,7 @@ try {
 }
 ```
 
-Adjunta solo el `scriptId`, `deploymentId`, `accountId`, `userId` y el governance restante, y con `exception` añade la clase del error y el stack para que se agrupe.
+Adjunta solo el `scriptId`, `deploymentId`, `executionContext`, `accountId`, `userId`, `userRole` y el governance restante, y con `exception` añade la clase del error y el stack para que se agrupe. Paso a paso en la guía [Integrar NetSuite](guias/integrar-netsuite.md).
 
 ## B.6 Reglas de oro
 
@@ -292,32 +370,45 @@ Entra en http://localhost:3001 con el `ADMIN_EMAIL` / `ADMIN_PASSWORD` de tu `.e
 
 ## C.2 Despliegue en producción
 
-El procedimiento completo, con requisitos, DNS, certificados y resolución de problemas, está en **[DEPLOYMENT.md](DEPLOYMENT.md)**. En resumen:
+El procedimiento completo, con requisitos, DNS, certificados y resolución de problemas, está en **[DEPLOYMENT.md](DEPLOYMENT.md)**. Hay dos caminos:
 
-```bash
-cd deploy
-cp .env.example .env     # rellena dominio, secretos y contraseñas
-docker compose -f docker-compose.prod.yml up -d --build
-```
+- **Un VPS con Docker Compose** (lo más simple):
 
-Levanta base de datos, API, dashboard, copias de seguridad y un proxy Caddy que obtiene el certificado HTTPS por su cuenta. **Solo Caddy publica puertos**; lo demás queda en la red interna.
+  ```bash
+  cd deploy
+  cp .env.example .env     # rellena dominio, secretos y contraseñas
+  docker compose -f docker-compose.prod.yml up -d --build
+  ```
 
-> **Si el arranque falla quejándose de la configuración, es a propósito.** El servicio se niega a arrancar en producción con secretos por defecto o sin CORS configurado. Corrige el `.env` y vuelve a intentarlo.
+  Levanta base de datos, API, dashboard, copias de seguridad y un proxy Caddy que obtiene el certificado HTTPS por su cuenta. **Solo Caddy publica puertos**; lo demás queda en la red interna.
+
+- **CapRover para la API y la base de datos, y Railway para el dashboard**, cada uno en su dominio. Guía: [Desplegar en CapRover y Railway](guias/desplegar-caprover-railway.md).
+
+> **Si el arranque falla quejándose de la configuración, es a propósito.** El servicio se niega a arrancar en producción con secretos por defecto, secretos JWT iguales o sin CORS configurado. Corrige el `.env` y vuelve a intentarlo.
+
+**Lo primero tras desplegar:** entra con la cuenta root (`ADMIN_EMAIL`), cambia su contraseña en **Mi cuenta** y activa la verificación en dos pasos.
 
 ## C.3 Usuarios
 
 En **Administración → Usuarios**, si tu rol es `admin`. Puedes dar de alta, cambiar el rol, restablecer contraseñas y eliminar.
 
+**Dar de alta a alguien:** **Nuevo usuario** → **Correo**, **Contraseña** (mínimo 10 caracteres) y **Rol** → **Crear usuario**. Ya puede entrar; pásale la contraseña por un canal seguro y pídele que la cambie en **Mi cuenta**.
+
 | Rol | Puede |
 |---|---|
-| `user` | Consultar, buscar, ver errores, estadísticas y exportar |
-| `admin` | Todo lo anterior, más purgar logs y administrar claves, usuarios y alertas |
+| `user` | Consultar, buscar, ver errores, estadísticas, exportar y generar reportes |
+| `admin` | Todo lo anterior, más purgar logs y administrar claves, usuarios, alertas y el Lab |
+
+En la lista, dos etiquetas junto al correo:
+
+- **Root**: la cuenta de arranque del servicio (`ADMIN_EMAIL`). No se puede degradar ni eliminar, así que el servicio nunca se queda sin una puerta de entrada.
+- **2FA**: esa persona tiene activada la verificación en dos pasos.
 
 Cambiar la contraseña o el rol de alguien **cierra sus sesiones abiertas** en todos los dispositivos, y el rol nuevo se aplica de inmediato.
 
-Dos operaciones están bloqueadas a propósito, para que el servicio no se quede sin administración: nadie puede borrarse a sí mismo, ni eliminar o degradar al último `admin`.
+Algunas operaciones están bloqueadas a propósito, para que el servicio no se quede sin administración: nadie puede borrarse a sí mismo desde esta pantalla, nadie puede eliminar o degradar la cuenta root, y nadie puede eliminar o degradar al último `admin`.
 
-Cada quien cambia su propia contraseña en **Mi cuenta**. Hacerlo cierra también la sesión actual, así que hay que volver a entrar.
+Cada quien cambia su propia contraseña, activa la verificación en dos pasos o elimina su cuenta en **Mi cuenta** ([A.7](#a7-tu-cuenta-y-su-seguridad)). Un admin **no** puede quitar la verificación en dos pasos de otra persona; si alguien pierde el móvil y los códigos de recuperación, sigue la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#recuperar-una-cuenta-con-2fa).
 
 ## C.4 API keys
 
@@ -329,7 +420,17 @@ En **Administración → API keys**. Cada clave lleva permisos, y conviene dar l
 | `read` | Asistentes de IA e integraciones que consultan |
 | `metrics` | Prometheus |
 
-Puedes además **acotarla a una lista de aplicaciones** y ponerle caducidad. La restricción vale en los dos sentidos: esa clave no puede escribir logs de otra aplicación ni verlos al consultar.
+**Crear una clave:**
+
+1. Pulsa **Nueva clave**.
+2. Rellena el formulario:
+   - **Nombre**: para reconocerla después.
+   - **Permisos**: marca los justos.
+   - **Aplicaciones**: opcional, separadas por comas. Vacío significa todas.
+   - **Caducidad**: opcional.
+3. Pulsa **Crear clave**, cópiala y confirma con **Ya la he guardado**.
+
+**Acotarla a una lista de aplicaciones** es muy recomendable. La restricción vale en los dos sentidos: esa clave no puede escribir logs de otra aplicación ni verlos al consultar.
 
 **El secreto se muestra una sola vez, al crearla.** En la base de datos solo queda su hash, así que no hay forma de recuperarlo: cópialo en ese momento.
 
@@ -372,19 +473,22 @@ Pon `RETENTION_DAYS` en el `.env` y olvídate: cada hora se purgan los logs más
 
 Con varias instancias detrás de un balanceador, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 
-Para una purga puntual, por ejemplo vaciar una aplicación concreta, sigue existiendo el borrado manual:
+Para una purga puntual, por ejemplo vaciar una aplicación concreta, sigue existiendo el borrado manual, con una sesión de admin:
 
 ```bash
-TOKEN=$(curl -s -X POST https://tu-api/auth/login \
+curl -s -X POST https://tu-api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@...","password":"***"}' | jq -r .accessToken)
+  -d '{"email":"admin@...","password":"***"}' > login.json
+TOKEN=$(jq -r .accessToken login.json)
 
 curl -X DELETE "https://tu-api/api/logs?before=2026-01-01T00:00:00Z&application=pruebas" \
   -H "Authorization: Bearer $TOKEN"
 # → {"deleted": 12345}
 ```
 
-Requiere rol `admin`. Una API key no puede purgar, por muchos permisos que tenga.
+> **Si tu cuenta tiene verificación en dos pasos**, `login.json` no trae `accessToken` sino `"mfaRequired": true` y un `mfaToken`: completa antes el segundo paso con `POST /auth/login/2fa`, como se explica en la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#borrado-manual).
+
+Requiere rol `admin`. Una API key no puede purgar, por muchos permisos que tenga. Los logs del **Lab** se borran más fácil desde su propia pantalla ([C.11](#c11-el-lab)).
 
 ## C.8 Monitoreo
 
@@ -425,7 +529,11 @@ docker compose -f docker-compose.prod.yml start api
 | `403` al consultar | La clave no tiene permiso `read` | Las claves de ingesta no pueden leer, por diseño |
 | `429 Too Many Requests` | Superado el límite de ingesta | Agrupa con `/api/logs/batch` antes de subir `INGEST_RATE_LIMIT_MAX` |
 | `400` al ingerir | Falta un campo obligatorio, o level/environment inválido | La respuesta trae `errors` con el detalle campo por campo |
-| El arranque falla en producción | Secretos por defecto o `CORS_ORIGINS` vacío | Es la validación de seguridad. Configura el `.env` |
+| El arranque falla en producción | Secretos por defecto, secretos JWT iguales o `CORS_ORIGINS` vacío | Es la validación de seguridad. Configura el `.env` |
+| "Demasiados intentos" al entrar | 10 intentos fallidos en 15 min desde tu IP | Espera a que pase la ventana |
+| "Código incorrecto o caducado" con un código recién leído | La hora del móvil no está sincronizada | Activa la hora automática en el teléfono |
+| Alguien perdió el móvil del 2FA | — | Que entre con un código de recuperación; sin ellos, ver la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#recuperar-una-cuenta-con-2fa) |
+| No puedo eliminar o degradar un usuario | Es la cuenta root o el último admin | Es a propósito |
 | El dashboard no conecta (CORS) | Origen no listado | Añade la URL **exacta** del front a `CORS_ORIGINS` |
 | No llegan los avisos | Canal mal configurado o caído | Usa **Enviar prueba**, y mira el historial de alertas |
 | El botón En vivo no se activa | No estás en la primera página, o el orden no es por fecha descendente | Es a propósito |
@@ -434,3 +542,25 @@ docker compose -f docker-compose.prod.yml start api
 | Sesión que se cae constantemente | Cookies bloqueadas | Con front y API en dominios distintos, necesitas HTTPS, `COOKIE_SECURE=1` y `COOKIE_SAMESITE=none`. Con Caddy y un solo dominio, esto no pasa |
 
 Más casos en el [FAQ](FAQ.md).
+
+## C.11 El Lab
+
+En **Administración → Lab**. Sirve para comprobar que todo funciona, para enseñar MCLog a alguien o para probar una regla de alerta, sin esperar a que tus aplicaciones fallen. Cada escenario envía **logs reales**, siempre a aplicaciones que empiezan por `lab-`.
+
+1. Elige el **Entorno de destino**. Déjalo en **Desarrollo** salvo que quieras probar algo de producción a propósito: allí los logs cuentan en las métricas y pueden disparar alertas reales, y la pantalla te lo advierte.
+2. Lee el recuadro **Qué verás** del escenario y pulsa **Ejecutar**. La barra de progreso muestra cuántos van; **Detener** lo corta. Puedes ejecutar varios a la vez.
+3. Al acabar, usa los enlaces que aparecen (**Ver en Logs**, **Ver en Errores**, **Abrir la traza**, **Brief para IA**, **Revisar alertas**) para ir directo al resultado.
+
+| Escenario | Qué envía | Para comprobar |
+|---|---|---|
+| **Tráfico normal** | 120 registros de tres servicios, repartidos en la última hora | Resumen, gráfico y filtros |
+| **Error agrupado** | El mismo timeout 25 veces con números de pedido distintos | Que Errores lo muestra como **una** fila con 25 ocurrencias |
+| **Traza distribuida** | Una compra por gateway → auth → inventory → billing que falla en billing | La pantalla de traza y el salto de 2 s antes del fallo |
+| **Pico de incidente** | 80 errores y warnings en los últimos 5 minutos | El pico rojo en Actividad; una regla de umbral debería avisar al minuto siguiente |
+| **Error nuevo** | Un fallo con huella nueva en cada ejecución | Un grupo nuevo en Errores y las reglas de tipo **Error nuevo** |
+| **Datos sensibles** | Correos, IPs, tokens y contraseñas ficticios | Que el brief para IA y **Copiar para IA** los enmascaran |
+| **Stream en vivo** | 20 logs, uno cada 0,75 s | Abre Logs en otra pestaña con **En vivo** y míralos llegar |
+
+**Log a medida** te deja componer uno campo por campo y enviarlo con **Enviar log**. El panel **Petición** muestra la misma llamada en **JSON** y **cURL**: es la forma más rápida de preparar una integración, cambiando `<TU_API_KEY>` por una clave con permiso ingest.
+
+**Borrar datos del lab** → **Sí, borrar** elimina todos los logs `lab-*` y nada más.

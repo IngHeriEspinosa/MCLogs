@@ -5,10 +5,13 @@ Dashboard web para consultar y gestionar los logs centralizados de MCLog.
 - Next.js 14 (App Router) + React Query v5 + Tailwind, sin librerías de componentes ni de gráficos.
 - Español e inglés; tema claro, oscuro o del sistema, sin destello al cargar.
 - Diseñado de móvil a 4K (3840 px): la interfaz escala y aprovecha el ancho.
-- Login con sesión en cookies httpOnly y renovación automática.
-- Resumen con métricas y gráfico de actividad interactivo, filtros combinables sincronizados con la URL, tabla con detalle lateral (stack, metadata, contexto) y modo en vivo.
+- Portada pública en `/` y login con sesión en cookies httpOnly y renovación automática, con verificación en dos pasos (TOTP o código de recuperación) si la cuenta la tiene activa.
+- **Logs**: resumen con métricas y gráfico de actividad interactivo, filtros combinables sincronizados con la URL, tabla con detalle lateral (stack, metadata, contexto) y modo en vivo.
+- **Registros**: la tabla completa con búsqueda avanzada por campo (mensaje, servicio, host, traceId, nombre y código de error) y detalle a pantalla completa con navegación por teclado.
 - Errores agrupados por huella y trazas distribuidas con línea temporal.
 - Reportes en Markdown para personas, briefs para agentes de IA (Markdown o JSON) con enmascarado de datos sensibles, y export CSV/NDJSON con los filtros aplicados.
+- **Administración**: API keys con permisos, usuarios (con la cuenta root protegida), alertas y el **Lab**, que envía escenarios de prueba reales para ver cada pantalla en acción.
+- **Mi cuenta**: preferencias, cambio de contraseña, activar o desactivar el 2FA y eliminar la propia cuenta.
 
 ## Arranque
 

@@ -8,7 +8,7 @@ Términos que aparecen en la documentación, la interfaz y la API. Ordenado alfa
 JWT de vida corta (**15 minutos** por defecto) que autoriza cada petición de consulta. Viaja en la cabecera `Authorization: Bearer …` o en la cookie `access_token`. Cuando caduca, el sistema lo renueva solo usando el [refresh token](#refresh-token). → [Refresh token](#refresh-token), [Auto-refresh](#auto-refresh)
 
 ### Admin
-[Rol](#rol) que, además de todo lo que puede hacer un `user`, **purga logs** y administra [API keys](#api-key), usuarios y [alertas](#alerta). El primero se crea automáticamente al arrancar con `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+[Rol](#rol) que, además de todo lo que puede hacer un `user`, **purga logs** y administra [API keys](#api-key), usuarios, [alertas](#alerta) y el [Lab](#lab). El primero se crea automáticamente al arrancar con `ADMIN_EMAIL` / `ADMIN_PASSWORD`, y es la [cuenta root](#cuenta-root).
 
 Ninguna API key recibe este rol, por muchos [permisos](#permiso-scope) que tenga: administrar exige una sesión de persona.
 
@@ -36,13 +36,22 @@ Envío de varios logs en una sola petición HTTP (`POST /api/logs/batch`), hasta
 ### bcrypt
 Algoritmo de hashing usado para las contraseñas de usuario, con coste 12. Las contraseñas **nunca** se guardan en claro ni son recuperables: solo se pueden restablecer.
 
+### Búsqueda avanzada
+Tarjeta de la pantalla [Registros](#registros) con seis campos que buscan **cada uno en su propio campo** del log: mensaje, servicio, host, traceId exacto, nombre y código del error. Se combinan entre sí con Y. A diferencia de la búsqueda libre (`search`), que mira en varios campos a la vez, sirve para preguntas precisas como "los `ECONNRESET` del servicio `checkout`". En la API son los parámetros `message`, `service`, `host`, `traceId`, `errorName` y `errorCode` de `GET /api/logs`.
+
 ### Caddy
-Servidor web que hace de proxy inverso en el despliegue de producción. Obtiene y renueva el certificado HTTPS por su cuenta, y sirve el dashboard y la API bajo el **mismo dominio**, lo que elimina el [CORS](#cors-cross-origin-resource-sharing) entre orígenes y permite cookies `SameSite=Lax`. → [DEPLOYMENT.md](DEPLOYMENT.md)
+Servidor web que hace de proxy inverso en el despliegue de producción con Docker Compose (opción A). Obtiene y renueva el certificado HTTPS por su cuenta, y sirve el dashboard y la API bajo el **mismo dominio**, lo que elimina el [CORS](#cors-cross-origin-resource-sharing) entre orígenes y permite cookies `SameSite=Lax`. → [DEPLOYMENT.md](DEPLOYMENT.md)
+
+### CapRover
+Plataforma de despliegue autoalojada sobre Docker, con nginx y certificados HTTPS incluidos. En la opción B de despliegue aloja la API y PostgreSQL como dos apps separadas; la API usa el `captain-definition` del backend. → [DEPLOYMENT.md](DEPLOYMENT.md#opción-b--caprover--railway)
 
 ### Canal de alerta
 Destino por el que se envía una [alerta](#alerta): **webhook** (sirve para Slack, Discord, Teams o n8n), **correo** (por SMTP) o **Telegram**. Una [regla](#regla-de-alerta) puede usar varios a la vez.
 
 Un canal caído no impide avisar por los demás, y su fallo queda registrado en el historial con el motivo.
+
+### Código de recuperación
+Uno de los **8 códigos** (formato `xxxxx-xxxxx`) que se entregan al activar la [verificación en dos pasos](#verificación-en-dos-pasos-2fa). Sustituye al código de la app si pierdes el móvil. Cada uno vale **una sola vez**, se muestran solo al activarla y se guardan como hash. Desactivar y volver a activar la verificación genera 8 nuevos.
 
 ### Cookie httpOnly
 Cookie que el navegador guarda pero **JavaScript no puede leer**. MCLog guarda ahí los tokens de sesión, de modo que un ataque XSS no puede robarlos. Es también la razón por la que el frontend nunca manipula tokens directamente.
@@ -54,6 +63,9 @@ Arranca **aunque el envío falle**, a propósito: reintentar cada minuto contra 
 
 ### CORS *(Cross-Origin Resource Sharing)*
 Mecanismo del navegador que decide si una web puede llamar a una API alojada en otro dominio. En MCLog se controla con `CORS_ORIGINS`, que debe contener la URL **exacta** del dashboard. Es la causa habitual de que el dashboard "no conecte" aunque la API funcione.
+
+### Cuenta root
+La cuenta de `ADMIN_EMAIL`, creada al arrancar el servicio. Es un [admin](#admin) que **no se puede eliminar ni degradar**, ni siquiera por sí mismo, para que el servicio nunca se quede sin una puerta de entrada. Lleva la etiqueta **Root** en Usuarios. Si `ADMIN_EMAIL` cambia, la nueva cuenta pasa a ser el root y la anterior queda como admin normal.
 
 ### CSV
 Formato de exportación tabular, separado por comas. Se abre directo en Excel. **No incluye la metadata**; si la necesitas, usa [NDJSON](#ndjson-newline-delimited-json). → [Exportación](#exportación)
@@ -101,16 +113,22 @@ Identificador único de un [refresh token](#refresh-token). Es lo que se guarda 
 ### JWT *(JSON Web Token)*
 Token firmado que transporta la identidad del usuario (id, email, [rol](#rol)) y su fecha de caducidad. El servidor solo verifica la firma: no necesita guardar sesiones. MCLog usa dos, con secretos distintos: [access](#access-token) y [refresh](#refresh-token).
 
+### Lab
+Pantalla de administración con **escenarios de prueba** que envían logs reales a MCLog (tráfico normal, error agrupado, traza distribuida, pico de incidente, error nuevo, datos sensibles y stream en vivo) y enlazan a la pantalla donde se ve el resultado. Todo va a aplicaciones con prefijo `lab-`, por defecto al entorno `development`, y se borra de una vez con **Borrar datos del lab**. Incluye un compositor de logs a medida que muestra la petición en JSON y cURL.
+
 ### MCP *(Model Context Protocol)*
 Protocolo que permite a un asistente de IA usar herramientas externas. MCLog expone un servidor MCP en `POST /mcp` con ocho herramientas de investigación, de modo que Claude Code, Cursor o Claude Desktop consulten los logs por su cuenta en lugar de que se les peguen fragmentos.
 
 Requiere una [API key](#api-key) con permiso `read`, y respeta todas sus restricciones. → [AI_INTEGRATION.md](AI_INTEGRATION.md)
 
+### mfaToken
+Token intermedio que devuelve `POST /auth/login` cuando la cuenta tiene [verificación en dos pasos](#verificación-en-dos-pasos-2fa): demuestra que la contraseña era correcta, pero **no abre sesión**. Dura 5 minutos y se canjea en `POST /auth/login/2fa` junto con un código. Se firma con un secreto y una audiencia propios, así que nunca vale como [access token](#access-token).
+
 ### Metadata
 Objeto JSON **libre** que la aplicación adjunta al log: ids de registro, usuario, tiempos, stack traces… Es el campo donde suele estar la información que realmente explica un incidente. No tiene esquema fijo; la única regla es que sea un objeto (no un array). → [JSONB](#jsonb)
 
 ### Migración
-Fichero SQL versionado que modifica el esquema de la base de datos. Se aplican con `npx prisma migrate deploy`, en orden y una sola vez. MCLog tiene siete: `0001_init`, `0002_enums_indexes`, `0003_auth`, `0004_perf_indexes`, `0005_api_keys`, `0006_error_fields` y `0007_alerts`.
+Fichero SQL versionado que modifica el esquema de la base de datos. Se aplican con `npx prisma migrate deploy`, en orden y una sola vez; la imagen Docker lo hace sola al arrancar. MCLog tiene ocho: `0001_init`, `0002_enums_indexes`, `0003_auth`, `0004_perf_indexes`, `0005_api_keys`, `0006_error_fields`, `0007_alerts` y `0008_account_security`.
 
 > Deben guardarse en **UTF-8**. En UTF-16 el motor falla con `string contains embedded null`.
 
@@ -155,22 +173,28 @@ Borrado de logs anteriores a una fecha (`DELETE /api/logs?before=…`), opcional
 Es la herramienta para limpiezas puntuales. Para el borrado continuo está la [retención](#retención) automática. → [Retención](#retención)
 
 ### Rate limit
-Tope de peticiones por ventana de tiempo. MCLog tiene **dos independientes**:
+Tope de peticiones por ventana de tiempo. MCLog tiene **tres independientes**:
 
 | Límite | Default | Aplica a |
 |---|---|---|
 | `ingestLimiter` | 2000 / minuto | Envío de logs |
-| `queryLimiter` | 600 / 15 minutos | Consultas y `/auth` |
-| `loginLimiter` | 10 / 15 minutos | Solo `POST /auth/login`, y solo los intentos fallidos |
+| `queryLimiter` | 600 / 15 minutos | Consultas, `/auth`, administración y MCP |
+| `loginLimiter` | 10 / 15 minutos | Login, segundo paso del 2FA, alta/baja del 2FA y borrar la propia cuenta; solo los intentos fallidos, por IP |
 
 Separarlos evita que un dashboard intensivo bloquee la ingesta, o al revés. Al superarlo se responde `429`.
 
 La ingesta y las consultas se cuentan **por clave** cuando hay una, y no por IP: así una integración ruidosa no consume la cuota de las que comparten salida, algo habitual detrás de un NAT o con NetSuite. El límite es por instancia, así que al escalar horizontalmente se multiplica.
 
+### Railway
+Plataforma de despliegue gestionada. En la opción B de despliegue aloja el dashboard, construido con su `Dockerfile` y con `NEXT_PUBLIC_API_URL` apuntando a la API. → [DEPLOYMENT.md](DEPLOYMENT.md#b4-el-dashboard-railway)
+
 ### Refresh token
 Token de vida larga (**14 días** por defecto) cuya única función es obtener un [access token](#access-token) nuevo. Se guarda en base de datos por su [`jti`](#jti-jwt-id), lo que permite revocarlo.
 
 **Es de un solo uso:** cada vez que se usa, el anterior se elimina y se emite uno nuevo. Eso se llama [rotación](#rotación-de-tokens).
+
+### Registros
+Pantalla del dashboard con **solo la tabla** de logs, sin resumen ni modo en vivo, pensada para buscar y leer. Añade la [búsqueda avanzada](#búsqueda-avanzada) y abre cada log a pantalla completa, con <kbd>←</kbd> <kbd>→</kbd> para recorrer la página.
 
 ### Regla de alerta
 Condición que dispara una [alerta](#alerta). Dos tipos:
@@ -188,7 +212,7 @@ Borrado automático de los logs más antiguos que `RETENTION_DAYS`. Se ejecuta c
 `RETENTION_DAYS=0` la desactiva y **la tabla crece sin límite**. Con varias instancias, `SCHEDULER_ENABLED` debe quedar activo en una sola. → [Purga](#purga)
 
 ### Rol
-Nivel de permiso de un **usuario**. `user` puede consultar, buscar, ver errores, estadísticas y exportar; [`admin`](#admin) además purga y administra claves, usuarios y alertas. Sin sesión → `401`; con sesión pero rol insuficiente → `403`.
+Nivel de permiso de un **usuario**. `user` puede consultar, buscar, ver errores, estadísticas, exportar y gestionar su propia cuenta; [`admin`](#admin) además purga y administra claves, usuarios, alertas y el Lab. Sin sesión → `401`; con sesión pero rol insuficiente → `403`.
 
 No confundir con los [permisos](#permiso-scope) de una API key, que son otra escala.
 
@@ -212,7 +236,7 @@ Lista de llamadas que llevaron hasta la excepción, con archivo y línea. Se env
 Es la mitad del valor de un error: el mensaje dice *qué* falló, el stack dice *dónde*. Además, su primer marco entra en la [huella](#fingerprint-huella).
 
 ### Stateless
-Propiedad del backend: no guarda nada en memoria entre peticiones, todo el estado vive en PostgreSQL. Por eso se pueden levantar varias instancias detrás de un balanceador sin ninguna configuración adicional.
+Propiedad del backend: sesiones, claves y logs viven en PostgreSQL, no en memoria. Por eso se pueden levantar varias instancias detrás de un balanceador. Las excepciones, que son por instancia, son el [rate limit](#rate-limit), el stream en vivo ([SSE](#sse-server-sent-events)) y el planificador (`SCHEDULER_ENABLED` en una sola).
 
 ### SuiteScript
 Lenguaje de scripting de NetSuite (basado en JavaScript). MCLog incluye una librería en SuiteScript 2.1 lista para subir al File Cabinet.
@@ -223,6 +247,9 @@ Momento del evento, en ISO-8601. Si la aplicación no lo envía, se usa el momen
 ### Timing-safe comparison
 Comparación de secretos que tarda **lo mismo** coincidan o no. Evita que un atacante deduzca la [API key](#api-key) carácter a carácter midiendo tiempos de respuesta. En MCLog es `crypto.timingSafeEqual`.
 
+### TOTP *(Time-based One-Time Password)*
+Estándar (RFC 6238) de los códigos de 6 dígitos que cambian cada 30 segundos en apps como Google Authenticator. Se calculan a partir de un secreto compartido y la hora, por eso **el reloj del móvil tiene que estar en hora**. Es el mecanismo de la [verificación en dos pasos](#verificación-en-dos-pasos-2fa) de MCLog.
+
 ### TraceId
 Identificador que **correlaciona todos los logs de una misma operación**, aunque haya pasado por varios sistemas. Si la aplicación no lo envía, el servidor genera uno por petición.
 
@@ -230,3 +257,6 @@ Es la herramienta más potente del dashboard: desde cualquier log con traceId, *
 
 ### Trust proxy
 Ajuste (`TRUST_PROXY=1`) que le dice a Express que confíe en las cabeceras `X-Forwarded-*` de un proxy o balanceador. Sin él, detrás de un proxy todas las peticiones parecen venir de la misma IP y el [rate limit](#rate-limit) se aplica mal.
+
+### Verificación en dos pasos (2FA)
+Segundo factor de inicio de sesión: además de la contraseña, un código [TOTP](#totp-time-based-one-time-password) de la app autenticadora del usuario o un [código de recuperación](#código-de-recuperación). Cada usuario la activa en **Mi cuenta**. Con ella activa, una contraseña robada no basta para entrar. Un admin ve quién la tiene (etiqueta **2FA**), pero no puede quitársela a otro. → [mfaToken](#mfatoken)
