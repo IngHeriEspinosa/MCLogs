@@ -71,3 +71,17 @@ export const loginLimiter = rateLimit({
   keyGenerator: ipBucket,
   message: { error: "Too many login attempts, try again later" },
 });
+
+/**
+ * Peticion de enlace para restablecer la contrasena. Cuenta todas, no solo las
+ * fallidas: la respuesta es la misma exista o no la cuenta, y cada peticion
+ * valida puede enviar un correo.
+ */
+export const passwordResetLimiter = rateLimit({
+  windowMs: config.passwordResetRateLimitWindowMs,
+  limit: config.passwordResetRateLimitMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: ipBucket,
+  message: { error: "Too many password reset requests, try again later" },
+});

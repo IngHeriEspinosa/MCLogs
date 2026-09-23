@@ -1,39 +1,9 @@
-import nodemailer, { Transporter } from "nodemailer";
-import { config } from "../../config/env";
-import { NOTIFIER_TIMEOUT_MS, Notifier, alertTitle, formatSample } from "../types";
+import { sendMail } from "../../config/mailer";
+import { Notifier, alertTitle, formatSample } from "../types";
 
 /** Configuración esperada en `AlertChannel.config` para el tipo `email`. */
 export type EmailConfig = {
   to: string[];
-};
-
-/**
- * Transporte SMTP, creado una sola vez y reutilizado: abrir una conexión por
- * aviso sería lento y poco amable con el servidor de correo.
- */
-let transporter: Transporter | null = null;
-
-const getTransporter = (): Transporter => {
-  if (transporter) return transporter;
-  if (!config.smtp.host) {
-    throw new Error("SMTP no configurado: define SMTP_HOST (y SMTP_PORT, SMTP_USER, SMTP_PASS si hacen falta)");
-  }
-
-  transporter = nodemailer.createTransport({
-    host: config.smtp.host,
-    port: config.smtp.port,
-    secure: config.smtp.secure,
-    ...(config.smtp.user ? { auth: { user: config.smtp.user, pass: config.smtp.pass } } : {}),
-    connectionTimeout: NOTIFIER_TIMEOUT_MS,
-    greetingTimeout: NOTIFIER_TIMEOUT_MS,
-    socketTimeout: NOTIFIER_TIMEOUT_MS,
-  });
-  return transporter;
-};
-
-/** Solo para tests: fuerza a reconstruir el transporte en el próximo envío. */
-export const resetEmailTransport = () => {
-  transporter = null;
 };
 
 const escapeHtml = (value: string) =>
@@ -81,8 +51,7 @@ export const sendEmail: Notifier = async (channel, payload) => {
       : "",
   ].join("");
 
-  await getTransporter().sendMail({
-    from: config.smtp.from,
+  await sendMail({
     to: destinatarios.join(", "),
     subject: titulo,
     text: texto,

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import axios from "axios";
+import Link from "next/link";
 import { Alert } from "@/components/atoms/Alert";
 import { Button, IconButton } from "@/components/atoms/Button";
 import { Field } from "@/components/atoms/Field";
@@ -139,7 +140,15 @@ export default function LoginPage() {
             required
           />
         </Field>
-        <Field label={t.auth.password} info={t.fieldInfo.auth.password}>
+        <Field
+          label={t.auth.password}
+          info={t.fieldInfo.auth.password}
+          aside={
+            <Link href="/forgot-password" className="font-medium text-brand hover:underline">
+              {t.auth.forgotLink}
+            </Link>
+          }
+        >
           <Input
             type={visible ? "text" : "password"}
             icon="lock"

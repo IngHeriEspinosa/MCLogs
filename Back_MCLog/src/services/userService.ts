@@ -46,7 +46,7 @@ const countAdmins = () => prisma.user.count({ where: { role: "admin" } });
  * cuando cambia su contrasena o su rol: las credenciales viejas no deben seguir
  * sirviendo, y un cambio de rol debe reflejarse en el siguiente access token.
  */
-const revokeSessions = (userId: number) => prisma.refreshToken.deleteMany({ where: { userId } });
+export const revokeSessions = (userId: number) => prisma.refreshToken.deleteMany({ where: { userId } });
 
 export const createUser = async (input: {
   email: string;

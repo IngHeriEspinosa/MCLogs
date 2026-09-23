@@ -63,8 +63,23 @@ model User {
   /// sha256 hex de los codigos de recuperacion que quedan sin usar.
   recoveryCodes     String[] @default([])
 
-  refreshTokens RefreshToken[]
-  apiKeys       ApiKey[]
+  refreshTokens       RefreshToken[]
+  apiKeys             ApiKey[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+/// Enlace de "olvide mi contrasena". Solo se guarda el hash: quien lea la base
+/// de datos no puede usar un enlace pendiente. Se borra al usarse.
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// sha256 hex del token que viaja en el enlace.
+  tokenHash String   @unique @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model RefreshToken {

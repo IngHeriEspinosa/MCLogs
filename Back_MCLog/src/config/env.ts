@@ -27,6 +27,12 @@ export const config = {
   ingestRateLimitMax: int(process.env.INGEST_RATE_LIMIT_MAX, 2000),
   loginRateLimitWindowMs: int(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
   loginRateLimitMax: int(process.env.LOGIN_RATE_LIMIT_MAX, 10),
+  // "Olvide mi contrasena": cuenta todas las peticiones, no solo las fallidas,
+  // porque la respuesta es siempre la misma.
+  passwordResetRateLimitWindowMs: int(process.env.PASSWORD_RESET_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
+  passwordResetRateLimitMax: int(process.env.PASSWORD_RESET_RATE_LIMIT_MAX, 5),
+  /** Minutos que vale un enlace de restablecimiento de contrasena. */
+  passwordResetTtlMinutes: int(process.env.PASSWORD_RESET_TTL_MINUTES, 30),
 
   maxBatchSize: int(process.env.MAX_BATCH_SIZE, 500),
   maxExportRows: int(process.env.MAX_EXPORT_ROWS, 10000),

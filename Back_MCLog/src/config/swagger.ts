@@ -347,6 +347,50 @@ export const swaggerSpec = swaggerJSDoc({
           responses: { 200: { description: "Sesión abierta" }, 401: { description: "Código o token inválidos" } },
         },
       },
+      "/auth/password/forgot": {
+        post: {
+          tags: ["auth"],
+          summary: "Pedir un enlace para restablecer la contraseña (se envía por correo)",
+          description:
+            "Responde lo mismo exista o no la cuenta. Requiere SMTP_HOST y PUBLIC_DASHBOARD_URL. Como mucho un correo por cuenta y minuto.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["email"],
+                  properties: { email: { type: "string", format: "email" }, locale: { type: "string", enum: ["es", "en"] } },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Petición aceptada" },
+            429: { description: "Demasiadas peticiones" },
+            503: { description: "El restablecimiento por correo no está configurado" },
+          },
+        },
+      },
+      "/auth/password/reset": {
+        post: {
+          tags: ["auth"],
+          summary: "Elegir una contraseña nueva con el token del enlace (revoca todas las sesiones)",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["token", "password"],
+                  properties: { token: { type: "string" }, password: { type: "string", minLength: PASSWORD_MIN_LENGTH } },
+                },
+              },
+            },
+          },
+          responses: { 200: { description: "Contraseña cambiada" }, 400: { description: "Enlace inválido o caducado, o contraseña inválida" } },
+        },
+      },
       "/auth/me/2fa/setup": {
         post: {
           tags: ["auth"],

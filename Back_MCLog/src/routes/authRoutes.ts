@@ -24,7 +24,13 @@ import {
 import { setAuthCookies, clearAuthCookies } from "../middlewares/setAuthCookies";
 import { AuthenticatedRequest, requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
-import { loginLimiter } from "../middlewares/rateLimiters";
+import { loginLimiter, passwordResetLimiter } from "../middlewares/rateLimiters";
+import {
+  RESET_LOCALES,
+  isPasswordResetAvailable,
+  requestPasswordReset,
+  resetPassword,
+} from "../services/passwordResetService";
 
 const router = express.Router();
 
@@ -126,6 +132,43 @@ router.post("/logout", async (req, res) => {
   clearAuthCookies(res);
   res.json({ ok: true });
 });
+
+// --- Contrasena olvidada ---
+
+router.post(
+  "/password/forgot",
+  passwordResetLimiter,
+  [body("email").isString().trim().isEmail(), body("locale").optional().isIn(RESET_LOCALES), handleValidation],
+  (req: express.Request, res: Response) => {
+    if (!isPasswordResetAvailable()) {
+      res.status(503).json({ error: "Password reset by email is not configured" });
+      return;
+    }
+    // Se responde sin esperar a buscar la cuenta ni a enviar el correo: asi la
+    // respuesta, y lo que tarda, son iguales exista o no ese correo.
+    requestPasswordReset(req.body.email, req.body.locale ?? "es").catch((error) =>
+      logger.error("Password reset email failed", { error: String(error) }),
+    );
+    res.json({ ok: true });
+  },
+);
+
+// loginLimiter cuenta los enlaces invalidos: probar tokens a ciegas choca con el mismo tope que el login.
+router.post(
+  "/password/reset",
+  loginLimiter,
+  [body("token").isString().notEmpty(), passwordRule("password"), handleValidation],
+  async (req: express.Request, res: Response) => {
+    try {
+      const userId = await resetPassword(req.body.token, req.body.password);
+      clearAuthCookies(res);
+      logger.info("Password reset by email link", { userId });
+      res.json({ ok: true });
+    } catch (error) {
+      respondWithError(error, res, "Error resetting password");
+    }
+  },
+);
 
 // --- Cuenta propia ---
 

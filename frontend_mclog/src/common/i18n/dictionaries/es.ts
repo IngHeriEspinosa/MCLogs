@@ -623,6 +623,33 @@ export const es = {
       "Captura, agrupa y consulta los registros de tus aplicaciones. Encuentra la causa de un fallo en segundos, no en horas.",
     heroPoints: ["Errores agrupados por huella", "Trazas entre sistemas", "Briefs listos para agentes de IA"],
     footer: "Patrocinado por Multicomputos SRL",
+    forgotLink: "¿Olvidaste tu contraseña?",
+    backToSignIn: "Volver a iniciar sesión",
+    forgot: {
+      title: "Restablecer contraseña",
+      subtitle: "Escribe el correo de tu cuenta y te enviaremos un enlace para elegir una contraseña nueva.",
+      submit: "Enviar enlace",
+      sentTitle: "Revisa tu correo",
+      sent: (email: string) =>
+        `Si ${email} corresponde a una cuenta de MCLog, te hemos enviado un enlace para elegir una contraseña nueva. Caduca pronto y solo sirve una vez; si no lo ves, mira en la carpeta de spam.`,
+      again: "Enviar a otro correo",
+      unavailable:
+        "Este servidor no tiene configurado el envío de correos, así que no puede mandarte el enlace. Pide a un administrador que te restablezca la contraseña desde Usuarios.",
+      tooMany: "Has pedido demasiados enlaces. Espera unos minutos antes de volver a intentarlo.",
+    },
+    reset: {
+      title: "Elige una contraseña nueva",
+      subtitle: "Al guardarla se cerrarán todas tus sesiones abiertas.",
+      password: "Contraseña nueva",
+      repeat: "Repite la contraseña nueva",
+      hint: (min: number) => `Mínimo ${min} caracteres.`,
+      mismatch: "Las dos contraseñas no coinciden.",
+      submit: "Guardar contraseña",
+      done: "Contraseña cambiada. Ya puedes iniciar sesión con la nueva.",
+      goToSignIn: "Iniciar sesión",
+      invalid: "El enlace no es válido o ha caducado. Pide uno nuevo.",
+      requestNew: "Pedir un enlace nuevo",
+    },
   },
 
   apiKeys: {
@@ -940,9 +967,14 @@ export const es = {
     auth: {
       email: "El correo con el que un administrador dio de alta tu cuenta en MCLog.",
       password:
-        "Tu contraseña de MCLog. Tras varios intentos fallidos seguidos, el acceso se bloquea unos minutos por seguridad. Si la has olvidado, pide a un administrador que te la restablezca desde Usuarios.",
+        "Tu contraseña de MCLog. Tras varios intentos fallidos seguidos, el acceso se bloquea unos minutos por seguridad. Si la has olvidado, usa «¿Olvidaste tu contraseña?» para recibir un enlace por correo.",
       twoFactorCode:
         "El código de 6 dígitos que muestra tu app autenticadora. Cambia cada 30 segundos y cada uno sirve una sola vez.\nSi no tienes el móvil, escribe uno de tus códigos de recuperación (formato xxxxx-xxxxx); también se gastan al usarlos.",
+      forgotEmail:
+        "El correo con el que inicias sesión. Por seguridad, la respuesta es la misma exista o no la cuenta: así nadie puede usar esta pantalla para averiguar quién tiene acceso.",
+      resetPassword: (min: number) =>
+        `Al menos ${min} caracteres. Una frase larga es más segura y fácil de recordar que una palabra corta con símbolos. Si tienes la verificación en dos pasos, seguirá activa.`,
+      resetRepeat: "Vuelve a escribir la contraseña nueva, para evitar errores de tecleo.",
     },
 
     /** Propiedades de un log: detalle, traza y busqueda. */

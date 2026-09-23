@@ -612,6 +612,33 @@ export const en: Dictionary = {
       "Capture, group and query the logs of every application. Find the cause of a failure in seconds, not hours.",
     heroPoints: ["Errors grouped by fingerprint", "Traces across systems", "Briefs ready for AI agents"],
     footer: "Sponsored by Multicomputos SRL",
+    forgotLink: "Forgot your password?",
+    backToSignIn: "Back to sign in",
+    forgot: {
+      title: "Reset password",
+      subtitle: "Enter your account email and we'll send you a link to choose a new password.",
+      submit: "Send link",
+      sentTitle: "Check your email",
+      sent: (email: string) =>
+        `If ${email} belongs to an MCLog account, we've sent it a link to choose a new password. It expires soon and works only once; if you can't find it, check your spam folder.`,
+      again: "Send to another email",
+      unavailable:
+        "This server has no email delivery configured, so it can't send you the link. Ask an administrator to reset your password from Users.",
+      tooMany: "You've requested too many links. Wait a few minutes before trying again.",
+    },
+    reset: {
+      title: "Choose a new password",
+      subtitle: "Saving it will sign you out of every open session.",
+      password: "New password",
+      repeat: "Repeat the new password",
+      hint: (min: number) => `At least ${min} characters.`,
+      mismatch: "The two passwords don't match.",
+      submit: "Save password",
+      done: "Password changed. You can now sign in with the new one.",
+      goToSignIn: "Sign in",
+      invalid: "The link is invalid or has expired. Request a new one.",
+      requestNew: "Request a new link",
+    },
   },
 
   apiKeys: {
@@ -918,9 +945,14 @@ export const en: Dictionary = {
     auth: {
       email: "The email an administrator used to create your MCLog account.",
       password:
-        "Your MCLog password. After several failed attempts in a row, sign-in is blocked for a few minutes for security. If you forgot it, ask an administrator to reset it from Users.",
+        "Your MCLog password. After several failed attempts in a row, sign-in is blocked for a few minutes for security. If you forgot it, use “Forgot your password?” to get a link by email.",
       twoFactorCode:
         "The 6-digit code shown by your authenticator app. It changes every 30 seconds and each one works only once.\nIf you don't have your phone, type one of your recovery codes (format xxxxx-xxxxx); they are also used up once used.",
+      forgotEmail:
+        "The email you sign in with. For security, the answer is the same whether or not the account exists, so nobody can use this screen to find out who has access.",
+      resetPassword: (min: number) =>
+        `At least ${min} characters. A long phrase is safer and easier to remember than a short word with symbols. If you use two-step verification, it stays on.`,
+      resetRepeat: "Type the new password again to rule out typos.",
     },
 
     log: {

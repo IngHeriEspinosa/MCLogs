@@ -96,7 +96,18 @@ export const useLoginSecondFactor = () =>
     mutationFn: (data: { mfaToken: string; code: string }) => client.post("/auth/login/2fa", data),
   });
 
-export type TwoFactorSetup = { secret: string; otpauthUri: string; qrCode: string };
+/** Pide el enlace por correo. Responde igual exista o no la cuenta; 503 si el servidor no puede enviar correos. */
+export const useForgotPassword = () =>
+  useMutation({
+    mutationFn: (data: { email: string; locale: string }) => client.post("/auth/password/forgot", data),
+  });
+
+export const useResetPassword = () =>
+  useMutation({
+    mutationFn: (data: { token: string; password: string }) => client.post("/auth/password/reset", data),
+  });
+
+export type TwoFactorSetup ={ secret: string; otpauthUri: string; qrCode: string };
 
 export const useStartTwoFactor = () =>
   useMutation({
