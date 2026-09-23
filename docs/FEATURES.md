@@ -29,6 +29,8 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 19. [Logs en vivo](#19-logs-en-vivo)
 20. [Verificación en dos pasos (2FA)](#20-verificación-en-dos-pasos-2fa)
 21. [Lab de pruebas](#21-lab-de-pruebas)
+22. [Configuración de la plataforma](#22-configuración-de-la-plataforma)
+23. [Snapshots compartibles](#23-snapshots-compartibles)
 
 ---
 
@@ -587,6 +589,58 @@ Además, un **compositor** envía un log a medida y muestra la petición equival
 - **Borrar datos del lab** limpia solo esas aplicaciones.
 - La ingesta usa la sesión del admin: no hace falta crear una API key para probar.
 
+## 22. Configuración de la plataforma
+
+Ajustes que cambian el comportamiento de la aplicación **en caliente**, sin redesplegar.
+
+**Quién:** solo la cuenta **root** (`ADMIN_EMAIL`); ni siquiera otros admins de plataforma. **Código:** [settingsService.ts](../Back_MCLog/src/services/settingsService.ts) · [settingsRoutes.ts](../Back_MCLog/src/routes/settingsRoutes.ts) · [requireRoot.ts](../Back_MCLog/src/middlewares/requireRoot.ts) · [app/settings/platform/](../frontend_mclog/src/app/settings/platform/)
+
+El catálogo es cerrado y tipado: cada clave tiene tipo, límites y un valor predeterminado, que es el de la variable de entorno equivalente si existe. Sin nada guardado, todo se comporta como antes. Se guarda en la tabla `AppSetting` (una fila por clave cambiada, con quién y cuándo) y se sirve desde memoria: se recarga al guardar y cada minuto, para que varias instancias converjan (la que recibe el cambio lo aplica al instante; las demás, en menos de un minuto).
+
+| Clave | Qué controla | Predeterminado |
+|---|---|---|
+| `maxWorkspaceMembers` | Miembros por espacio, pendientes incluidos (`409` al superarlo) | 0 = sin límite |
+| `maxInvitationsPerDay` | Altas de miembros por espacio en 24 h (`429` al superarlo) | 0 = sin límite |
+| `invitationTtlDays` | Días que vale un enlace de invitación (1–30) | 7 |
+| `allowWorkspaceCreation` | Si cualquier cuenta puede crear espacios o solo los admins de plataforma (`403`) | Activado |
+| `maxOwnedWorkspaces` | Espacios que puede poseer cada cuenta; no aplica a admins (`409`) | 0 = sin límite |
+| `retentionDays` | Días de retención de logs; 0 = no borrar | `RETENTION_DAYS` |
+| `maxExportRows` | Filas por exportación CSV/NDJSON | `MAX_EXPORT_ROWS` |
+| `maxBatchSize` | Logs por lote de ingesta | `MAX_BATCH_SIZE` |
+| `maxLiveConnections` | Conexiones simultáneas al stream en vivo, por instancia | `SSE_MAX_CONNECTIONS` |
+| `mcpEnabled` | Endpoint `/mcp` (apagado responde `404`) | `MCP_ENABLED` |
+| `alertsEnabled` | Evaluación de reglas de alerta en todos los espacios | Activado |
+| `labEnabled` | Lab e ingesta con sesión de usuario (apagado: `403`; las API keys siguen) | Activado |
+| `publicSnapshotsEnabled` | Snapshots públicos: crearlos y abrirlos (apagado: `403` al crear, `404` al abrir) | Activado |
+| `maxSnapshotRows` | Logs que guarda un snapshot (10–2000) | 500 |
+| `passwordResetTtlMinutes` | Minutos que vale un enlace de "olvidé mi contraseña" | `PASSWORD_RESET_TTL_MINUTES` |
+
+Guardar varios valores es atómico: se validan todos y, si alguno no cumple, no se aplica ninguno (`400` con el error de cada clave). Cada cambio queda en el log del servicio con su valor anterior, el nuevo y quién lo hizo. **Restablecer** borra el valor guardado y vuelve al predeterminado.
+
+Lo que no está en el catálogo —secretos, CORS, cookies, JWT— sigue siendo solo de entorno a propósito: cambiarlo en caliente cerraría sesiones o abriría accesos.
+
+`GET /api/settings/public` lo lee cualquier sesión: las pocas banderas que el panel necesita para no ofrecer lo que está apagado (Lab, crear espacios, límite de miembros, validez de las invitaciones, snapshots públicos y su tope de logs).
+
+---
+
+## 23. Snapshots compartibles
+
+Copia congelada de la vista de Logs o Registros, con un enlace propio para enseñarla a otras personas.
+
+**Quién:** cualquier miembro crea los de equipo; los públicos, solo el **dueño** del espacio. **Código:** [snapshotService.ts](../Back_MCLog/src/services/snapshotService.ts) · [snapshotRoutes.ts](../Back_MCLog/src/routes/snapshotRoutes.ts) · [redact.ts](../Back_MCLog/src/utils/redact.ts) · [ShareSnapshotDialog.tsx](../frontend_mclog/src/components/organisms/ShareSnapshotDialog.tsx) · [app/s/[token]/](../frontend_mclog/src/app/s/) · [app/snapshots/](../frontend_mclog/src/app/snapshots/) · Guía: [Compartir un snapshot](guias/compartir-snapshots.md)
+
+- **Qué guarda.** Los datos, no la consulta (tabla `Snapshot`): el resumen del rango, la aplicación y el entorno (totales por nivel, serie por hora de hasta 31 días, repartos por aplicación y entorno, fallos distintos y los 5 principales) y hasta `maxSnapshotRows` logs que cumplen **todos** los filtros, en el orden de la tabla. `totalMatched` dice cuántos cumplían. Los rangos abiertos se cierran en el momento de la captura.
+- **Visibilidad.** `workspace`: solo miembros del espacio con sesión; sin sesión, `401` con `requiresAuth` para ofrecer entrar. `public`: cualquiera con el enlace.
+- **Enmascarado.** Los públicos se enmascaran **siempre en el servidor**, con las mismas reglas que los reportes para IA: mensaje, host, stack, metadata, mensajes de ejemplo de los fallos y los filtros de texto libre. IDs de log, `traceId` y huellas se conservan. Tampoco se devuelve el nombre del espacio.
+- **Enlace.** Un token de 32 bytes aleatorios (base64url) en `/s/<token>`. La lectura va fuera de `/api` (`GET /snapshots/:token`), con `Cache-Control: no-store` y `X-Robots-Tag: noindex`; la página añade `noindex` y `no-referrer`.
+- **Denegar sin revelar.** Inexistente, caducado, de un espacio borrado o de otro espacio: siempre `404`.
+- **Caducidad.** 1, 7 o 30 días, o nunca. Caducado deja de servirse al momento; el planificador lo borra cada hora.
+- **Borrar.** Su autor o el dueño del espacio. Al borrar un espacio, sus snapshots se van con él.
+- **Interruptor.** Apagar `publicSnapshotsEnabled` impide crearlos y deja de servir los ya creados, sin borrarlos.
+- **Visor de solo lectura.** Orden y paginación en el navegador; el detalle no ofrece contexto, traza ni "similares", que consultarían datos en vivo.
+
+---
+
 ## Resumen de endpoints
 
 | Método | Ruta | Auth | Funcionalidad |
@@ -605,9 +659,13 @@ Además, un **compositor** envía un log a medida y muestra la petición equival
 | `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **dueño** | [13](#13-api-keys-con-permisos) |
+| `GET`/`POST`/`DELETE` | `/api/snapshots` · `/:id` | JWT (dueño para los públicos) | [23](#23-snapshots-compartibles) |
+| `GET` | `/snapshots/:token` | — (JWT de miembro si es de equipo) | [23](#23-snapshots-compartibles) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/workspaces` · `/:id` · `/:id/members` | JWT (dueño para administrar) | [7](#7-espacios-de-trabajo-y-roles) |
 | `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | [20](#20-verificación-en-dos-pasos-2fa) |
+| `GET`/`PATCH` · `DELETE /:key` | `/api/settings` | JWT **root** | [22](#22-configuración-de-la-plataforma) |
+| `GET` | `/api/settings/public` | JWT | [22](#22-configuración-de-la-plataforma) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin de plataforma** | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/login` · `/auth/login/2fa` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |
 | `GET` | `/health` | — | [10](#10-observabilidad-del-propio-servicio) |

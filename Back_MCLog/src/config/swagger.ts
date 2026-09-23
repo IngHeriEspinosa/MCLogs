@@ -290,6 +290,68 @@ export const swaggerSpec = swaggerJSDoc({
           responses: { 200: { description: "Revocada" }, 404: { description: "No existe" } },
         },
       },
+      "/api/snapshots": {
+        get: {
+          tags: ["snapshots"],
+          summary: "Listar los snapshots del espacio activo (solo metadatos)",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" } },
+        },
+        post: {
+          tags: ["snapshots"],
+          summary: "Crear un snapshot: copia congelada de la vista de logs",
+          description:
+            "Guarda el resumen (rango, aplicación y entorno) y hasta `maxSnapshotRows` logs que cumplen todos los filtros. Los públicos solo los crea el dueño del espacio, requieren `publicSnapshotsEnabled` y se enmascaran siempre.",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["title", "visibility"],
+                  properties: {
+                    title: { type: "string", maxLength: 160 },
+                    visibility: { type: "string", enum: ["workspace", "public"] },
+                    expiresInDays: { type: "integer", enum: [1, 7, 30], nullable: true, description: "null = no caduca" },
+                    filters: {
+                      type: "object",
+                      description:
+                        "Los mismos filtros que GET /api/logs (application, level, environment, search, fingerprint, service, host, traceId, message, errorName, errorCode, from, to) más sortField y sortDir. Sin `to` se usa el momento de la captura.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: "Creado; `token` identifica el enlace" },
+            403: { description: "Público sin ser dueño, o públicos desactivados" },
+          },
+        },
+      },
+      "/api/snapshots/{id}": {
+        delete: {
+          tags: ["snapshots"],
+          summary: "Borrar un snapshot (su autor o el dueño del espacio)",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: { 204: { description: "Borrado" }, 403: { description: "Ni autor ni dueño" }, 404: { description: "No existe" } },
+        },
+      },
+      "/snapshots/{token}": {
+        get: {
+          tags: ["snapshots"],
+          summary: "Leer un snapshot por su enlace",
+          description: "Los públicos se leen sin sesión. Los de equipo exigen sesión de un miembro del espacio.",
+          parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
+          responses: {
+            200: { description: "OK" },
+            401: { description: "De equipo y sin sesión (`requiresAuth: true`)" },
+            404: { description: "No existe, caducó o no eres miembro" },
+          },
+        },
+      },
       "/auth/me": {
         get: {
           tags: ["auth"],

@@ -168,6 +168,20 @@ Durante ese rato funcionan las dos. Revocar es **inmediato** y no se puede desha
 
 La variable `API_KEY` del backend es una clave única, anterior a este sistema, con permisos de ingesta y métricas. Escribe en el espacio de la cuenta root (**Principal**). Está **deprecada**: no se puede acotar por aplicación ni rotar sin cortar a todos los que la usen. Migra esos emisores a claves creadas aquí.
 
+## Parte 4 — Configuración de la plataforma (solo root)
+
+En **Plataforma → Configuración**. Solo la ve la cuenta root. Aquí se fijan los límites que afectan a todos los espacios:
+
+| Ajuste | Para qué |
+|---|---|
+| **Miembros por espacio** | Tope de personas por espacio, pendientes incluidas. Al llegar, **Invitar** responde que el espacio está lleno |
+| **Invitaciones por día** | Frena el envío masivo: altas por espacio en 24 horas |
+| **Validez de una invitación** | Días que vale el enlace de activación (por defecto 7) |
+| **Cualquier cuenta puede crear espacios** | Apagado, solo los admins de plataforma crean espacios y el botón **Crear espacio** desaparece para el resto |
+| **Espacios por cuenta** | Cuántos espacios puede poseer cada cuenta (los admins no tienen límite) |
+
+En la misma página están la retención de logs, los tamaños de exportación y de lote, las conexiones en vivo, la validez de "olvidé mi contraseña", y los interruptores de MCP, alertas y Lab. En todos, 0 significa **sin límite** donde se indica. Los cambios se aplican al momento; **Restablecer** vuelve al valor predeterminado.
+
 ## Comprueba que funcionó
 
 - La persona invitada ve el espacio en su selector, con su rol, y como miembro no ve la sección **Espacio**.
@@ -179,6 +193,8 @@ La variable `API_KEY` del backend es una clave única, anterior a este sistema, 
 | Síntoma | Causa |
 |---|---|
 | No puedo quitar a alguien o cambiar su rol a Miembro | Es el último dueño del espacio |
+| **Invitar** dice que el espacio llegó a su límite | La configuración de la plataforma fija un máximo de miembros o de altas por día; pide a la cuenta root que lo suba |
+| No aparece **Crear espacio** | La configuración de la plataforma reserva la creación de espacios a los admins |
 | No puedo eliminar una cuenta desde **Cuentas** | Es la root, el último admin, o la única dueña de un espacio con más miembros |
 | La persona invitada dice "Credenciales inválidas" | Aún no ha activado la cuenta con su enlace; genera uno con **Nuevo enlace** |
 | El enlace dice que no es válido o ha caducado | Pasaron 7 días o ya se usó; genera otro con **Nuevo enlace** |

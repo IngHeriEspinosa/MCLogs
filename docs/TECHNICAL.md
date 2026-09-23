@@ -74,6 +74,7 @@ model AlertRule    { id, workspaceId → Workspace, name, type (threshold|new_er
                      environment?, level @default(error), threshold, windowMinutes, cooldownMinutes,
                      lastTriggeredAt?, channels[], events[] }
 model AlertEvent   { id, ruleId → AlertRule (onDelete: Cascade), triggeredAt, count, sampleLogIds[], deliveries Json }
+model AppSetting   { key @id @db.VarChar(64), value Json, updatedAt, updatedById? → User (onDelete: SetNull) }
 ```
 
 **Por qué una huella.** Dos ocurrencias del mismo fallo casi nunca tienen el mismo mensaje: llevan dentro el id del pedido, un UUID o una hora. `fingerprint` es un sha256 recortado de la parte estable del error (aplicación, servicio, clase, código, primer marco del stack sin números de línea y mensaje normalizado), y es lo que permite responder "qué está fallando" en lugar de solo "qué ha pasado". La calcula el servidor para los niveles `error` y `warn`; un emisor puede enviar la suya para agrupar con otro criterio. Ver [fingerprint.ts](../Back_MCLog/src/utils/fingerprint.ts).
@@ -308,6 +309,8 @@ abiertas al stream en vivo). La ruta se etiqueta por su patrón
 | `PATCH/DELETE /api/workspaces/:id` | JWT **dueño** | Renombrar; borrar exige `confirmName` igual al nombre (borrado lógico: claves revocadas, reglas desactivadas, logs purgados después) |
 | `GET/POST /api/workspaces/:id/members` | JWT **dueño** | Listar e invitar (`{ email, role }`). Devuelve `{ member, created, emailSent, invitePath? }` |
 | `PATCH/DELETE /api/workspaces/:id/members/:userId`, `POST …/resend` | JWT **dueño** (salir: el propio miembro) | Cambiar rol, quitar, reenviar enlace a un pendiente. Siempre queda un dueño (`409`) |
+| `GET/PATCH /api/settings`, `DELETE /api/settings/:key` | JWT **root** | Configuración de la plataforma. `PATCH` recibe `{ values: { clave: valor } }` y es atómico (`400` con `errors` por clave). `DELETE` vuelve al predeterminado. Catálogo en [FEATURES.md](FEATURES.md#22-configuración-de-la-plataforma) |
+| `GET /api/settings/public` | JWT | Banderas que necesita el panel: `labEnabled`, `mcpEnabled`, `canCreateWorkspace`, `maxWorkspaceMembers`, `invitationTtlDays` |
 | `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** de plataforma | Gestión de cuentas. Alta con `mode: "own"` (espacio propio, `workspaceName?`) o `"join"` (`workspaceId` de un espacio del que el admin es dueño, `workspaceRole?`); sin `password` la cuenta nace pendiente y la respuesta trae `emailSent` e `invitePath?`. `PATCH` cambia `role` y/o `password` y revoca sus sesiones. No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`), dejar la plataforma sin admin (`409`) ni borrar a la única dueña de un espacio con más miembros (`409`). No hay endpoint para quitar el 2FA de otro usuario |
 
 La cuenta propia y el 2FA están en [3.3](#33-autenticación).

@@ -26,6 +26,9 @@ export type PublicSettings = {
   /** 0 = sin limite. */
   maxWorkspaceMembers: number;
   invitationTtlDays: number;
+  publicSnapshotsEnabled: boolean;
+  /** Logs que guarda un snapshot, como mucho. */
+  maxSnapshotRows: number;
 };
 
 /** Valores con los que el panel se comporta como antes mientras carga. */
@@ -35,6 +38,8 @@ export const PUBLIC_DEFAULTS: PublicSettings = {
   canCreateWorkspace: true,
   maxWorkspaceMembers: 0,
   invitationTtlDays: 7,
+  publicSnapshotsEnabled: true,
+  maxSnapshotRows: 500,
 };
 
 export const usePublicSettings = () => {

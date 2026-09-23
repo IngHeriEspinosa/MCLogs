@@ -14,6 +14,7 @@ import apiKeyRoutes from "./routes/apiKeyRoutes";
 import alertRoutes from "./routes/alertRoutes";
 import workspaceRoutes from "./routes/workspaceRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
+import { snapshotRouter, snapshotViewRouter } from "./routes/snapshotRoutes";
 import mcpRouter from "./mcp/router";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
@@ -98,6 +99,11 @@ export const createApp = () => {
 
   // Alertas del espacio activo (canales, reglas e historial): solo su dueño.
   app.use("/api/alerts", alertRoutes);
+
+  // Snapshots: se gestionan en el espacio activo y se leen por su enlace, que
+  // va fuera de /api porque puede abrirse sin sesion.
+  app.use("/api/snapshots", snapshotRouter);
+  app.use("/snapshots", snapshotViewRouter);
 
   // Auth y rate limiting se aplican por ruta dentro de logRoutes
   // (la ingesta usa API key + límite alto; las consultas usan JWT + límite estándar)

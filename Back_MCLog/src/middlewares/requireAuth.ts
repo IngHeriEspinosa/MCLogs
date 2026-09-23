@@ -18,14 +18,19 @@ export type AuthenticatedRequest = Request & {
   workspace?: WorkspaceContext;
 };
 
-export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+type AuthOutcome = "ok" | "missing" | "invalid" | "refreshFailed";
+
+/**
+ * Identifica al usuario por el JWT de la cabecera o de la cookie y lo deja en
+ * `req.user`. Si el token caduco, intenta renovarlo con el refresh token y
+ * reescribe las cookies. No responde: eso lo decide cada middleware.
+ */
+const authenticate = async (req: AuthenticatedRequest, res: Response): Promise<AuthOutcome> => {
   const header = req.headers.authorization;
   const cookieAccess = req.cookies?.access_token as string | undefined;
   const token = header?.startsWith("Bearer ") ? header.replace("Bearer ", "") : cookieAccess;
-  if (!token) {
-    res.status(401).json({ error: "Missing or invalid Authorization header" });
-    return;
-  }
+  if (!token) return "missing";
+
   const tryRefresh = async () => {
     const refreshHeader = (req.headers["x-refresh-token"] as string | undefined) || (req.cookies?.refresh_token as string | undefined);
     if (!refreshHeader) throw new Error("No refresh token");
@@ -40,31 +45,47 @@ export const requireAuth = (req: AuthenticatedRequest, res: Response, next: Next
       role: refreshed.user.role,
     };
     res.locals.user = req.user;
-    return true;
   };
 
-  (async () => {
+  try {
+    const payload = jwt.verify(token, config.jwtAccessSecret) as jwt.JwtPayload;
+    if (!payload.sub) throw new Error("Invalid token");
+    req.user = {
+      id: Number(payload.sub),
+      email: (payload as any).email,
+      role: (payload as any).role,
+    };
+    res.locals.user = req.user;
+    return "ok";
+  } catch (error) {
+    if (!(error instanceof jwt.TokenExpiredError)) return "invalid";
     try {
-      const payload = jwt.verify(token, config.jwtAccessSecret) as jwt.JwtPayload;
-      if (!payload.sub) throw new Error("Invalid token");
-      req.user = {
-        id: Number(payload.sub),
-        email: (payload as any).email,
-        role: (payload as any).role,
-      };
-      res.locals.user = req.user;
-      next();
-    } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) {
-        try {
-          await tryRefresh();
-          next();
-        } catch {
-          res.status(401).json({ error: "Token expired and refresh failed" });
-        }
-      } else {
-        res.status(401).json({ error: "Invalid or expired token" });
-      }
+      await tryRefresh();
+      return "ok";
+    } catch {
+      return "refreshFailed";
     }
-  })();
+  }
+};
+
+const FAILURE_MESSAGE: Record<Exclude<AuthOutcome, "ok">, string> = {
+  missing: "Missing or invalid Authorization header",
+  invalid: "Invalid or expired token",
+  refreshFailed: "Token expired and refresh failed",
+};
+
+export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  void authenticate(req, res).then((outcome) => {
+    if (outcome === "ok") next();
+    else res.status(401).json({ error: FAILURE_MESSAGE[outcome] });
+  }, next);
+};
+
+/**
+ * Como requireAuth, pero sin exigir sesion: si la hay, deja `req.user`; si no,
+ * o si el token no vale, sigue como anonimo. Para lo que se puede ver sin
+ * cuenta y ofrece algo mas a quien la tiene, como un snapshot.
+ */
+export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  void authenticate(req, res).then(() => next(), next);
 };

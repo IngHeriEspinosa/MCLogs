@@ -24,6 +24,11 @@ type LogInspectorProps = {
   onNext?: () => void;
   /** Posicion en la pagina actual, empezando en 1. */
   position?: { index: number; total: number };
+  /**
+   * Para una copia (un snapshot): sin contexto, traza ni "similares", que
+   * consultarian datos en vivo a los que quien mira puede no tener acceso.
+   */
+  readOnly?: boolean;
 };
 
 /**
@@ -39,11 +44,12 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   onPrev,
   onNext,
   position,
+  readOnly = false,
 }) => {
   const { t, fmt, locale } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const full: LogEntry | null = "streamKey" in log ? null : log;
-  const context = useLogContext(full?.id ?? null);
+  const context = useLogContext(readOnly ? null : full?.id ?? null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -98,12 +104,12 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
 
   const actionsBar = (
     <div className="flex flex-wrap gap-2">
-      {log.traceId && (
+      {log.traceId && !readOnly && (
         <ButtonLink href={`/trace/${encodeURIComponent(log.traceId)}`} size="sm" icon="route">
           {t.inspector.viewTrace}
         </ButtonLink>
       )}
-      {log.fingerprint && (
+      {log.fingerprint && !readOnly && (
         <Button size="sm" icon="hash" onClick={() => onFilterFingerprint(log.fingerprint as string)}>
           {t.inspector.similar}
         </Button>
@@ -163,7 +169,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
       </section>
     );
 
-  const contextSection = full && (
+  const contextSection = full && !readOnly && (
       <section>
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <h3 className="eyebrow">{t.inspector.context}</h3>

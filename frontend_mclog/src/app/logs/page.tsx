@@ -11,6 +11,7 @@ import { LogFilterBar } from "@/components/organisms/LogFilterBar";
 import { LogInspector } from "@/components/organisms/LogInspector";
 import { LogOverview } from "@/components/organisms/LogOverview";
 import { Density, LogRow, LogTable, rowKey } from "@/components/organisms/LogTable";
+import { ShareSnapshotDialog } from "@/components/organisms/ShareSnapshotDialog";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { downloadLogs } from "@/common/api/download";
 import { useI18n } from "@/common/i18n/I18nProvider";
@@ -100,6 +101,7 @@ function LogsView() {
   const [showOverview, setShowOverview] = usePreference<boolean>("overview", true);
   const [selected, setSelected] = useState<LogRow | null>(null);
   const [live, setLive] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const queryFilters = {
     level: filters.level,
@@ -205,6 +207,9 @@ function LogsView() {
             onClick={() => setShowOverview(!showOverview)}
           />
           <IconButton icon="refresh" label={t.common.refresh} variant="secondary" onClick={refresh} />
+          <Button variant="secondary" icon="share" title={t.snapshots.shareHint} onClick={() => setSharing(true)}>
+            {t.snapshots.share}
+          </Button>
           <LiveToggle on={liveOn} allowed={liveAllowed} status={stream.status} onToggle={() => setLive((value) => !value)} />
           <Menu
             label={t.logs.export}
@@ -315,6 +320,7 @@ function LogsView() {
             position={selectedIndex >= 0 ? { index: selectedIndex + 1, total: rows.length } : undefined}
           />
         )}
+        <ShareSnapshotDialog open={sharing} onClose={() => setSharing(false)} filters={filters} total={logs.data?.total ?? null} />
         {logs.data && (
           <p className="sr-only" aria-live="polite">
             {t.logs.results(fmt.number(logs.data.total))}

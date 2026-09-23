@@ -13,7 +13,7 @@ import { prisma } from "../config/prisma";
  *
  * Los valores se sirven desde memoria, porque algunos se consultan en el
  * camino caliente (ingesta, exportacion). Se recargan al guardar y, para que
- * varias instancias converjan, cada 30 s.
+ * varias instancias converjan, cada minuto.
  *
  * Lo que no esta aqui (secretos, CORS, cookies, JWT) sigue siendo solo de
  * entorno a proposito: cambiarlo en caliente abriria puertas o tumbaria sesiones.
@@ -48,6 +48,8 @@ export const SETTINGS = {
   maxBatchSize: { type: "number", category: "logs", min: 1, max: 5_000, default: () => config.maxBatchSize },
   /** Conexiones simultaneas al stream en vivo, por instancia. */
   maxLiveConnections: { type: "number", category: "logs", min: 1, max: 1_000, default: () => config.sseMaxConnections },
+  /** Logs que guarda un snapshot, como mucho. Cada uno es una copia: pesa en la base de datos. */
+  maxSnapshotRows: { type: "number", category: "logs", min: 10, max: 2_000, default: () => 500 },
 
   // --- Funciones ---
   /** Endpoint MCP para asistentes de IA. */
@@ -56,6 +58,8 @@ export const SETTINGS = {
   alertsEnabled: { type: "boolean", category: "features", default: () => true },
   /** Lab de pruebas (y con el, la ingesta con sesion de usuario). */
   labEnabled: { type: "boolean", category: "features", default: () => true },
+  /** Snapshots publicos: enlaces que se abren sin cuenta. Los de equipo no dependen de esto. */
+  publicSnapshotsEnabled: { type: "boolean", category: "features", default: () => true },
 
   // --- Seguridad ---
   /** Minutos que vale un enlace de "olvide mi contrasena". */
@@ -99,7 +103,7 @@ export const refreshSettings = async () => {
   }
 };
 
-const SYNC_INTERVAL_MS = 30_000;
+const SYNC_INTERVAL_MS = 60_000;
 let syncTimer: NodeJS.Timeout | null = null;
 
 /** Carga inicial y recarga periodica, para que varias instancias vean el mismo valor. */

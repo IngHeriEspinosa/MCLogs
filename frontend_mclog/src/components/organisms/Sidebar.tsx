@@ -62,6 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { href: "/records", label: t.nav.records, icon: "table" },
         { href: "/errors", label: t.nav.errors, icon: "errors" },
         { href: "/reports", label: t.nav.reports, icon: "report" },
+        { href: "/snapshots", label: t.nav.snapshots, icon: "camera" },
       ],
     },
     {

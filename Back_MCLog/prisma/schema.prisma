@@ -64,6 +64,7 @@ model Workspace {
   apiKeys       ApiKey[]
   alertChannels AlertChannel[]
   alertRules    AlertRule[]
+  snapshots     Snapshot[]
 
   @@index([deletedAt])
 }
@@ -112,6 +113,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   memberships         WorkspaceMember[]
   settingsUpdated     AppSetting[]
+  snapshots           Snapshot[]
 }
 
 /// Configuracion de la aplicacion que la cuenta root cambia en caliente, sin
@@ -177,6 +179,45 @@ model ApiKey {
 
   @@index([revokedAt])
   @@index([workspaceId])
+}
+
+/// Copia congelada de una vista de logs para compartirla con un enlace. Guarda
+/// los datos tal como estaban al crearla: no cambia con los logs nuevos ni
+/// desaparece con la retencion.
+model Snapshot {
+  id           Int                @id @default(autoincrement())
+  workspaceId  Int
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Identificador del enlace: 32 bytes aleatorios en base64url, imposible de adivinar.
+  token        String             @unique @db.VarChar(64)
+  title        String             @db.VarChar(160)
+  visibility   SnapshotVisibility @default(workspace)
+  /// Si los datos se enmascararon al crearlo. Los publicos lo estan siempre.
+  redacted     Boolean            @default(false)
+  /// Filtros con los que se capturo, con el rango ya resuelto a fechas absolutas.
+  filters      Json
+  /// Resumen: metricas, serie por hora, repartos y fallos principales.
+  summary      Json
+  /// Los logs capturados, hasta el tope de la configuracion (`maxSnapshotRows`).
+  logs         Json
+  /// Cuantos logs cumplian los filtros, aunque se guardaran menos.
+  totalMatched Int
+  createdById  Int?
+  createdBy    User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime           @default(now())
+  /// Null = no caduca.
+  expiresAt    DateTime?
+  viewCount    Int                @default(0)
+  lastViewedAt DateTime?
+
+  @@index([workspaceId, createdAt])
+  @@index([expiresAt])
+}
+
+/// workspace: solo los miembros del espacio; public: cualquiera con el enlace.
+enum SnapshotVisibility {
+  workspace
+  public
 }
 
 /// Destino al que se envía un aviso. La forma de `config` depende del tipo:

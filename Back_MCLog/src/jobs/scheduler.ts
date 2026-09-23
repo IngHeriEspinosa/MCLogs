@@ -5,6 +5,7 @@ import { deleteLogsOlderThanInBatches } from "../services/logService";
 import { evaluateRules } from "../alerts/evaluator";
 import { purgeDeletedWorkspaces } from "../services/workspaceService";
 import { getSetting } from "../services/settingsService";
+import { purgeExpiredSnapshots } from "../services/snapshotService";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -16,6 +17,8 @@ const REFRESH_TOKEN_CLEANUP_INTERVAL_MS = 6 * HOUR_MS;
 const ALERTS_INTERVAL_MS = 60 * 1000;
 // Los espacios borrados ya no se ven; purgar sus logs puede esperar.
 const WORKSPACE_PURGE_INTERVAL_MS = HOUR_MS;
+// Un snapshot caducado ya no se sirve (se comprueba al leerlo); borrarlo es solo liberar espacio.
+const SNAPSHOT_PURGE_INTERVAL_MS = HOUR_MS;
 
 /**
  * Trabajos en ejecucion. Una purga sobre una tabla grande puede durar mas que
@@ -100,6 +103,7 @@ export const startScheduler = () => {
   // Con las alertas apagadas desde la configuracion, la pasada no evalua nada.
   schedule("alerts", ALERTS_INTERVAL_MS, async () => (getSetting("alertsEnabled") ? evaluateRules() : 0));
   schedule("workspacePurge", WORKSPACE_PURGE_INTERVAL_MS, purgeDeletedWorkspaces);
+  schedule("snapshotPurge", SNAPSHOT_PURGE_INTERVAL_MS, purgeExpiredSnapshots);
 
   logger.info("Scheduler started", {
     retentionDays: getSetting("retentionDays"),
@@ -110,6 +114,7 @@ export const startScheduler = () => {
   // esperar una hora mas para recuperar el mantenimiento pendiente.
   void runExclusively("refreshTokenCleanup", runRefreshTokenCleanupNow);
   void runExclusively("workspacePurge", purgeDeletedWorkspaces);
+  void runExclusively("snapshotPurge", purgeExpiredSnapshots);
   void runExclusively("retention", runRetentionNow);
 };
 

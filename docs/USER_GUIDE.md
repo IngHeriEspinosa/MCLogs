@@ -108,6 +108,15 @@ El botón **Exportar** descarga los logs **con los filtros que tengas puestos**,
 
 Desde el mismo menú, **Informe Markdown** y **Brief para agentes IA** abren la pantalla de Reportes con tu rango y ámbito, y lo generan al momento.
 
+### Compartir un snapshot
+
+**Compartir** (en Logs y en Registros) guarda una copia congelada de lo que ves, resumen y tabla, y te da un enlace:
+
+- **Equipo**: solo lo abren los miembros del espacio, con su sesión.
+- **Público**: lo abre cualquiera con el enlace, sin cuenta. Solo lo puede crear el dueño del espacio, y los datos sensibles (correos, IPs, tokens, contraseñas) se enmascaran siempre.
+
+La copia no cambia aunque lleguen logs nuevos. Eliges cuándo caduca (1, 7 o 30 días, o nunca) y en **Snapshots** ves todos los del espacio, cuántas veces se han abierto, y puedes borrarlos. Paso a paso: [Compartir un snapshot](guias/compartir-snapshots.md).
+
 ## A.2.1 Registros y la búsqueda avanzada
 
 **Registros** es la tabla de logs a secas: sin resumen ni modo en vivo, pensada para encontrar un registro concreto y leerlo cómodo. Se llega desde el menú o con el icono junto al número de registros de la tabla de Logs, que la abre con los mismos filtros.
@@ -417,6 +426,12 @@ Cambiar la contraseña o el rol de alguien **cierra sus sesiones abiertas** en t
 Algunas operaciones están bloqueadas a propósito, para que nada se quede sin administración: nadie puede borrarse a sí mismo desde esta pantalla, nadie puede eliminar o degradar la cuenta root ni al último `admin`, un espacio siempre conserva al menos un dueño, y no se puede eliminar una cuenta que es la única dueña de un espacio con más miembros.
 
 Cada quien cambia su propia contraseña, activa la verificación en dos pasos o elimina su cuenta en **Mi cuenta** ([A.7](#a7-tu-cuenta-y-su-seguridad)). Un admin **no** puede quitar la verificación en dos pasos de otra persona; si alguien pierde el móvil y los códigos de recuperación, sigue la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#recuperar-una-cuenta-con-2fa).
+
+### Configuración de la plataforma (solo root)
+
+En **Plataforma → Configuración**, visible solo para la cuenta root (`ADMIN_EMAIL`). Cambia el comportamiento de MCLog para todos, al momento y sin reiniciar: límites de miembros e invitaciones por espacio, quién puede crear espacios, validez de los enlaces, retención, tamaño de exportaciones y lotes, conexiones en vivo, y encender o apagar MCP, alertas y el Lab.
+
+Cada ajuste muestra su valor predeterminado (el de la variable de entorno, si la hay) y, si lo cambiaste, quién y cuándo. Edita los que quieras y pulsa **Guardar cambios** en la barra inferior; **Restablecer** vuelve al predeterminado. Detalle de cada clave en [FEATURES.md](FEATURES.md#22-configuración-de-la-plataforma).
 
 ## C.4 API keys
 

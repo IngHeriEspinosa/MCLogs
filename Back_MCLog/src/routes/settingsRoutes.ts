@@ -32,6 +32,8 @@ router.get("/public", (req: AuthenticatedRequest, res: Response) => {
       canCreateWorkspace: getSetting("allowWorkspaceCreation") || req.user?.role === "admin",
       maxWorkspaceMembers: getSetting("maxWorkspaceMembers"),
       invitationTtlDays: getSetting("invitationTtlDays"),
+      publicSnapshotsEnabled: getSetting("publicSnapshotsEnabled"),
+      maxSnapshotRows: getSetting("maxSnapshotRows"),
     },
   });
 });

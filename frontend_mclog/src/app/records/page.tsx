@@ -7,6 +7,7 @@ import { AdvancedLogSearch } from "@/components/organisms/AdvancedLogSearch";
 import { LogFilterBar } from "@/components/organisms/LogFilterBar";
 import { LogInspector } from "@/components/organisms/LogInspector";
 import { Density, LogRow, LogTable, rowKey } from "@/components/organisms/LogTable";
+import { ShareSnapshotDialog } from "@/components/organisms/ShareSnapshotDialog";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { resolveRange } from "@/common/time/range";
@@ -48,6 +49,7 @@ function RecordsView() {
   const [density, setDensity] = usePreference<Density>("density", "comfortable");
   const [advancedOpen, setAdvancedOpen] = usePreference<boolean>("records-advanced", true);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   const logs = useLogs({
     page: filters.page,
@@ -106,7 +108,14 @@ function RecordsView() {
       title={t.records.title}
       eyebrow={t.records.eyebrow}
       description={t.records.description}
-      actions={<IconButton icon="refresh" label={t.common.refresh} variant="secondary" onClick={refresh} />}
+      actions={
+        <>
+          <IconButton icon="refresh" label={t.common.refresh} variant="secondary" onClick={refresh} />
+          <Button variant="secondary" icon="share" title={t.snapshots.shareHint} onClick={() => setSharing(true)}>
+            {t.snapshots.share}
+          </Button>
+        </>
+      }
     >
       <div className="flex flex-col gap-4 3xl:gap-5">
         <LogFilterBar
@@ -170,6 +179,8 @@ function RecordsView() {
           </p>
         )}
       </div>
+
+      <ShareSnapshotDialog open={sharing} onClose={() => setSharing(false)} filters={filters} advanced total={logs.data?.total ?? null} />
 
       {shown && (
         <LogInspector

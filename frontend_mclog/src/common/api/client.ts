@@ -31,12 +31,14 @@ const redirectToLogin = () => {
 
 // Endpoints donde un 401 no significa "sesion caducada": reintentarlos tras un
 // refresh no tiene sentido. /auth/me si se reintenta: es lo que decide si el
-// panel manda al login.
-const NO_REFRESH = /\/auth\/(login|refresh|logout)(\/|$)/;
+// panel manda al login. Un snapshot tampoco: el servidor ya renueva la sesion
+// si puede, y su 401 significa "de equipo y sin sesion".
+const NO_REFRESH = /\/auth\/(login|refresh|logout)(\/|$)|^\/snapshots\//;
 
 // /auth/me sin sesion no manda al login por su cuenta: la portada lo consulta
 // solo para saber si hay sesion, y el panel ya redirige con ?next= al fallar.
-const NO_REDIRECT = /\/auth\/me$/;
+// Un snapshot de equipo tampoco: su pagina ofrece entrar sin perder el enlace.
+const NO_REDIRECT = /\/auth\/me$|^\/snapshots\//;
 
 // Un unico refresh en vuelo: si varias peticiones caducan a la vez, todas
 // esperan al mismo en lugar de rotar el token cada una por su cuenta.
