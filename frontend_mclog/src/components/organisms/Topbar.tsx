@@ -2,7 +2,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { IconButton } from "@/components/atoms/Button";
-import { Icon } from "@/components/atoms/Icon";
+import { Icon, IconName } from "@/components/atoms/Icon";
 import { Tag } from "@/components/atoms/Tag";
 import { Menu } from "@/components/molecules/Menu";
 import { useI18n } from "@/common/i18n/I18nProvider";
@@ -13,22 +13,30 @@ import { CurrentUser, useLogout } from "@/hooks/useAuth";
 
 const THEME_ICON = { light: "sun", dark: "moon", system: "monitor" } as const;
 
+const DOCS_URL = "https://ingheriespinosa.github.io/MCLogs/";
 const REPO_URL = "https://github.com/IngHeriEspinosa/MCLogs";
 
-/** Enlace al repositorio del proyecto; se abre en otra pestana. */
-export const GitHubLink: React.FC = () => {
+const ExternalIconLink: React.FC<{ href: string; icon: IconName; label: string }> = ({ href, icon, label }) => (
+  <a
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label={label}
+    title={label}
+    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink hover:no-underline"
+  >
+    <Icon name={icon} className="h-4 w-4" />
+  </a>
+);
+
+/** Documentacion y repositorio del proyecto; se abren en otra pestana. */
+export const ProjectLinks: React.FC = () => {
   const { t } = useI18n();
   return (
-    <a
-      href={REPO_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={t.app.sourceCode}
-      title={t.app.sourceCode}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink hover:no-underline"
-    >
-      <Icon name="github" className="h-4 w-4" />
-    </a>
+    <>
+      <ExternalIconLink href={DOCS_URL} icon="book" label={t.app.docs} />
+      <ExternalIconLink href={REPO_URL} icon="github" label={t.app.sourceCode} />
+    </>
   );
 };
 

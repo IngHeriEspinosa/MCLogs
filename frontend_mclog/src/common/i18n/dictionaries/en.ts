@@ -13,6 +13,7 @@ export const en: Dictionary = {
     name: "MCLog",
     console: "Console",
     tagline: "Centralized logs",
+    docs: "Documentation",
     sourceCode: "Source code on GitHub",
   },
 

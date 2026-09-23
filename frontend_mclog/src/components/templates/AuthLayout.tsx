@@ -2,7 +2,7 @@
 // Template: AuthLayout (flujo de autenticación)
 import React, { useEffect } from "react";
 import { Icon, Logo } from "@/components/atoms/Icon";
-import { GitHubLink, LanguageMenu, ThemeMenu } from "@/components/organisms/Topbar";
+import { ProjectLinks, LanguageMenu, ThemeMenu } from "@/components/organisms/Topbar";
 import { useI18n } from "@/common/i18n/I18nProvider";
 
 // Ilustracion del panel de marca: lineas de ejemplo, no datos reales.
@@ -113,7 +113,7 @@ export const AuthLayout: React.FC<{ children: React.ReactNode; title: string; su
       <main className="relative flex flex-col">
         <div aria-hidden className="bg-dot-grid pointer-events-none absolute inset-0 [mask-image:linear-gradient(to_bottom,black,transparent_60%)] lg:hidden" />
         <div className="relative flex justify-end gap-0.5 p-4">
-          <GitHubLink />
+          <ProjectLinks />
           <LanguageMenu />
           <ThemeMenu />
         </div>

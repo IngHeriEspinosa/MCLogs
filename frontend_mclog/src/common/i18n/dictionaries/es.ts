@@ -11,6 +11,7 @@ export const es = {
     name: "MCLog",
     console: "Consola",
     tagline: "Logs centralizados",
+    docs: "Documentación",
     sourceCode: "Código fuente en GitHub",
   },
 

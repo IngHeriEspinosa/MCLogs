@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon, Logo } from "@/components/atoms/Icon";
-import { GitHubLink, LanguageMenu, ThemeMenu } from "@/components/organisms/Topbar";
+import { ProjectLinks, LanguageMenu, ThemeMenu } from "@/components/organisms/Topbar";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { useMe } from "@/hooks/useAuth";
 
@@ -39,7 +39,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <GitHubLink />
+          <ProjectLinks />
           <LanguageMenu />
           <ThemeMenu />
         </div>
