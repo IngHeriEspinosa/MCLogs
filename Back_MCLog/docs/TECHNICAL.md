@@ -278,7 +278,7 @@ Se reconocen las dos familias de marcadores: los valores de desarrollo de `.env.
   - Solo se guarda su hash.
   - La clave heredada se compara en tiempo constante (`crypto.timingSafeEqual`).
 - **Contraseñas:**
-  - bcrypt con cost 12; mínimo 10 caracteres para altas y cambios.
+  - bcrypt con cost 12; mínimo 8 caracteres para altas y cambios.
   - Cambiar la contraseña revoca todas las sesiones.
 - **2FA:**
   - TOTP con anti-reutilización atómica, y códigos de recuperación hasheados y de un solo uso.

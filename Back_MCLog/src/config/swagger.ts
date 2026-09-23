@@ -1,4 +1,5 @@
 import swaggerJSDoc from "swagger-jsdoc";
+import { PASSWORD_MIN_LENGTH } from "../services/userService";
 
 const logQueryParams = [
   { in: "query", name: "page", schema: { type: "integer", minimum: 1 } },
@@ -324,7 +325,7 @@ export const swaggerSpec = swaggerJSDoc({
                 schema: {
                   type: "object",
                   required: ["currentPassword", "newPassword"],
-                  properties: { currentPassword: { type: "string" }, newPassword: { type: "string", minLength: 10 } },
+                  properties: { currentPassword: { type: "string" }, newPassword: { type: "string", minLength: PASSWORD_MIN_LENGTH } },
                 },
               },
             },
@@ -405,7 +406,7 @@ export const swaggerSpec = swaggerJSDoc({
                   required: ["email", "password"],
                   properties: {
                     email: { type: "string", format: "email" },
-                    password: { type: "string", minLength: 10 },
+                    password: { type: "string", minLength: PASSWORD_MIN_LENGTH },
                     role: { type: "string", enum: ["user", "admin"], default: "user" },
                   },
                 },
@@ -430,7 +431,7 @@ export const swaggerSpec = swaggerJSDoc({
                   description: "Al menos uno de los dos campos",
                   properties: {
                     role: { type: "string", enum: ["user", "admin"] },
-                    password: { type: "string", minLength: 10 },
+                    password: { type: "string", minLength: PASSWORD_MIN_LENGTH },
                   },
                 },
               },

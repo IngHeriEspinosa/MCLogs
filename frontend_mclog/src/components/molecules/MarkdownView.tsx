@@ -1,4 +1,5 @@
 import React from "react";
+import { safeHref } from "@/common/reports/markdown";
 
 /**
  * Vista previa del Markdown que generan los reportes.
@@ -157,16 +158,34 @@ export const parseMarkdown = (source: string): Block[] => {
   return blocks;
 };
 
-/** `codigo` y **negrita**: lo unico en linea que usan los generadores. */
-const inline = (text: string): React.ReactNode[] =>
-  text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).map((part, index) => {
+const LINK = /^\[([^\]]+)\]\(([^)\s]+)\)$/;
+
+/** `codigo`, **negrita** y [enlaces](url): lo unico en linea que usan los generadores. */
+const inlineWith = (text: string, linkOrigin?: string): React.ReactNode[] =>
+  text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)\s]+\))/g).map((part, index) => {
     if (part.startsWith("`") && part.endsWith("`") && part.length > 2) return <code key={index}>{part.slice(1, -1)}</code>;
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    const link = part.match(LINK);
+    if (link) {
+      const href = safeHref(link[2], linkOrigin);
+      return href ? (
+        <a key={index} href={href} target="_blank" rel="noopener noreferrer">
+          {link[1]}
+        </a>
+      ) : (
+        part
+      );
+    }
     return part;
   });
 
-export const MarkdownView: React.FC<{ source: string; className?: string }> = ({ source, className = "" }) => {
+export const MarkdownView: React.FC<{ source: string; className?: string; linkOrigin?: string }> = ({
+  source,
+  className = "",
+  linkOrigin,
+}) => {
   const blocks = parseMarkdown(source);
+  const inline = (text: string) => inlineWith(text, linkOrigin);
   return (
     <div className={`md-view ${className}`}>
       {blocks.map((block, index) => {

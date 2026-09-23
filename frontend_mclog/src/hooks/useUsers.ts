@@ -12,7 +12,7 @@ export type ManagedUser = {
   createdAt: string;
 };
 
-export const PASSWORD_MIN_LENGTH = 10;
+export const PASSWORD_MIN_LENGTH = 8;
 
 export const useUsers = () =>
   useQuery<ManagedUser[]>({

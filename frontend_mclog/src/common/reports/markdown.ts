@@ -69,6 +69,21 @@ export const yamlScalar = (value: unknown): string => {
   return JSON.stringify(String(value));
 };
 
+/**
+ * Un enlace de la vista previa solo es clicable si apunta a `linkOrigin` (el
+ * propio MCLog). Un mensaje de log puede traer "[pulsa aqui](https://phishing…)";
+ * ese se queda en texto.
+ */
+export const safeHref = (href: string, linkOrigin?: string): string | null => {
+  if (!linkOrigin) return null;
+  try {
+    const url = new URL(href);
+    return url.origin === linkOrigin && (url.protocol === "https:" || url.protocol === "http:") ? url.toString() : null;
+  } catch {
+    return null;
+  }
+};
+
 /** Estimacion gruesa de tokens (~4 caracteres por token en texto mixto). */
 export const approxTokens = (text: string): number => Math.ceil(text.length / 4);
 

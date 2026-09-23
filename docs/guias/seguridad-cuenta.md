@@ -22,7 +22,7 @@ Hazlo siempre que te hayan dado la contraseña otra persona o un fichero de conf
 
 1. En **Mi cuenta**, busca la tarjeta **Cambiar contraseña**.
 2. Escribe tu **Contraseña actual**.
-3. Escribe la **Contraseña nueva** (mínimo 10 caracteres y distinta de la actual) y repítela en **Repite la contraseña nueva**.
+3. Escribe la **Contraseña nueva** (mínimo 8 caracteres y distinta de la actual) y repítela en **Repite la contraseña nueva**.
 4. Pulsa **Cambiar contraseña**.
 
 Verás "Contraseña actualizada. Se han cerrado todas tus sesiones". MCLog cierra la sesión **en todos tus dispositivos, incluido este**, y te lleva al login. Entra con la contraseña nueva.

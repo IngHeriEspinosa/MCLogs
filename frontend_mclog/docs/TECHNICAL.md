@@ -122,15 +122,22 @@ Todos en SVG propio, con la paleta de niveles **validada para cada superficie** 
 
 Todo se construye en el navegador (`common/reports`): nada sale de él hasta que se descarga o se copia.
 
-- `collect.ts` pide en paralelo solo lo que usan las secciones elegidas (estadísticas, grupos de error, errores recientes, inventario) y después el ejemplo más reciente de cada fallo, para su stack (tope de 10 peticiones).
+- `options.ts` define tipos, secciones y la validación de preferencias. No depende del cliente HTTP, así que la página y los tests lo usan sin arrastrar axios. `collect.ts` lo reexporta.
+- `collect.ts` pide en paralelo solo lo que usan las secciones elegidas (estadísticas, grupos de error y de warning, errores recientes, inventario, y estadísticas y grupos de la ventana anterior para la comparación). Después pide el ejemplo más reciente de cada fallo, para su stack: como mucho 20 peticiones, de 5 en 5, para no chocar con el rate limit. Los formatos para agentes piden siempre los grupos, porque su resumen cuenta los fallos distintos. El inventario (`/api/logs/applications`) solo admite `hours` hasta ahora, así que se le pide la ventana que cubre desde el inicio del reporte (24–744 h) y el documento dice desde cuándo cuenta.
 - `build.ts` genera tres formatos:
-  - **Informe Markdown** para personas: hallazgos en prosa y tablas.
-  - **Brief para agentes IA** (`.md`): front matter YAML, rol, objetivo, pasos, reglas, notas del operador, herramientas del servidor MCP `mclog` y formato de respuesta; los datos van en bloques YAML/CSV/JSON dentro de `<mclog_data>`.
-  - **JSON** con esquema `mclog.agent-report/v1`, para pipelines.
-- **Defensa contra inyección de instrucciones**: los logs son texto de terceros. Todo lo que viene de ellos va dentro de `<mclog_data>` y las reglas dicen explícitamente que ese contenido no es de fiar. Las reglas también advierten que `first_seen` es la primera ocurrencia *dentro de la ventana*, para que el agente no confunda un fallo antiguo con uno nuevo.
-- `redact.ts` enmascara correos, IPs, JWT, cabeceras `Bearer`, pares `password=…` y cadenas largas tipo clave. Solo toca texto libre: huellas, traceId e IDs se conservan porque el agente necesita citarlos. Activado por defecto en los formatos para IA y siempre en los briefs rápidos ("Copiar para IA").
+  - **Informe Markdown** para personas: hallazgos en prosa, tablas y un enlace a las ocurrencias de cada fallo en MCLog.
+  - **Brief para agentes IA** (`.md`, `mclog.agent-brief/v2`): front matter YAML, rol, objetivo, pasos, reglas, notas del operador, herramientas del servidor MCP `mclog` y formato de respuesta; los datos van en bloques YAML/CSV/JSON dentro de `<mclog_data>`.
+  - **JSON** con esquema `mclog.agent-report/v2`, para pipelines (cambios respecto a v1 en `docs/AI_INTEGRATION.md`).
+- **Comparación con el periodo anterior**: `trendOf` clasifica cada fallo en `new`, `up`, `down`, `flat` o `unknown`. Un cambio cuenta si supera el 25 % y 3 ocurrencias. Si el periodo anterior llegó al tope de 100 grupos, un fallo ausente es `unknown` y no `new`; si lo alcanzó la ventana actual, no se afirma qué dejó de aparecer.
+- **Defensa contra inyección de instrucciones**: los logs son texto de terceros. Todo lo que viene de ellos va dentro de `<mclog_data>` y la primera regla (`untrustedRule`) dice explícitamente que ese contenido no es de fiar. Las reglas también advierten que `first_seen` es la primera ocurrencia *dentro de la ventana*, para que el agente no confunda un fallo antiguo con uno nuevo. Las reglas condicionales (enmascarado, comparación) tienen su propia clave en el diccionario, no se filtran por texto.
+- `redact.ts` enmascara correos, IPs, JWT, cabeceras `Bearer`, pares `password=…` y cadenas largas tipo clave. Solo toca texto libre: huellas, traceId e IDs se conservan porque el agente necesita citarlos, y los UUID dentro de mensajes también (suelen ser ids de entidades). `createRedactor()` cuenta lo que tapa y la vista previa lo muestra. Activado por defecto en los formatos para IA y siempre en los briefs rápidos ("Copiar para IA").
 - `markdown.ts` escapa `|` en tablas y elige vallas de código más largas que cualquier racha de comillas invertidas del contenido: un log no puede romper el documento.
-- La vista previa (`MarkdownView`) es un parser pequeño que devuelve elementos de React, **nunca HTML**: un log con `<script>` se ve como texto.
+- La vista previa (`MarkdownView`) es un parser pequeño que devuelve elementos de React, **nunca HTML**: un log con `<script>` se ve como texto. Los enlaces solo son clicables si apuntan al propio origen de MCLog (`safeHref`); un `[pulsa aquí](https://…)` dentro de un log se queda en texto.
+- Preferencias: tipo, secciones, opciones e idioma se guardan en `localStorage` (`mclog.reports.prefs`) tras montar, para no desajustar la hidratación. Una sección nueva por defecto se añade a quien guardó antes de que existiera. El tipo, el rango y el ámbito se sincronizan con la URL.
+
+### Tests
+
+`npm test` usa el runner nativo de Node 24, que ya ejecuta TypeScript quitando los tipos: no hay dependencias nuevas. `tests/alias-loader.mjs` resuelve los alias `@/` y los imports sin extensión. Por eso, en los módulos que cargan los tests, los imports de solo tipos llevan `type` (`import { es, type Dictionary }`): Node no puede saber que un nombre es un tipo y fallaría al buscarlo.
 
 ## Stream en vivo
 

@@ -30,7 +30,7 @@ Da **Usuario** por defecto. Un admin puede borrar datos y crear claves.
 
 1. Pulsa **Nuevo usuario**.
 2. **Correo**: el de la persona.
-3. **Contraseña**: una temporal de al menos 10 caracteres.
+3. **Contraseña**: una temporal de al menos 8 caracteres.
 4. **Rol**: normalmente **Usuario**.
 5. Pulsa **Crear usuario**. Verás "Usuario … creado. Ya puede iniciar sesión."
 6. Pasa la contraseña a la persona **por un canal seguro** (no en el mismo mensaje que el correo), y pídele que la cambie y active la verificación en dos pasos ([Proteger tu cuenta](seguridad-cuenta.md)).

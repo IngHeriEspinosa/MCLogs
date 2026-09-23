@@ -259,6 +259,10 @@ a {
   @apply font-semibold text-ink;
 }
 
+.md-view a {
+  @apply font-medium text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand;
+}
+
 .md-view ul {
   @apply list-disc space-y-1.5 pl-6 marker:text-ink-3;
 }

@@ -18,6 +18,7 @@ Dashboard web para consultar y gestionar los logs centralizados de MCLog.
 ```bash
 npm install
 npm run dev     # http://localhost:3001 (el backend debe estar en http://localhost:3000)
+npm test        # tests de los reportes con el runner nativo (Node 24+)
 ```
 
 Configuración en `.env.local`:

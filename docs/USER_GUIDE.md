@@ -167,11 +167,13 @@ La pantalla **Reportes** genera documentos a partir de los logs de un rango:
 | **Brief para agentes IA** | Un agente de IA: instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
 | **Datos para agentes (JSON)** | Pipelines y herramientas: lo mismo que el brief, en un objeto JSON con esquema estable |
 
-Eliges el rango, la aplicación y el entorno, las secciones y cuántos fallos incluir. Para los briefs de IA, además, el **objetivo** (triaje, regresión tras un despliegue o resumen de incidente) y, si quieres, instrucciones propias. El idioma del reporte se elige aparte del de la interfaz.
+Eliges el rango, la aplicación y el entorno, las secciones y cuántos fallos incluir. Para los briefs de IA, además, el **objetivo** (triaje, regresión tras un despliegue o resumen de incidente) y, si quieres, instrucciones propias. El idioma del reporte se elige aparte del de la interfaz. Tus preferencias se recuerdan en el navegador, el rango y el ámbito van en la URL, y **Ctrl + Enter** genera.
 
-**Enmascarar datos sensibles** oculta correos, IPs, tokens y claves antes de exportar. Viene activado en los formatos de IA: mantenlo así si el reporte va a un modelo externo. Las huellas y los traceId se conservan, porque el agente los necesita para seguir investigando.
+La sección **Comparación con el periodo anterior** compara con la ventana de igual duración justo antes y señala los fallos **nuevos**, los que **empeoraron** y los que **dejaron de aparecer**: es lo primero que mirar tras un despliegue. **Warnings agrupados** (opcional) ayuda a separar el ruido. En el informe Markdown cada fallo enlaza a sus ocurrencias en MCLog.
 
-La vista previa muestra el documento formateado o el Markdown tal cual, con su tamaño y una estimación de tokens. **Copiar** y **Descargar** son los únicos momentos en que sale algo de tu navegador.
+**Enmascarar datos sensibles** oculta correos, IPs, tokens y claves antes de exportar. Viene activado en los formatos de IA: mantenlo así si el reporte va a un modelo externo. Las huellas, los traceId y los UUID de los mensajes se conservan, porque el agente los necesita para seguir investigando.
+
+La vista previa muestra el documento formateado o el Markdown tal cual, con su tamaño, una estimación de tokens y cuántos valores se enmascararon. **Copiar** y **Descargar** son los únicos momentos en que sale algo de tu navegador.
 
 ## A.6 Cómo investigar un incidente
 
@@ -192,7 +194,7 @@ Todo está en **Mi cuenta**, abajo en el menú.
 
 ### Cambiar la contraseña
 
-Escribe la **Contraseña actual** y dos veces la **Contraseña nueva** (mínimo 10 caracteres y distinta de la actual). Al guardarla se cierran tus sesiones **en todos los dispositivos, incluido este**, y vuelves al login.
+Escribe la **Contraseña actual** y dos veces la **Contraseña nueva** (mínimo 8 caracteres y distinta de la actual). Al guardarla se cierran tus sesiones **en todos los dispositivos, incluido este**, y vuelves al login.
 
 ### Activar la verificación en dos pasos
 
@@ -392,7 +394,7 @@ El procedimiento completo, con requisitos, DNS, certificados y resolución de pr
 
 En **Administración → Usuarios**, si tu rol es `admin`. Puedes dar de alta, cambiar el rol, restablecer contraseñas y eliminar.
 
-**Dar de alta a alguien:** **Nuevo usuario** → **Correo**, **Contraseña** (mínimo 10 caracteres) y **Rol** → **Crear usuario**. Ya puede entrar; pásale la contraseña por un canal seguro y pídele que la cambie en **Mi cuenta**.
+**Dar de alta a alguien:** **Nuevo usuario** → **Correo**, **Contraseña** (mínimo 8 caracteres) y **Rol** → **Crear usuario**. Ya puede entrar; pásale la contraseña por un canal seguro y pídele que la cambie en **Mi cuenta**.
 
 | Rol | Puede |
 |---|---|

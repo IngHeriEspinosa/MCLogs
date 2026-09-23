@@ -4,12 +4,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/atoms/Alert";
 import { Button } from "@/components/atoms/Button";
 import { Checkbox } from "@/components/atoms/Checkbox";
-import { EmptyState } from "@/components/atoms/EmptyState";
+import { EmptyState, Kbd } from "@/components/atoms/EmptyState";
 import { Field, Fieldset } from "@/components/atoms/Field";
 import { Icon, IconName } from "@/components/atoms/Icon";
 import { Textarea } from "@/components/atoms/Input";
 import { Segmented } from "@/components/atoms/Segmented";
 import { Switch } from "@/components/atoms/Switch";
+import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
 import { CodeBlock } from "@/components/molecules/CodeBlock";
 import { CopyButton } from "@/components/molecules/CopyButton";
@@ -26,21 +27,44 @@ import { BuiltReport, buildReport } from "@/common/reports/build";
 import {
   AGENT_OBJECTIVES,
   AgentObjective,
+  applyPrefs,
   collectReportData,
+  DEFAULT_SECTIONS,
+  MAX_GROUPS_OPTIONS,
+  MAX_SAMPLES,
+  parsePrefs,
+  PREFS_KEY,
   REPORT_KINDS,
   REPORT_SECTIONS,
   ReportKind,
   ReportOptions,
   ReportSection,
+  serializePrefs,
+  STACK_LINES_OPTIONS,
 } from "@/common/reports/collect";
 import { approxTokens } from "@/common/reports/markdown";
-import { Preset, rangeFromParams } from "@/common/time/range";
+import { Preset, rangeFromParams, rangeToParams } from "@/common/time/range";
 import { useFilterOptions } from "@/hooks/useOptions";
 
 const PRESETS: readonly Preset[] = ["1h", "6h", "24h", "7d", "30d"];
 const KIND_ICON: Record<ReportKind, IconName> = { markdown: "report", "agent-md": "bot", "agent-json": "braces" };
+/** Por encima de esto un brief ya no cabe holgado en la ventana de muchos modelos. */
+const LARGE_TOKENS = 100_000;
 
-type Result = BuiltReport & { options: ReportOptions; bytes: number; generatedAt: string };
+type Result = BuiltReport & { options: ReportOptions; bytes: number; tokens: number; generatedAt: string; origin: string };
+
+const isKind = (value: unknown): value is ReportKind => REPORT_KINDS.includes(value as ReportKind);
+
+const defaults = (scope: Pick<ReportOptions, "kind" | "locale" | "range" | "application" | "environment">): ReportOptions => ({
+  ...scope,
+  sections: [...DEFAULT_SECTIONS],
+  maxGroups: 10,
+  includeStacks: true,
+  stackLines: 20,
+  redact: scope.kind !== "markdown",
+  objective: "triage",
+  instructions: "",
+});
 
 function ReportsView() {
   const { t, fmt, locale } = useI18n();
@@ -51,25 +75,21 @@ function ReportsView() {
   const filterOptions = useFilterOptions();
 
   // Estado inicial desde la URL: "Exportar > Brief para IA" en la vista de
-  // logs llega aqui con el tipo, el rango y el ambito ya puestos.
+  // logs llega aqui con el tipo, el rango y el ambito ya puestos. Las
+  // preferencias guardadas se aplican tras montar, para no desajustar la
+  // hidratacion.
   const [options, setOptions] = useState<ReportOptions>(() => {
     const params = new URLSearchParams(searchParams.toString());
-    const kind = REPORT_KINDS.includes(params.get("kind") as ReportKind) ? (params.get("kind") as ReportKind) : "markdown";
-    return {
-      kind,
+    const kind = params.get("kind");
+    return defaults({
+      kind: isKind(kind) ? kind : "markdown",
       locale,
       range: rangeFromParams(params),
       application: params.get("application") ?? undefined,
       environment: params.get("environment") ?? undefined,
-      sections: [...REPORT_SECTIONS],
-      maxGroups: 10,
-      includeStacks: true,
-      stackLines: 20,
-      redact: kind !== "markdown",
-      objective: "triage",
-      instructions: "",
-    };
+    });
   });
+  const [hydrated, setHydrated] = useState(false);
   const [view, setView] = useState<"rendered" | "raw">("rendered");
 
   const set = <K extends keyof ReportOptions>(key: K, value: ReportOptions[K]) =>
@@ -93,7 +113,14 @@ function ReportsView() {
       const data = await collectReportData(input);
       const built = buildReport(data, input);
       if (current === runId.current) {
-        setResult({ ...built, options: input, bytes: new Blob([built.content]).size, generatedAt: data.generatedAt });
+        setResult({
+          ...built,
+          options: input,
+          bytes: new Blob([built.content]).size,
+          tokens: approxTokens(built.content),
+          generatedAt: data.generatedAt,
+          origin: data.origin,
+        });
       }
     } catch (error) {
       if (current === runId.current) setFailure(error);
@@ -103,26 +130,90 @@ function ReportsView() {
   }, []);
 
   const run = () => {
-    if (options.sections.length === 0) return;
+    if (options.sections.length === 0 || pending) return;
     void generate(options);
   };
 
-  // Autogenerar una vez si se llego con ?generate=1, y limpiar ese parametro
-  // para que recargar la pagina no vuelva a lanzarlo.
-  const autoRan = useRef(false);
+  // Al montar: aplicar las preferencias guardadas y, si se llego con
+  // ?generate=1, generar una vez con ellas.
+  const mounted = useRef(false);
   useEffect(() => {
-    if (autoRan.current || searchParams.get("generate") !== "1") return;
-    autoRan.current = true;
-    void generate(options);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("generate");
-    router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
+    if (mounted.current) return;
+    mounted.current = true;
+    let stored = {};
+    try {
+      stored = parsePrefs(window.localStorage.getItem(PREFS_KEY));
+    } catch {
+      // Sin almacenamiento: se quedan los valores por defecto.
+    }
+    const merged = applyPrefs(options, stored, isKind(searchParams.get("kind")));
+    setOptions(merged);
+    setHydrated(true);
+    if (searchParams.get("generate") === "1") void generate(merged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Recordar las preferencias en este navegador.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(PREFS_KEY, serializePrefs(options));
+    } catch {
+      // Ignorado a proposito: es una comodidad, no un dato.
+    }
+  }, [options, hydrated]);
+
+  // El tipo, el rango y el ambito van en la URL: recargar no los pierde y el
+  // enlace se puede compartir. De paso desaparece ?generate=1, para que
+  // recargar no vuelva a lanzarlo.
+  useEffect(() => {
+    if (!hydrated) return;
+    const params = new URLSearchParams();
+    if (options.kind !== "markdown") params.set("kind", options.kind);
+    Object.entries(rangeToParams(options.range)).forEach(([key, value]) => value && params.set(key, value));
+    if (options.application) params.set("application", options.application);
+    if (options.environment) params.set("environment", options.environment);
+    const next = params.toString();
+    if (next !== window.location.search.replace(/^\?/, "")) {
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    }
+  }, [hydrated, options.kind, options.range, options.application, options.environment, pathname, router]);
+
+  // Ctrl/Cmd + Enter genera desde cualquier punto de la pagina.
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        runRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const reset = () => {
+    try {
+      window.localStorage.removeItem(PREFS_KEY);
+    } catch {
+      // Sin almacenamiento no hay nada que borrar.
+    }
+    setOptions((current) =>
+      defaults({
+        kind: current.kind,
+        locale,
+        range: current.range,
+        application: current.application,
+        environment: current.environment,
+      }),
+    );
+  };
 
   const stale = useMemo(() => !!result && JSON.stringify(result.options) !== JSON.stringify(options), [result, options]);
   const isAgent = options.kind !== "markdown";
   const isJson = result?.filename.endsWith(".json");
+  const large = !!result && result.options.kind !== "markdown" && result.tokens > LARGE_TOKENS;
 
   const toggleSection = (section: ReportSection, checked: boolean) =>
     set(
@@ -138,12 +229,19 @@ function ReportsView() {
     notify(t.toast.downloaded(result.filename));
   };
 
+  const sectionHints: Partial<Record<ReportSection, string>> = t.reports.sectionHints;
+
   return (
     <DashboardLayout title={t.reports.title} eyebrow={t.reports.eyebrow} description={t.reports.description}>
       <div className="grid items-start gap-4 xl:grid-cols-[25rem_minmax(0,1fr)] 3xl:grid-cols-[28rem_minmax(0,1fr)] 3xl:gap-5">
         <Card
           title={t.reports.config}
           divider
+          actions={
+            <Button size="sm" variant="ghost" icon="refresh" onClick={reset} title={t.reports.resetHint}>
+              {t.reports.reset}
+            </Button>
+          }
           className="xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto"
         >
           <form
@@ -192,7 +290,8 @@ function ReportsView() {
               <DateRangePicker value={options.range} onChange={(range) => set("range", range)} presets={PRESETS} />
             </Field>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1 3xl:grid-cols-2">
+            {/* Una columna en el panel lateral: a dos, "Todos los entornos" se cortaba. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
               <Field label={t.logs.application}>
                 <Select
                   icon="box"
@@ -214,13 +313,14 @@ function ReportsView() {
             </div>
 
             <Fieldset legend={t.reports.sections} hint={options.sections.length === 0 ? t.reports.noSections : undefined}>
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1 3xl:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
                 {REPORT_SECTIONS.map((section) => (
                   <Checkbox
                     key={section}
                     checked={options.sections.includes(section)}
                     onChange={(checked) => toggleSection(section, checked)}
                     label={t.reports.sectionNames[section]}
+                    description={sectionHints[section]}
                   />
                 ))}
               </div>
@@ -233,14 +333,14 @@ function ReportsView() {
                     <Select
                       value={String(options.maxGroups)}
                       onChange={(value) => set("maxGroups", Number(value))}
-                      options={[5, 10, 20, 50].map((count) => ({ value: String(count), label: String(count) }))}
+                      options={MAX_GROUPS_OPTIONS.map((count) => ({ value: String(count), label: String(count) }))}
                     />
                   </Field>
                   <Field label={t.reports.stackLines}>
                     <Select
                       value={String(options.stackLines)}
                       onChange={(value) => set("stackLines", Number(value))}
-                      options={[10, 20, 40].map((count) => ({ value: String(count), label: String(count) }))}
+                      options={STACK_LINES_OPTIONS.map((count) => ({ value: String(count), label: String(count) }))}
                       disabled={!options.includeStacks}
                     />
                   </Field>
@@ -249,7 +349,7 @@ function ReportsView() {
                   checked={options.includeStacks}
                   onChange={(value) => set("includeStacks", value)}
                   label={t.reports.includeStacks}
-                  description={t.reports.includeStacksHint}
+                  description={t.reports.includeStacksHint(fmt.number(MAX_SAMPLES))}
                 />
                 <Switch
                   checked={options.redact}
@@ -294,28 +394,40 @@ function ReportsView() {
               />
             </Field>
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              icon={result ? "refresh" : "sparkles"}
-              loading={pending}
-              disabled={options.sections.length === 0}
-              className="w-full"
-            >
-              {pending ? t.reports.generating : result ? t.reports.regenerate : t.reports.generate}
-            </Button>
+            {/* Fijo al pie del panel: la accion principal no puede quedar bajo el scroll. */}
+            <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-col gap-2 border-t border-line bg-surface px-5 pb-5 pt-4">
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                icon={result ? "refresh" : "sparkles"}
+                loading={pending}
+                disabled={options.sections.length === 0}
+                className="w-full"
+                aria-keyshortcuts="Control+Enter"
+              >
+                {pending ? t.reports.generating : result ? t.reports.regenerate : t.reports.generate}
+              </Button>
+              <p className="hidden items-center justify-center gap-1 text-[0.6875rem] text-ink-3 sm:flex">
+                <Kbd>{t.reports.shortcut}</Kbd>
+              </p>
+            </div>
           </form>
         </Card>
 
         <section className="min-w-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-card" aria-label={t.reports.preview}>
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
               <h2 className="font-heading text-[0.9375rem] font-semibold text-ink">{t.reports.preview}</h2>
               {result && (
                 <span className="truncate font-mono text-xs text-ink-3" title={t.reports.tokensHint}>
-                  {result.filename} · {t.reports.size(fmt.bytes(result.bytes), fmt.compact(approxTokens(result.content)))}
+                  {result.filename} · {t.reports.size(fmt.bytes(result.bytes), fmt.compact(result.tokens))}
                 </span>
+              )}
+              {result && result.redactions !== null && (
+                <Tag tone={result.redactions > 0 ? "success" : "neutral"} icon="shield" title={t.reports.redactionsHint}>
+                  {result.redactions > 0 ? t.reports.redactions(fmt.number(result.redactions)) : t.reports.redactionsNone}
+                </Tag>
               )}
             </div>
             {result && (
@@ -343,6 +455,11 @@ function ReportsView() {
 
           {stale && !pending && (
             <div className="border-b border-line bg-warning-soft px-5 py-2 text-xs text-warning">{t.reports.stale}</div>
+          )}
+          {large && !pending && (
+            <div className="border-b border-line bg-warning-soft px-5 py-2 text-xs text-warning">
+              {t.reports.large(fmt.compact(result.tokens))}
+            </div>
           )}
 
           <div className="max-h-[calc(100vh-11rem)] min-h-[28rem] overflow-auto">
@@ -372,7 +489,7 @@ function ReportsView() {
                 {result.content}
               </pre>
             ) : (
-              <MarkdownView source={result.content} className="mx-auto max-w-[110ch] p-6 3xl:p-10" />
+              <MarkdownView source={result.content} linkOrigin={result.origin} className="mx-auto max-w-[110ch] p-6 3xl:p-10" />
             )}
           </div>
           {result && (

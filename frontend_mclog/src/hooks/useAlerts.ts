@@ -65,7 +65,7 @@ export const useCreateChannel = () => {
 export const useUpdateChannel = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...changes }: { id: number; name?: string; enabled?: boolean }) =>
+    mutationFn: ({ id, ...changes }: { id: number; name?: string; enabled?: boolean; config?: Record<string, unknown> }) =>
       client.patch(`/api/alerts/channels/${id}`, changes),
     onSuccess: () => invalidate(qc, "alert-channels", "alert-rules"),
   });

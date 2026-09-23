@@ -369,7 +369,7 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 | Operación | Quién |
 |---|---|
 | `GET /auth/me` | Cualquier sesión. Se relee de base de datos, no del JWT: el rol puede haber cambiado |
-| `PATCH /auth/me/password` | Cada uno la suya. Mínimo 10 caracteres y distinta de la actual |
+| `PATCH /auth/me/password` | Cada uno la suya. Mínimo 8 caracteres y distinta de la actual |
 | `POST /auth/me/2fa/*` | Cada uno la suya. Verificación en dos pasos con app autenticadora (TOTP) y códigos de recuperación |
 | `DELETE /auth/me` | Cada uno la suya, con contraseña y código 2FA. **La cuenta root (`ADMIN_EMAIL`) no se puede eliminar ni degradar** |
 | Alta, cambio de rol, reseteo de contraseña y baja | `admin` |

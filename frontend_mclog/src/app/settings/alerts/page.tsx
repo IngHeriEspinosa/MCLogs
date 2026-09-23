@@ -19,6 +19,7 @@ import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { useMe } from "@/hooks/useAuth";
 import {
+  AlertChannel,
   AlertChannelType,
   AlertRuleType,
   useAlertChannels,
@@ -48,27 +49,42 @@ const ListSkeleton = () => (
 
 // --- Canales ---
 
-const ChannelForm: React.FC = () => {
+/**
+ * Crea un canal o, con `channel`, edita uno existente. Los secretos llegan
+ * enmascarados y no se precargan: dejarlos vacíos conserva los guardados,
+ * porque el backend descarta un valor vacío o enmascarado al mezclar.
+ */
+const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = ({ channel, onDone }) => {
   const { t } = useI18n();
-  const [type, setType] = useState<AlertChannelType>("webhook");
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
+  const config = channel?.config ?? {};
+  const editing = Boolean(channel);
+  const [type, setType] = useState<AlertChannelType>(channel?.type ?? "webhook");
+  const [name, setName] = useState(channel?.name ?? "");
+  const [url, setUrl] = useState(String(config.url ?? ""));
   const [secret, setSecret] = useState("");
-  const [to, setTo] = useState("");
+  const [to, setTo] = useState(((config.to as string[] | undefined) ?? []).join(", "));
   const [botToken, setBotToken] = useState("");
-  const [chatId, setChatId] = useState("");
+  const [chatId, setChatId] = useState(String(config.chatId ?? ""));
   const create = useCreateChannel();
+  const update = useUpdateChannel();
+  const mutation = editing ? update : create;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const config =
+    const nextConfig =
       type === "webhook"
         ? { url: url.trim(), ...(secret.trim() ? { secret: secret.trim() } : {}) }
         : type === "email"
           ? { to: to.split(",").map((value) => value.trim()).filter(Boolean) }
           : { botToken: botToken.trim(), chatId: chatId.trim() };
 
-    await create.mutateAsync({ name: name.trim(), type, config });
+    if (channel) {
+      await update.mutateAsync({ id: channel.id, name: name.trim(), config: nextConfig });
+      onDone?.();
+      return;
+    }
+
+    await create.mutateAsync({ name: name.trim(), type, config: nextConfig });
     setName("");
     setUrl("");
     setSecret("");
@@ -77,17 +93,26 @@ const ChannelForm: React.FC = () => {
     setChatId("");
   };
 
+  const keepHint = editing ? t.alerts.keepSecretHint : undefined;
+
   return (
-    <Card title={t.alerts.newChannel} divider>
+    <Card title={editing ? t.alerts.editChannel : t.alerts.newChannel} divider>
       <form className="flex flex-col gap-5" onSubmit={submit}>
         <Field label={t.alerts.type}>
-          <Segmented
-            label={t.alerts.type}
-            value={type}
-            onChange={setType}
-            className="w-full"
-            options={CHANNEL_TYPES.map((value) => ({ value, label: t.alerts.channelTypes[value], icon: CHANNEL_ICON[value] }))}
-          />
+          {editing ? (
+            <span className="flex items-center gap-2 text-sm text-ink">
+              <Icon name={CHANNEL_ICON[type]} className="h-4 w-4 text-ink-3" />
+              {t.alerts.channelTypes[type]}
+            </span>
+          ) : (
+            <Segmented
+              label={t.alerts.type}
+              value={type}
+              onChange={setType}
+              className="w-full"
+              options={CHANNEL_TYPES.map((value) => ({ value, label: t.alerts.channelTypes[value], icon: CHANNEL_ICON[value] }))}
+            />
+          )}
         </Field>
         <Field label={t.alerts.name}>
           <Input value={name} onChange={(event) => setName(event.target.value)} required />
@@ -98,8 +123,13 @@ const ChannelForm: React.FC = () => {
             <Field label={t.alerts.url} hint={t.alerts.urlHint}>
               <Input type="url" icon="webhook" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://hooks.slack.com/services/…" required />
             </Field>
-            <Field label={t.alerts.secret} hint={t.alerts.secretHint} aside={t.common.optional}>
-              <Input value={secret} onChange={(event) => setSecret(event.target.value)} className="font-mono" />
+            <Field label={t.alerts.secret} hint={keepHint ?? t.alerts.secretHint} aside={t.common.optional}>
+              <Input
+                value={secret}
+                onChange={(event) => setSecret(event.target.value)}
+                placeholder={typeof config.secret === "string" ? config.secret : undefined}
+                className="font-mono"
+              />
             </Field>
           </>
         )}
@@ -112,8 +142,14 @@ const ChannelForm: React.FC = () => {
 
         {type === "telegram" && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.alerts.botToken}>
-              <Input value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder="123456:ABC-DEF…" className="font-mono" required />
+            <Field label={t.alerts.botToken} hint={keepHint}>
+              <Input
+                value={botToken}
+                onChange={(event) => setBotToken(event.target.value)}
+                placeholder={editing ? String(config.botToken ?? "") : "123456:ABC-DEF…"}
+                className="font-mono"
+                required={!editing}
+              />
             </Field>
             <Field label={t.alerts.chatId}>
               <Input value={chatId} onChange={(event) => setChatId(event.target.value)} className="font-mono" required />
@@ -121,11 +157,20 @@ const ChannelForm: React.FC = () => {
           </div>
         )}
 
-        {create.isError && <Alert variant="error">{errorMessage(create.error, t.common.unknownError)}</Alert>}
+        {mutation.isError && <Alert variant="error">{errorMessage(mutation.error, t.common.unknownError)}</Alert>}
 
-        <Button type="submit" variant="primary" icon="plus" loading={create.isPending}>
-          {t.alerts.createChannel}
-        </Button>
+        {editing ? (
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary" icon="check" loading={update.isPending} className="flex-1">
+              {t.common.save}
+            </Button>
+            <Button onClick={onDone}>{t.common.cancel}</Button>
+          </div>
+        ) : (
+          <Button type="submit" variant="primary" icon="plus" loading={create.isPending}>
+            {t.alerts.createChannel}
+          </Button>
+        )}
       </form>
     </Card>
   );
@@ -138,6 +183,7 @@ const ChannelsTab: React.FC = () => {
   const remove = useDeleteChannel();
   const test = useTestChannel();
   const [tested, setTested] = useState<{ id: number; ok: boolean; error?: string } | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const runTest = async (id: number) => {
     setTested(null);
@@ -146,10 +192,17 @@ const ChannelsTab: React.FC = () => {
   };
 
   const data = channels.data ?? [];
+  const editing: AlertChannel | undefined = data.find((channel) => channel.id === editingId);
+
+  const removeChannel = (id: number) => {
+    if (id === editingId) setEditingId(null);
+    remove.mutate(id);
+  };
 
   return (
     <div className="grid items-start gap-4 2xl:grid-cols-[26rem_minmax(0,1fr)] 3xl:gap-5">
-      <ChannelForm />
+      {/* La `key` reinicia el estado del formulario al cambiar de canal. */}
+      <ChannelForm key={editing?.id ?? "new"} channel={editing} onDone={() => setEditingId(null)} />
       <Card title={`${t.alerts.channels} · ${data.length}`} divider>
         {channels.isLoading && <ListSkeleton />}
         {channels.isError && <Alert variant="error">{errorMessage(channels.error, t.common.unknownError)}</Alert>}
@@ -198,7 +251,16 @@ const ChannelsTab: React.FC = () => {
                   >
                     {t.alerts.sendTest}
                   </Button>
-                  <ConfirmButton onConfirm={() => remove.mutate(channel.id)} confirmLabel={t.common.confirmRemove}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="pencil"
+                    onClick={() => setEditingId(channel.id)}
+                    aria-pressed={channel.id === editingId}
+                  >
+                    {t.common.edit}
+                  </Button>
+                  <ConfirmButton onConfirm={() => removeChannel(channel.id)} confirmLabel={t.common.confirmRemove}>
                     {t.common.remove}
                   </ConfirmButton>
                 </div>

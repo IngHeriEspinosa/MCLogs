@@ -1,4 +1,4 @@
-import { INTL_LOCALE, Locale } from "./config";
+import { INTL_LOCALE, type Locale } from "./config";
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;

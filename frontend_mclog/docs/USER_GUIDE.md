@@ -140,15 +140,25 @@ Genera documentos a partir de los logs de un rango, en tres formatos:
 
 | Tipo | Para quién | Qué lleva |
 |---|---|---|
-| **Informe Markdown** | Personas | Hallazgos clave en prosa, métricas, actividad, niveles, aplicaciones, fallos con su stack y errores recientes |
+| **Informe Markdown** | Personas | Hallazgos clave en prosa, comparación con el periodo anterior, métricas, actividad, niveles, aplicaciones, fallos con su stack y enlace a sus ocurrencias, y errores recientes |
 | **Brief para agentes IA** | Un agente de IA (Claude, ChatGPT…) | Instrucciones (rol, objetivo, pasos, reglas, formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
 | **Datos para agentes (JSON)** | Pipelines y herramientas | Lo mismo que el brief, en un único objeto JSON con esquema estable |
 
-A la izquierda eliges el rango, la aplicación y el entorno, las secciones, cuántos fallos incluir y si llevan stack. Para los formatos de IA, además, el **objetivo** (triaje, regresión tras un despliegue, resumen de incidente) y unas **instrucciones adicionales** opcionales, por ejemplo "desplegamos la 2.3 a las 14:00". El idioma del reporte se elige aparte del de la interfaz.
+A la izquierda eliges el rango, la aplicación y el entorno, las secciones, cuántos fallos incluir y si llevan stack (del ejemplo más reciente de los 20 primeros fallos, como mucho). Para los formatos de IA, además, el **objetivo** (triaje, regresión tras un despliegue, resumen de incidente) y unas **instrucciones adicionales** opcionales, por ejemplo "desplegamos la 2.3 a las 14:00". El idioma del reporte se elige aparte del de la interfaz. **Generar** está siempre visible al pie del panel, y **Ctrl + Enter** genera desde cualquier punto de la página.
 
-**Enmascarar datos sensibles** oculta correos, IPs, tokens, JWT y claves largas antes de exportar. Viene activado en los formatos de IA: déjalo así siempre que el reporte vaya a un modelo externo o salga de tu organización. Las huellas y los traceId se conservan, porque el agente los necesita para seguir investigando.
+Tus preferencias (tipo, secciones, opciones, idioma) se recuerdan en este navegador; **Restablecer** vuelve a los valores por defecto. El rango, la aplicación y el entorno van en la URL: recargar no los pierde y puedes compartir el enlace.
 
-A la derecha, la vista previa: **Vista** muestra el documento formateado y **Fuente** el Markdown tal cual. Arriba ves el tamaño y una estimación de tokens (útil para saber si cabe en el contexto del modelo), y los botones **Copiar** y **Descargar**. Nada sale de tu navegador hasta que lo descargas o lo copias.
+Secciones destacadas:
+
+- **Comparación con el periodo anterior**: compara con la ventana de igual duración justo antes (con "Últimas 24 horas", las 24 horas previas). Muestra cómo cambiaron registros, errores y tasa de error, y qué fallos son **nuevos**, cuáles **empeoraron** (más de un 25 % y al menos 3 ocurrencias más) y cuáles **dejaron de aparecer**. "Nuevo" significa que no apareció en el periodo anterior, no que nunca haya pasado. Es lo que hace útil el objetivo "Regresión tras un despliegue".
+- **Aplicaciones**: los registros se cuentan desde el inicio de la ventana hasta ahora; los errores son los de la ventana.
+- **Warnings agrupados** (desactivada por defecto): los warnings más repetidos, para separar el ruido de lo importante.
+
+En el informe Markdown, cada fallo lleva un enlace **ver ocurrencias** que abre los registros de ese fallo en MCLog, con la misma ventana.
+
+**Enmascarar datos sensibles** oculta correos, IPs, tokens, JWT y claves largas antes de exportar. Viene activado en los formatos de IA: déjalo así siempre que el reporte vaya a un modelo externo o salga de tu organización. Las huellas, los traceId y los UUID que aparecen en los mensajes (normalmente ids de pedidos, usuarios…) se conservan, porque hacen falta para seguir investigando.
+
+A la derecha, la vista previa: **Vista** muestra el documento formateado y **Fuente** el Markdown tal cual. Arriba ves el tamaño, una estimación de tokens y cuántos valores se enmascararon; si un brief para IA pasa de ~100 000 tokens, un aviso te sugiere recortarlo porque puede no caber en el contexto del modelo. Los botones **Copiar** y **Descargar** son los únicos momentos en que algo sale de tu navegador.
 
 > Todo lo que el brief incluye de los logs va dentro de `<mclog_data>`, y las reglas le dicen al agente que ese contenido son datos, no instrucciones. Así, un log que diga "ignora lo anterior" no le cambia la tarea.
 
@@ -197,7 +207,7 @@ El Lab sirve para probar MCLog sin esperar a que tus aplicaciones fallen: cada e
 
 - **Sesión**: tu correo, tu rol y, si es el caso, la etiqueta **Root**.
 - **Preferencias**: tema e idioma, guardados en este navegador.
-- **Cambiar contraseña**: contraseña actual y la nueva dos veces (mínimo 10 caracteres y distinta de la actual). Cambiarla **cierra la sesión en todos los dispositivos**, incluido el actual, así que tendrás que volver a entrar.
+- **Cambiar contraseña**: contraseña actual y la nueva dos veces (mínimo 8 caracteres y distinta de la actual). Cambiarla **cierra la sesión en todos los dispositivos**, incluido el actual, así que tendrás que volver a entrar.
 
 ### Verificación en dos pasos
 

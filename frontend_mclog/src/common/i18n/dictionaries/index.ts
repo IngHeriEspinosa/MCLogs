@@ -1,6 +1,6 @@
 import type { Locale } from "../config";
 import { en } from "./en";
-import { es, Dictionary } from "./es";
+import { es, type Dictionary } from "./es";
 
 export type { Dictionary };
 

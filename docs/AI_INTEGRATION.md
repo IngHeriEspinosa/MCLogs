@@ -144,7 +144,9 @@ para ver qué ocurrió justo antes. La aplicación se llama `<nombre>`.
 
 Si el asistente no puede usar MCP (un chat web, un modelo de otra empresa, un ticket), el dashboard prepara el contexto por ti:
 
-- **Reportes → Brief para agentes IA** genera un Markdown con instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP por si el agente sí puede usarlas, y los datos del rango en bloques YAML, CSV y JSON. **Datos para agentes (JSON)** da lo mismo en un solo objeto con esquema `mclog.agent-report/v1`, para pipelines.
+- **Reportes → Brief para agentes IA** genera un Markdown con instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP por si el agente sí puede usarlas, y los datos del rango en bloques YAML, CSV y JSON. **Datos para agentes (JSON)** da lo mismo en un solo objeto con esquema `mclog.agent-report/v2`, para pipelines. Con la sección de comparación, cada fallo lleva `previous_occurrences` y `trend` (`new`, `up`, `down`, `flat` o `unknown`) respecto a la ventana anterior de igual duración.
+
+> **Cambios de v1 a v2** (`mclog.agent-report` y `mclog.agent-brief`): nuevos bloques `data.comparison` y `data.warning_groups` (null si no se piden); nuevos campos `previous_occurrences` y `trend` en `error_groups` (null sin comparación); `data.applications` pasa de lista a `{ logs_counted_since, rows }`, y en cada fila `logs_7d` se sustituye por `logs_since` (registros desde el inicio de la ventana hasta ahora) y se añade `errors_in_window`. `summary.distinct_failures` ahora siempre es real: antes podía salir 0 si no se elegían las secciones de fallos.
 - **Copiar para IA** en el detalle de un log, en un fallo agrupado o en una traza copia un brief más corto de solo eso.
 
 Los datos de los logs van dentro de `<mclog_data>` y las reglas le dicen al agente que ese contenido no son instrucciones: un log que diga "ignora lo anterior" no le cambia la tarea. Por defecto se enmascaran correos, IPs, tokens y claves largas; huellas y traceId se conservan para que el agente pueda citarlos o pedirlos por MCP.
