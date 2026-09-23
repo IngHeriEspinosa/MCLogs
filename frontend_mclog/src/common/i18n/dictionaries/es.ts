@@ -11,6 +11,7 @@ export const es = {
     name: "MCLog",
     console: "Consola",
     tagline: "Logs centralizados",
+    sourceCode: "Código fuente en GitHub",
   },
 
   // Patrocinador del proyecto. Se muestra en el login y al pie de la barra lateral.

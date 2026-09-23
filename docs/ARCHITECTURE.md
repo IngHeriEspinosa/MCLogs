@@ -217,7 +217,7 @@ Los notificadores viven tras una interfaz común y se registran en una tabla sus
 
 - Next.js 14 App Router con `output: "standalone"`. La portada pública (`/`) y todo el dashboard son client-side: los datos son privados y dinámicos, y el SSR no aporta.
 - React Query gestiona cache y reintentos; `placeholderData: keepPreviousData` evita parpadeos al paginar.
-- El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 (un único refresh en vuelo: las peticiones que caducan a la vez esperan al mismo) y redirige a `/login` si falla; `DashboardLayout` hace lo mismo con `?next=` si `/auth/me` falla. El guard de sesión es el propio backend.
+- El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 (un único refresh en vuelo: las peticiones que caducan a la vez esperan al mismo) y redirige a `/login` si falla, salvo en `/auth/me`, para que la portada siga visible sin sesión; `DashboardLayout` hace lo mismo con `?next=` si `/auth/me` falla. El guard de sesión es el propio backend.
 - El login es una pequeña máquina de estados de dos pasos: contraseña y, si la cuenta tiene 2FA, código. El `mfaToken` solo vive en memoria del formulario.
 - **Registros** reutiliza tabla, filtros e inspector de Logs, y suma seis filtros por campo que viajan en la URL.
 - **Lab** envía logs reales con la sesión del admin, en lotes de 100 o de uno en uno para el stream. Hay un `AbortController` por escenario, y todo va a aplicaciones `lab-*`, que se purgan de una vez.

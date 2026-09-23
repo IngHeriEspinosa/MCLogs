@@ -43,6 +43,8 @@ A la izquierda tienes el menú de secciones (en el móvil se abre con el botón 
 
 Arriba a la derecha, en todas las pantallas, cambias el **idioma** (español / inglés) y el **tema** (claro, oscuro o el de tu sistema). Se recuerdan en ese navegador.
 
+> **Si no sabes qué es un campo**, junto a su nombre hay un icono de información: pasa el ratón (o púlsalo, en el móvil) y verás qué significa y cómo se usa. Este manual no repite esas explicaciones.
+
 ## A.2 La pantalla de logs
 
 ### Filtros

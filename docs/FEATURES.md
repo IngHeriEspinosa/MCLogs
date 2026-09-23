@@ -247,6 +247,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Portada** | Página pública en `/` con acceso al login; con sesión abierta lleva directo a Logs |
 | **Login** | Formulario email/contraseña y, si la cuenta tiene 2FA, un segundo paso con el código de la app o de recuperación. Tras entrar, vuelve a la página que se pidió. El front nunca manipula tokens (viven en cookies httpOnly) |
 | **Español / inglés** | Toda la interfaz traducida; el cambio es inmediato y se recuerda |
+| **Ayuda en cada campo** | Un icono de información junto al nombre de cada campo explica qué es y cómo se usa; funciona con ratón, teclado y táctil, y lo lee el lector de pantalla |
 | **Tema claro / oscuro / sistema** | Sin destello al cargar; con "sistema" sigue al sistema operativo |
 | **Hasta 4K** | La interfaz escala y aprovecha el ancho hasta 3840 px; el detalle del log pasa a columna lateral desde 1920 px |
 | **Resumen** | Registros, errores, warnings, fallos distintos y aplicaciones del rango, con tendencia; por nivel, por entorno, fallos principales y apps más activas |

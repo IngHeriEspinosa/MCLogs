@@ -49,7 +49,7 @@ src/
                                LevelBadge, Tag, Alert, Skeleton, Spinner, EmptyState
     molecules/                 Card, Select, Menu, Dialog, Toast, Calendar, DateRangePicker,
                                DatePicker, StatTile, Sparkline, ActivityChart, Distribution,
-                               CodeBlock, MarkdownView, CopyButton, ConfirmButton, Portal
+                               CodeBlock, MarkdownView, CopyButton, ConfirmButton, Portal, InfoTip
     organisms/                 Sidebar, Topbar, LogFilterBar, LogOverview, LogTable, LogInspector,
                                AdvancedLogSearch, LabScenarioCard, LabComposer,
                                TwoFactorCard, DeleteAccountCard
@@ -85,7 +85,7 @@ src/
 ## Datos y estado
 
 - **Sesión**: tokens en cookies httpOnly del backend. Hay dos guardas, y la fuente de verdad es siempre el backend:
-  - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla. Hay **un único refresh en vuelo**: si varias peticiones caducan a la vez, todas esperan al mismo en lugar de rotar el token cada una por su cuenta. Los 401 de `/auth/login`, `/auth/refresh` y `/auth/logout` no se reintentan; `/auth/me` sí, porque es lo que decide si el panel manda al login.
+  - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla. Hay **un único refresh en vuelo**: si varias peticiones caducan a la vez, todas esperan al mismo en lugar de rotar el token cada una por su cuenta. Los 401 de `/auth/login`, `/auth/refresh` y `/auth/logout` no se reintentan; `/auth/me` sí, porque es lo que decide si el panel manda al login. Si el refresh de `/auth/me` falla, el interceptor **no** redirige: la portada (`/`) lo consulta solo para saber si hay sesión y debe seguir visible para quien no la tiene; el panel ya redirige desde `DashboardLayout`.
   - `DashboardLayout` pide `/auth/me` y, si falla, manda a `/login?next=<ruta>`. Tras entrar, el login vuelve a esa ruta (solo rutas internas: empieza por `/` y no por `//`); si no hay `next`, va a `/logs`. Se conserva la ruta, no los parámetros de la URL.
 - **Autorización visual, nunca como control**: el menú oculta la administración a quien no es admin, pero cada página comprueba el rol y el backend lo exige igualmente.
 - **Filtros en la URL** (`useLogFilters`):
@@ -102,6 +102,11 @@ src/
 - **Paneles flotantes** (`useFloating` + `Portal`): `position: fixed` con coordenadas de ventana, para que ninguna tabla con `overflow` los recorte; se abren hacia arriba si abajo no caben. Si el ancla está dentro de un `<dialog>` modal, el panel se monta dentro del diálogo (la *top layer* taparía cualquier cosa montada en `<body>`).
 - **Calendario**: tabindex móvil y teclado completo (flechas, RePag/AvPag, Inicio/Fin). El selector de rangos pone primero los rangos rápidos y detrás el rango a medida con horas.
 - **Dialog**: `<dialog>` nativo, que ya atrapa el foco y deja inerte el resto.
+- **Ayuda contextual (`InfoTip`)**: el icono de información junto al nombre de un campo, con una explicación más larga que la ayuda visible bajo el campo (no la repite). Los textos viven en `dictionaries/*.fieldInfo`, agrupados por pantalla (`auth`, `log`, `records`, `reports`, `apiKeys`, `users`, `alerts`, `lab`, `account`), y `Field`, `Fieldset` y `Switch` lo montan a partir de su prop `info` (en `Field`, el icono va fuera del `<label>`: dentro, pulsarlo enfocaría el campo).
+  - Se abre al pasar el ratón (con 150 ms de retardo para no encender ayudas al cruzar un formulario), al llegar con el teclado y al pulsarlo, que es lo único posible en táctil; pulsado se queda abierto hasta pulsar fuera. El ratón puede entrar en el panel sin que se cierre (120 ms de margen) y `Esc` lo cierra siempre (WCAG 1.4.13).
+  - `Esc` se captura y se cancela, para cerrar solo la ayuda y no el diálogo o el detalle del log que la contiene.
+  - El texto va también oculto junto al botón como `aria-describedby`: el lector de pantalla lo lee al llegar al icono, sin abrir el panel.
+  - Solo el ratón dispara el hover (`pointerType === "mouse"`): en táctil el hover llega con el toque y lo abriría y cerraría a la vez.
 - **Inspector del log**, en tres modos:
   - `drawer` (cajón superpuesto): atrapa el foco y lo devuelve al cerrar.
   - `panel` (columna fija junto a la tabla desde 1920 px).

@@ -17,6 +17,10 @@ const redirectToLogin = () => {
 // panel manda al login.
 const NO_REFRESH = /\/auth\/(login|refresh|logout)(\/|$)/;
 
+// /auth/me sin sesion no manda al login por su cuenta: la portada lo consulta
+// solo para saber si hay sesion, y el panel ya redirige con ?next= al fallar.
+const NO_REDIRECT = /\/auth\/me$/;
+
 // Un unico refresh en vuelo: si varias peticiones caducan a la vez, todas
 // esperan al mismo en lugar de rotar el token cada una por su cuenta.
 let refreshing: Promise<unknown> | null = null;
@@ -32,17 +36,18 @@ client.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const isAuthEndpoint = NO_REFRESH.test(original?.url ?? "");
+    const redirects = !NO_REDIRECT.test(original?.url ?? "");
     if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
       try {
         await refreshSession();
         return client(original);
       } catch (err) {
-        redirectToLogin();
+        if (redirects) redirectToLogin();
         return Promise.reject(err);
       }
     }
-    if (error.response?.status === 401 && !isAuthEndpoint) {
+    if (error.response?.status === 401 && !isAuthEndpoint && redirects) {
       redirectToLogin();
     }
     return Promise.reject(error);

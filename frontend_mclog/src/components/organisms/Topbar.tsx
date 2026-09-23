@@ -13,6 +13,25 @@ import { CurrentUser, useLogout } from "@/hooks/useAuth";
 
 const THEME_ICON = { light: "sun", dark: "moon", system: "monitor" } as const;
 
+const REPO_URL = "https://github.com/IngHeriEspinosa/MCLogs";
+
+/** Enlace al repositorio del proyecto; se abre en otra pestana. */
+export const GitHubLink: React.FC = () => {
+  const { t } = useI18n();
+  return (
+    <a
+      href={REPO_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={t.app.sourceCode}
+      title={t.app.sourceCode}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink hover:no-underline"
+    >
+      <Icon name="github" className="h-4 w-4" />
+    </a>
+  );
+};
+
 /** Selector de tema: claro, oscuro o el del sistema. */
 export const ThemeMenu: React.FC = () => {
   const { t } = useI18n();

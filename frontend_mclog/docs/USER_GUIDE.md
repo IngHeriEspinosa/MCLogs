@@ -23,6 +23,10 @@ A la izquierda está el menú:
 
 En el móvil, el menú se abre con el botón ☰ de arriba a la izquierda.
 
+## Ayuda en cada campo
+
+Junto al nombre de casi todos los campos (en el login, los filtros de Registros, las propiedades del detalle de un log, Reportes, Alertas, API keys, Usuarios, el Lab y Mi cuenta) hay un icono de información. Pasa el ratón por encima, o púlsalo en el móvil, y verás una explicación de qué significa ese campo y cómo se usa. <kbd>Esc</kbd> lo cierra.
+
 ## Idioma y tema
 
 Arriba a la derecha, en todas las pantallas (también en el login):
