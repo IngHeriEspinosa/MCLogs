@@ -54,7 +54,7 @@ export const AdvancedLogSearch: React.FC<Props> = ({ filters, setFilters }) => {
     <div className="flex flex-col gap-4">
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
         {ADVANCED_FIELDS.map((key) => (
-          <Field key={key} label={t.records.fields[key]}>
+          <Field key={key} label={t.records.fields[key]} info={t.fieldInfo.records[key]}>
             <Input
               icon={ICONS[key]}
               value={values[key]}

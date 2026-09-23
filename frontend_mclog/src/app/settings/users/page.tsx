@@ -42,10 +42,10 @@ const CreateUserForm: React.FC = () => {
   return (
     <Card title={t.users.newUser} description={t.users.adminHint} divider>
       <form className="flex flex-col gap-5" onSubmit={submit}>
-        <Field label={t.users.email}>
+        <Field label={t.users.email} info={t.fieldInfo.users.email}>
           <Input type="email" icon="mail" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" required />
         </Field>
-        <Field label={t.users.password} hint={t.users.passwordHint(PASSWORD_MIN_LENGTH)}>
+        <Field label={t.users.password} hint={t.users.passwordHint(PASSWORD_MIN_LENGTH)} info={t.fieldInfo.users.password(PASSWORD_MIN_LENGTH)}>
           <Input
             type="password"
             icon="lock"
@@ -56,7 +56,7 @@ const CreateUserForm: React.FC = () => {
             required
           />
         </Field>
-        <Field label={t.users.role}>
+        <Field label={t.users.role} info={t.fieldInfo.users.role}>
           <Select value={role} onChange={setRole} options={roles} icon="shield" />
         </Field>
 

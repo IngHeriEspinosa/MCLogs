@@ -82,7 +82,7 @@ Decisiones clave:
 - **Ninguna API key recibe rol `admin`.** Purgar logs o administrar el servicio exige una sesión de persona.
 - De cada clave **solo se guarda el sha256**. El secreto viaja en claro una única vez, al crearla.
 - Las claves se aceptan en `x-api-key` y en `Authorization: Bearer`, porque los clientes MCP solo permiten cabeceras estándar. Un `Bearer` sin forma de clave MCLog se trata como JWT.
-- El **refresh token se rota** en cada uso y se persiste por `jti`; logout lo revoca, y cambiar contraseña o rol revoca todos los del usuario.
+- El **refresh token se rota** en cada uso y se persiste por `jti`, con un margen de 30 s en el que el usado sigue valiendo (las peticiones simultáneas del dashboard comparten el mismo refresh); logout lo revoca, y cambiar contraseña o rol revoca todos los del usuario.
 - `requireAuth` reintenta con el refresh token cuando el access token expiró, renovando cookies en la misma respuesta.
 - **Segundo factor opcional (TOTP).** Con él activo, la contraseña solo produce un `mfaToken` de 5 minutos, firmado con un secreto derivado y una audiencia propia para que nunca valga como sesión. La sesión se abre en `/auth/login/2fa` con un código de la app o de recuperación. El último paso TOTP aceptado se guarda para que un código no se pueda reutilizar.
 - **Cuenta root.** La de `ADMIN_EMAIL` queda marcada al arrancar y no se puede borrar ni degradar: el servicio nunca se queda sin una puerta de entrada. Un admin tampoco puede quitar el 2FA de otro usuario; si pudiera, una sesión de admin robada bastaría para tomar cualquier cuenta.
@@ -217,7 +217,7 @@ Los notificadores viven tras una interfaz común y se registran en una tabla sus
 
 - Next.js 14 App Router con `output: "standalone"`. La portada pública (`/`) y todo el dashboard son client-side: los datos son privados y dinámicos, y el SSR no aporta.
 - React Query gestiona cache y reintentos; `placeholderData: keepPreviousData` evita parpadeos al paginar.
-- El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla; `DashboardLayout` hace lo mismo con `?next=` si `/auth/me` falla. El guard de sesión es el propio backend.
+- El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 (un único refresh en vuelo: las peticiones que caducan a la vez esperan al mismo) y redirige a `/login` si falla; `DashboardLayout` hace lo mismo con `?next=` si `/auth/me` falla. El guard de sesión es el propio backend.
 - El login es una pequeña máquina de estados de dos pasos: contraseña y, si la cuenta tiene 2FA, código. El `mfaToken` solo vive en memoria del formulario.
 - **Registros** reutiliza tabla, filtros e inspector de Logs, y suma seis filtros por campo que viajan en la URL.
 - **Lab** envía logs reales con la sesión del admin, en lotes de 100 o de uno en uno para el stream. Hay un `AbortController` por escenario, y todo va a aplicaciones `lab-*`, que se purgan de una vez.
@@ -242,7 +242,7 @@ src/
   jobs/             planificador de retención, limpieza y alertas
   utils/            fingerprint, totp (RFC 6238), qrCode (QR a SVG, sin dependencias)
 prisma/             schema + migrations (0001–0008)
-tests/              vitest + supertest contra DB real (14 suites, 174 tests)
+tests/              vitest + supertest contra DB real (14 suites, 175 tests)
 entrypoint.sh       aplica las migraciones y arranca (imagen Docker / CapRover)
 captain-definition  despliegue en CapRover con el mismo Dockerfile
 ```

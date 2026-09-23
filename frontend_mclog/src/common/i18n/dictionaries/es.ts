@@ -54,6 +54,8 @@ export const es = {
     chartView: "Ver gráfico",
     none: "—",
     retry: "Reintentar",
+    moreInfo: "Más información",
+    infoAbout: (field: string) => `Más información sobre «${field}»`,
   },
 
   nav: {
@@ -925,6 +927,162 @@ export const es = {
       typeToConfirm: (word: string) => `Escribe ${word} para confirmar`,
       confirmWord: "ELIMINAR",
       confirm: "Eliminar definitivamente",
+    },
+  },
+
+  /**
+   * Explicacion detallada de cada campo, en el icono de informacion junto a su
+   * nombre. Amplia la ayuda visible bajo el campo, no la repite.
+   */
+  fieldInfo: {
+    auth: {
+      email: "El correo con el que un administrador dio de alta tu cuenta en MCLog.",
+      password:
+        "Tu contraseña de MCLog. Tras varios intentos fallidos seguidos, el acceso se bloquea unos minutos por seguridad. Si la has olvidado, pide a un administrador que te la restablezca desde Usuarios.",
+      twoFactorCode:
+        "El código de 6 dígitos que muestra tu app autenticadora. Cambia cada 30 segundos y cada uno sirve una sola vez.\nSi no tienes el móvil, escribe uno de tus códigos de recuperación (formato xxxxx-xxxxx); también se gastan al usarlos.",
+    },
+
+    /** Propiedades de un log: detalle, traza y busqueda. */
+    log: {
+      time: "Cuándo ocurrió el evento según la aplicación que lo envió, o la hora de llegada a MCLog si no la indicó. Se muestra en tu zona horaria.",
+      application:
+        "Nombre del sistema que envió el log, p. ej. facturacion o netsuite-prod. Lo fija cada integración y es el eje principal para filtrar, agrupar errores y acotar API keys y alertas.",
+      service:
+        "Componente dentro de la aplicación que generó el log: un microservicio, un módulo o un script. Es opcional y sirve para distinguir partes de una misma aplicación.",
+      environment:
+        "Dónde se ejecutaba el código: producción, staging o desarrollo. Separa lo que afecta a usuarios reales del ruido de las pruebas.",
+      host: "Máquina, contenedor o instancia que emitió el log. Útil para ver si un fallo se concentra en un servidor concreto.",
+      traceId:
+        "Identificador que comparten todos los logs de una misma operación, aunque pase por varias aplicaciones. Con «Ver traza» ves la operación completa en orden cronológico.",
+      spanId: "Identificador del tramo concreto dentro de la traza: una llamada, una consulta o un paso de la operación.",
+      error: "Clase del error (p. ej. TypeError) y, entre paréntesis, su código (p. ej. ECONNRESET), si la aplicación los envió.",
+      fingerprint:
+        "Huella del fallo: un hash de la aplicación, el servicio, la clase y el código del error, el primer marco del stack y el mensaje sin sus datos variables (números, IDs, URLs, correos).\nLas ocurrencias del mismo fallo comparten huella y por eso aparecen como una sola fila en Errores. Solo se calcula para error y warning.",
+      id: "Identificador interno y único del registro en MCLog. Sirve para citarlo sin ambigüedad, p. ej. al pedirle a un agente de IA que lo consulte con get_log.",
+    },
+
+    records: {
+      message:
+        "Busca el texto en cualquier parte del mensaje, sin distinguir mayúsculas: «timeout» encuentra «Gateway Timeout after 30s».",
+      service: "Filtra por el componente que generó el log. Coincidencia parcial y sin distinguir mayúsculas: «pay» encuentra payments y paypal-sync.",
+      host: "Filtra por la máquina o contenedor que emitió el log. Coincidencia parcial: «web-» encuentra web-01, web-02…",
+      traceId:
+        "Muestra solo los logs de una operación. Tiene que ser el identificador completo y exacto: en este campo no valen coincidencias parciales.",
+      errorName: "Filtra por la clase del error que envió la aplicación, como TypeError o TimeoutError. Coincidencia parcial y sin distinguir mayúsculas.",
+      errorCode:
+        "Filtra por el código del error, como ECONNRESET, 500 o SSS_USAGE_LIMIT_EXCEEDED. Coincidencia parcial y sin distinguir mayúsculas.",
+    },
+
+    reports: {
+      kind:
+        "Define el formato y para quién es el reporte:\n• Informe Markdown: para leerlo o compartirlo con tu equipo.\n• Brief para agentes IA: un .md con instrucciones, reglas y datos, listo para pegar en un asistente.\n• JSON: un objeto con esquema estable para procesarlo con código.\nAl elegir un formato para IA se activa el enmascarado de datos sensibles.",
+      range:
+        "Ventana de tiempo que analiza el reporte. La comparación usa además la ventana anterior de igual duración: con «Últimas 24 horas», las 24 horas previas.",
+      application: "Limita el reporte a una sola aplicación. Déjalo en «Todas las aplicaciones» para analizar el servicio completo.",
+      environment: "Limita el reporte a un entorno. Suele interesar producción, para que los errores de pruebas no desvíen las cifras.",
+      sections:
+        "Bloques que incluye el reporte. Cada uno añade datos y tamaño: quita los que no necesites para que el documento sea más corto y quepa mejor en el contexto de un modelo de IA.",
+      options: "Cuánto detalle entra en el reporte y qué datos se ocultan antes de exportarlo.",
+      maxGroups:
+        "Cuántos fallos distintos (agrupados por huella) se detallan, empezando por los más frecuentes. Más fallos dan una visión más completa, pero alargan el reporte. También limita los warnings agrupados.",
+      stackLines:
+        "Máximo de líneas del stack trace por fallo. Las primeras suelen bastar para localizar el origen; el resto se recorta con una nota. Solo aplica con «Incluir stack traces» activo.",
+      includeStacks:
+        "El stack muestra la cadena de llamadas que llevó al error: es la pista más útil para encontrar la causa, pero también lo que más engorda el reporte. Desactívalo si solo necesitas cifras y tendencias.",
+      redact:
+        "Sustituye por marcadores como [REDACTED:email] los correos, IPs, JWT, tokens Bearer, contraseñas y claves en pares clave=valor y las cadenas largas con aspecto de clave.\nSe conservan los identificadores necesarios para investigar: huella, traceId, ID de log y UUID. Todo ocurre en tu navegador.",
+      agent: "Ajustes que solo afectan a los briefs para IA: qué tarea le encargas al agente y qué contexto extra le das.",
+      objective:
+        "La tarea que el brief encarga al agente:\n• Triaje y causa raíz: qué falla, ordenado por impacto, con la causa más probable.\n• Regresión: qué empezó o empeoró en la ventana, como tras un despliegue.\n• Resumen de incidente: cronología, alcance e impacto.\n• Solo mis instrucciones: el agente sigue únicamente tus notas.",
+      instructions:
+        "Contexto que solo tú conoces: un despliegue reciente, un cambio de configuración, la aplicación que te preocupa… Se añade al brief como «Notas del operador». No se guarda entre visitas.",
+      reportLanguage:
+        "Idioma en el que se redacta el reporte, independiente del de la interfaz. En los briefs también le indica al agente en qué idioma responder.",
+    },
+
+    apiKeys: {
+      name: "Un nombre que diga quién usa la clave y dónde, p. ej. «NetSuite producción». Solo sirve para reconocerla; no cambia lo que puede hacer.",
+      scopes:
+        "Qué puede hacer la clave:\n• ingest: enviar logs. Es la que llevan tus aplicaciones; si se filtra, no permite leer nada.\n• read: consultar logs, errores y trazas. La necesitan los agentes de IA y el servidor MCP.\n• metrics: leer /metrics en formato Prometheus.\nConcede solo los permisos imprescindibles.",
+      applications:
+        "Restringe la clave a esas aplicaciones: con ingest solo puede enviar logs a su nombre y con read solo ve sus registros. Escribe los nombres exactos, separados por comas.",
+      expiry:
+        "Fecha a partir de la cual la clave deja de funcionar sola. Útil para accesos temporales: una prueba o un proveedor externo. Sin fecha, funciona hasta que la revoques.",
+    },
+
+    users: {
+      email: "Correo con el que la persona iniciará sesión. Es único: no puede haber dos usuarios con el mismo.",
+      password: (min: number) =>
+        `Contraseña inicial, de al menos ${min} caracteres. Hazla llegar por un canal seguro y pide que se cambie desde Mi cuenta en el primer acceso.`,
+      role: "• Usuario: consulta logs, errores, trazas y reportes.\n• Administrador: además gestiona API keys, usuarios, alertas y el Lab, y puede purgar logs.",
+    },
+
+    alerts: {
+      channelType:
+        "Por dónde llega el aviso:\n• Webhook: un POST con JSON a la URL que indiques (Slack, Discord, Teams, n8n…).\n• Correo: un email a una o varias direcciones.\n• Telegram: un mensaje de un bot a un chat o grupo.\nNo se puede cambiar una vez creado el canal.",
+      channelName: "Nombre para reconocer el canal al asignarlo a las reglas, p. ej. «Slack #incidencias» o «Guardia por correo».",
+      url: "Dirección que recibe un POST con un JSON por cada aviso: título, regla, número de coincidencias, ejemplos y enlace al panel. En Slack, Discord o Teams, usa la URL de un «incoming webhook».",
+      secret:
+        "Clave compartida con el receptor. MCLog firma el cuerpo con ella y envía la firma en x-mclog-signature (sha256=…). El receptor calcula la misma firma y descarta lo que no coincida. Una vez guardado, no se vuelve a mostrar.",
+      recipients:
+        "Direcciones que recibirán el aviso, separadas por comas. El envío usa el servidor SMTP del backend: si no está configurado, «Enviar prueba» fallará.",
+      botToken:
+        "El token que te da @BotFather al crear el bot (123456:ABC-DEF…). Da control total sobre el bot: una vez guardado solo se muestran sus primeros caracteres.",
+      chatId:
+        "Identificador del chat, grupo o canal al que el bot enviará los avisos. Añade antes el bot al grupo; los IDs de grupo empiezan por «-».",
+      ruleName: "Aparece en el título de cada aviso y en el historial. Que diga qué vigila, p. ej. «Errores de facturación en producción».",
+      ruleType:
+        "• Umbral de repeticiones: avisa cuando hay al menos N logs que cumplen la regla dentro de la ventana. Mide volumen.\n• Error nuevo: avisa cuando aparecen N o más fallos cuya primera ocurrencia cae dentro de la ventana. Detecta regresiones aunque sea un solo log.",
+      application: "Vigila solo los logs de esta aplicación, por su nombre exacto. Con «Todas», la regla cuenta los de todas.",
+      environment: "Vigila solo este entorno. Lo habitual es limitar las reglas a producción para que las pruebas no disparen avisos.",
+      minLevel: "Qué niveles cuentan: «Solo error» cuenta errores; «Warning y error», ambos. Los info y debug nunca disparan una regla.",
+      threshold: "Número mínimo de logs que tienen que coincidir dentro de la ventana para avisar. Con 1, avisa ante el primero.",
+      newErrors: "Número mínimo de fallos nunca vistos (huellas nuevas) que tienen que aparecer dentro de la ventana para avisar. Con 1, avisa ante el primero.",
+      window:
+        "Minutos hacia atrás que se miran en cada comprobación, que ocurre cada minuto. Una ventana corta reacciona rápido a los picos; una larga detecta goteos lentos. Máximo 1440 (24 h).",
+      cooldown:
+        "Minutos que la regla calla tras avisar, aunque la condición se siga cumpliendo. Evita un aviso por minuto durante un incidente. Empieza a contar aunque falle el envío. Con 0 puede avisar en cada comprobación.",
+      notifyVia: "Canales por los que llegará el aviso; puedes marcar varios. Los canales desactivados se omiten.",
+    },
+
+    lab: {
+      environment:
+        "Entorno de todos los logs que envía el Lab: los de los escenarios y, por defecto, el del log a medida. En desarrollo quedan aislados; en producción cuentan en las métricas y en las alertas.",
+      application:
+        "Nombre de la aplicación del log. Siempre lleva el prefijo lab- para que «Borrar datos del lab» lo alcance y no se mezcle con tus aplicaciones reales.",
+      service: "Componente dentro de la aplicación, p. ej. api o worker. Forma parte de la huella: el mismo error en otro servicio es otro grupo.",
+      level: "Gravedad del log. Solo error y warning se agrupan por huella y aparecen en Errores; info y debug son informativos.",
+      composerEnvironment: "Entorno de este log. Por defecto, el que elegiste arriba para todo el Lab.",
+      message:
+        "Texto principal del log y único campo obligatorio. Los números, IDs y URLs que contenga no rompen la agrupación: se ignoran al calcular la huella.",
+      traceId:
+        "Une varios logs de una misma operación: envía varios con el mismo traceId y los verás juntos en la vista Traza. «Generar» crea uno aleatorio de 32 caracteres hexadecimales.",
+      errorName: "Clase del error, como TimeoutError. Forma parte de la huella: dos errores de distinta clase nunca se agrupan juntos.",
+      errorCode: "Código del error, como ETIMEDOUT o 504. También forma parte de la huella.",
+      errorStack:
+        "Pila de llamadas del error. MCLog usa su primer marco, sin números de línea, para calcular la huella: así el grupo no se parte al recompilar.",
+      metadata:
+        "Datos extra como objeto JSON: ID de pedido, usuario, intento… Se ven en el detalle del log y viajan en los reportes, pero no se usan para buscar ni para agrupar.",
+    },
+
+    account: {
+      email: "El correo con el que inicias sesión en MCLog.",
+      role: "Tu nivel de acceso. Un usuario consulta logs, errores y reportes; un administrador además gestiona claves, usuarios, alertas y el Lab. Root es la cuenta inicial del servicio: no se puede eliminar ni degradar.",
+      memberSince: "Fecha en que se creó tu cuenta.",
+      theme: "Aspecto de la consola. «Sistema» sigue el modo claro u oscuro de tu sistema operativo y cambia con él.",
+      language: "Idioma de la interfaz y formato de fechas y números. Los reportes pueden generarse en otro idioma desde su propia opción.",
+      current: "Tu contraseña actual, para confirmar que eres tú quien hace el cambio.",
+      next: (min: number) =>
+        `Al menos ${min} caracteres y distinta de la actual. Una frase larga es más segura y fácil de recordar que una palabra corta con símbolos.`,
+      repeat: "Vuelve a escribir la contraseña nueva, para evitar errores de tecleo.",
+      enterCode:
+        "El código de 6 dígitos que muestra la app tras escanear el QR. Confirma que la app y el servidor están sincronizados; si falla, revisa que la hora del móvil sea automática.",
+      codeOrRecovery:
+        "El código de 6 dígitos de tu app autenticadora o, si no tienes acceso a ella, uno de tus códigos de recuperación. Cada código de recuperación sirve una sola vez.",
+      deletePassword: "Se pide de nuevo para que nadie pueda borrar tu cuenta desde una sesión que dejaste abierta.",
+      typeToConfirm: (word: string) =>
+        `Escribe ${word} tal cual, en mayúsculas. Es un seguro contra borrados accidentales: la eliminación no se puede deshacer.`,
     },
   },
 

@@ -60,7 +60,7 @@ La `API_KEY` única heredada de la variable de entorno está **deprecada**, pero
 
 ### Usuarios (dashboard)
 - `POST /auth/login` → `accessToken` (TTL `JWT_ACCESS_TTL`, default 15m) y `refreshToken` (TTL `JWT_REFRESH_TTL`, default 14d), devueltos en el body, en headers `x-access-token`/`x-refresh-token` y como cookies httpOnly. **Si la cuenta tiene 2FA**, no devuelve tokens sino `{ mfaRequired: true, mfaToken }` (ver abajo).
-- Refresh **con rotación**: cada uso invalida el token anterior (persistido por `jti` en tabla `RefreshToken`).
+- Refresh **con rotación**: cada uso marca el token anterior como usado (`revokedAt`, persistido por `jti` en tabla `RefreshToken`) y emite un par nuevo. El usado sigue valiendo **30 s** (`ROTATION_GRACE_MS`): al abrir el dashboard con el access caducado salen varias peticiones a la vez con el mismo refresh, y sin margen solo la primera entraba. Logout y cambio de contraseña borran la fila, así que el margen no resucita sesiones revocadas.
 - `POST /auth/refresh` acepta el token en el body **o** en la cookie `refresh_token`.
 - `requireAuth` auto-refresca cuando el access token expiró, usando `x-refresh-token` o la cookie, y renueva cookies/headers en la misma respuesta.
 - `POST /auth/logout` revoca el refresh y limpia cookies.
@@ -141,10 +141,10 @@ El `mfaToken` es un JWT de **5 minutos**, firmado con un secreto derivado (`${JW
 | POST | `/auth/login/2fa` | — | Segundo paso: `{ mfaToken, code }` |
 | POST | `/auth/refresh` · `/auth/logout` | — | Rotación y cierre de sesión |
 | GET | `/auth/me` | JWT | Usuario de la sesión: `id`, `email`, `role`, `isRoot`, `twoFactorEnabled`, `createdAt` |
-| PATCH | `/auth/me/password` | JWT | Cambio de contraseña propia (`newPassword` ≥ 10). Cierra **todas** las sesiones |
+| PATCH | `/auth/me/password` | JWT | Cambio de contraseña propia (`newPassword` ≥ 8). Cierra **todas** las sesiones |
 | DELETE | `/auth/me` | JWT | Elimina la propia cuenta (contraseña + 2FA si está activo). La cuenta root no puede |
 | POST | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | Alta y baja de la verificación en dos pasos |
-| GET · POST | `/auth/users` | JWT rol admin | Lista y alta de usuarios (`password` ≥ 10; `409` si el email existe) |
+| GET · POST | `/auth/users` | JWT rol admin | Lista y alta de usuarios (`password` ≥ 8; `409` si el email existe) |
 | PATCH · DELETE | `/auth/users/:id` | JWT rol admin | Edita (`role` y/o `password`) o elimina un usuario. `403` sobre el root, `409` sobre el último admin o sobre uno mismo |
 | POST | `/mcp` | JWT o API key `read` | Servidor MCP para asistentes de IA (`MCP_ENABLED`). `GET`/`DELETE` → `405` |
 | GET | `/health` | — | Estado del servidor + DB (`503` si la DB no responde) |
@@ -291,7 +291,7 @@ Se reconocen las dos familias de marcadores: los valores de desarrollo de `.env.
 
 `npm test` (vitest + supertest, DB real en `localhost:5435` — `docker compose up -d db`).
 
-**174 tests** en `tests/`, repartidos en catorce suites:
+**175 tests** en `tests/`, repartidos en catorce suites:
 
 | Suite | Qué cubre |
 |---|---|

@@ -441,7 +441,7 @@ Depende de sus permisos, que es precisamente por lo que existen:
 En los dos casos, **revócala** en **Administración → API keys**; el efecto es inmediato. Crea una nueva y actualiza al emisor.
 
 ### ¿Qué pasa si roban un refresh token?
-El daño está acotado por la **rotación**: cada refresh token es de un solo uso. Si el usuario legítimo lo usa antes que el atacante, el robado queda inservible. Para cortar de raíz, borra las filas de `RefreshToken` de ese usuario.
+El daño está acotado por la **rotación**: cada refresh token se invalida al usarse (con un margen de 30 segundos para las peticiones simultáneas del propio dashboard). Si el usuario legítimo lo usa antes que el atacante, el robado queda inservible. Para cortar de raíz, el usuario cambia su contraseña en **Mi cuenta**, que revoca todas sus sesiones; o un admin borra las filas de `RefreshToken` de ese usuario.
 
 ### ¿Las contraseñas están cifradas?
 Están **hasheadas** con bcrypt (coste 12), que no es reversible. Nadie —ni el administrador ni quien tenga acceso a la base— puede leer una contraseña; solo restablecerla. Los códigos de recuperación del 2FA y las API keys también se guardan solo como hash.
@@ -473,7 +473,7 @@ La clave única de la variable `API_KEY` sigue funcionando por compatibilidad co
 
 ### ¿Cómo ejecuto los tests?
 ```bash
-cd Back_MCLog && docker compose up -d db && npm test    # 174 tests en 14 suites
+cd Back_MCLog && docker compose up -d db && npm test    # 175 tests en 14 suites
 cd packages/mclog && npm test               # 95 tests
 node integrations/netsuite/test_mclog_client.js         # 40 comprobaciones
 ```

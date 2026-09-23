@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/atoms/Skeleton";
 import { EnvTag } from "@/components/atoms/Tag";
 import { CodeBlock } from "@/components/molecules/CodeBlock";
 import { CopyButton } from "@/components/molecules/CopyButton";
+import { InfoTip } from "@/components/molecules/InfoTip";
 import { StatTile } from "@/components/molecules/StatTile";
 import { useToast } from "@/components/molecules/Toast";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
@@ -75,22 +76,34 @@ const TraceRow: React.FC<TraceRowProps> = ({ log, offset, previous, duration }) 
         <div className="flex flex-col gap-3 border-t border-dashed border-line bg-surface-2/60 px-5 py-4">
           <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2 3xl:grid-cols-4">
             <div className="flex gap-2">
-              <dt className="text-ink-3">{t.logs.columns.time}</dt>
+              <dt className="flex items-center gap-1 text-ink-3">
+                {t.logs.columns.time}
+                <InfoTip label={t.logs.columns.time}>{t.fieldInfo.log.time}</InfoTip>
+              </dt>
               <dd className="font-mono text-ink">{fmt.dateTime(log.timestamp)}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="text-ink-3">{t.inspector.fields.host}</dt>
+              <dt className="flex items-center gap-1 text-ink-3">
+                {t.inspector.fields.host}
+                <InfoTip label={t.inspector.fields.host}>{t.fieldInfo.log.host}</InfoTip>
+              </dt>
               <dd className="font-mono text-ink">{log.host ?? "—"}</dd>
             </div>
             <div className="flex items-center gap-2">
-              <dt className="text-ink-3">{t.inspector.fields.environment}</dt>
+              <dt className="flex items-center gap-1 text-ink-3">
+                {t.inspector.fields.environment}
+                <InfoTip label={t.inspector.fields.environment}>{t.fieldInfo.log.environment}</InfoTip>
+              </dt>
               <dd>
                 <EnvTag environment={log.environment} label={t.envs.names[log.environment] ?? log.environment} />
               </dd>
             </div>
             {log.errorName && (
               <div className="flex gap-2">
-                <dt className="text-ink-3">{t.inspector.fields.error}</dt>
+                <dt className="flex items-center gap-1 text-ink-3">
+                {t.inspector.fields.error}
+                <InfoTip label={t.inspector.fields.error}>{t.fieldInfo.log.error}</InfoTip>
+              </dt>
                 <dd className="font-mono text-ink">
                   {log.errorName}
                   {log.errorCode ? ` (${log.errorCode})` : ""}

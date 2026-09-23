@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/atoms/Skeleton";
 import { EnvTag } from "@/components/atoms/Tag";
 import { CodeBlock } from "@/components/molecules/CodeBlock";
 import { CopyButton } from "@/components/molecules/CopyButton";
+import { InfoTip } from "@/components/molecules/InfoTip";
 import type { LogRow } from "@/components/organisms/LogTable";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { buildLogBrief } from "@/common/reports/build";
@@ -106,18 +107,19 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
     return `${sign}${abs < 1000 ? `${abs} ms` : `${fmt.decimal(abs / 1000)} s`}`;
   };
 
-  const properties: Array<{ label: string; value: string | null | undefined; mono?: boolean; copy?: boolean }> = [
-    { label: t.inspector.fields.application, value: log.application, mono: true },
-    { label: t.inspector.fields.service, value: log.service, mono: true },
-    { label: t.inspector.fields.host, value: log.host, mono: true },
-    { label: t.inspector.fields.traceId, value: log.traceId, mono: true, copy: true },
-    { label: t.inspector.fields.spanId, value: full?.spanId, mono: true },
+  const properties: Array<{ label: string; info: string; value: string | null | undefined; mono?: boolean; copy?: boolean }> = [
+    { label: t.inspector.fields.application, info: t.fieldInfo.log.application, value: log.application, mono: true },
+    { label: t.inspector.fields.service, info: t.fieldInfo.log.service, value: log.service, mono: true },
+    { label: t.inspector.fields.host, info: t.fieldInfo.log.host, value: log.host, mono: true },
+    { label: t.inspector.fields.traceId, info: t.fieldInfo.log.traceId, value: log.traceId, mono: true, copy: true },
+    { label: t.inspector.fields.spanId, info: t.fieldInfo.log.spanId, value: full?.spanId, mono: true },
     {
       label: t.inspector.fields.error,
+      info: t.fieldInfo.log.error,
       value: log.errorName ? `${log.errorName}${full?.errorCode ? ` (${full.errorCode})` : ""}` : null,
     },
-    { label: t.inspector.fields.fingerprint, value: log.fingerprint, mono: true, copy: true },
-    { label: t.inspector.fields.id, value: log.id !== undefined ? String(log.id) : null, mono: true, copy: true },
+    { label: t.inspector.fields.fingerprint, info: t.fieldInfo.log.fingerprint, value: log.fingerprint, mono: true, copy: true },
+    { label: t.inspector.fields.id, info: t.fieldInfo.log.id, value: log.id !== undefined ? String(log.id) : null, mono: true, copy: true },
   ];
 
   const messageSection = (
@@ -162,7 +164,10 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           .filter((property) => property.value)
           .map((property) => (
             <React.Fragment key={property.label}>
-              <dt className="text-xs leading-6 text-ink-3">{property.label}</dt>
+              <dt className="flex items-center gap-1.5 text-xs leading-6 text-ink-3">
+                {property.label}
+                <InfoTip label={property.label}>{property.info}</InfoTip>
+              </dt>
               <dd className="group/value flex min-w-0 items-center gap-1.5">
                 <span className={`truncate text-ink ${property.mono ? "font-mono text-[0.8125rem]" : ""}`} title={property.value ?? undefined}>
                   {property.value}

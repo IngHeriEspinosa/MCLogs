@@ -40,7 +40,7 @@ Da **Usuario** por defecto. Un admin puede borrar datos y crear claves.
 En la fila del usuario:
 
 - **Rol**: elige el nuevo en el selector. Se aplica de inmediato.
-- **Cambiar contraseña**: escribe la nueva (mín. 10) y confirma. Verás "Contraseña actualizada. Sus sesiones abiertas se han cerrado."
+- **Cambiar contraseña**: escribe la nueva (mín. 8) y confirma. Verás "Contraseña actualizada. Sus sesiones abiertas se han cerrado."
 
 Las dos operaciones **cierran las sesiones abiertas** de esa persona en todos sus dispositivos.
 

@@ -32,6 +32,7 @@ Cada guía recorre un proceso de principio a fin: qué vas a conseguir, qué nec
 | [Administrar usuarios y claves](guias/administrar-usuarios-y-claves.md) | Altas, roles, cuenta root, API keys con permisos y rotación |
 | [Configurar alertas](guias/configurar-alertas.md) | Canales (webhook, correo, Telegram), reglas y cómo probarlas |
 | [Probar con el Lab](guias/probar-con-el-lab.md) | Cada escenario de prueba, el compositor de logs y la limpieza |
+| [Presentar MCLog: guion de una demo](guias/presentar-una-demo.md) | 25 minutos para enseñarlo a tu equipo: preparación, guion paso a paso, preguntas previsibles y plan B |
 | [Conectar una IA](guias/conectar-ia.md) | Clave de lectura, configuración del cliente MCP y primeras preguntas |
 | [Desplegar en un VPS](guias/desplegar-vps.md) | Producción con Docker Compose y Caddy, de cero a HTTPS |
 | [Desplegar en CapRover y Railway](guias/desplegar-caprover-railway.md) | API y base de datos en CapRover, dashboard en Railway |

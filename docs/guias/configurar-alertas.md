@@ -90,6 +90,7 @@ Pestaña **Historial**: cada disparo con su regla, cuántas coincidencias hubo y
 ## Mantenimiento
 
 - **Pausar** una regla o un canal sin borrarlo: usa su interruptor.
+- **Editar** un canal (cambió la URL del webhook, hay un destinatario nuevo): pulsa **Editar** en su fila, cambia lo que haga falta y **Guardar**. El tipo no se puede cambiar. Los campos secretos (**Secreto de firma**, **Token del bot**) aparecen vacíos: **déjalos vacíos para conservar el valor guardado**, o escribe uno nuevo para sustituirlo.
 - **Un canal caído** no impide avisar por los demás. El silencio arranca **aunque el envío falle**, a propósito: reintentar cada minuto contra un canal caído solo multiplicaría el ruido cuando vuelva.
 
 ## Si algo falla

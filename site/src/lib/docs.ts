@@ -52,6 +52,13 @@ export const DOCS: DocMeta[] = [
     group: "guias",
   },
   {
+    slug: "presentar-una-demo",
+    file: "guias/presentar-una-demo.md",
+    title: "Presentar MCLog: guion de una demo",
+    description: "25 minutos para enseñar MCLog a tu equipo: preparación, qué pulsar, qué decir y qué hacer si algo falla.",
+    group: "guias",
+  },
+  {
     slug: "investigar-un-incidente",
     file: "guias/investigar-incidente.md",
     title: "Investigar un incidente",

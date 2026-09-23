@@ -45,7 +45,7 @@ export default function LabPage() {
         <section className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card lg:flex-row lg:items-end lg:justify-between">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
             <div className="w-full sm:w-60">
-              <Field label={t.lab.environment} hint={t.lab.environmentHint}>
+              <Field label={t.lab.environment} hint={t.lab.environmentHint} info={t.fieldInfo.lab.environment}>
                 <Select
                   icon="layers"
                   value={environment}

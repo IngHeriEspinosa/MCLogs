@@ -100,7 +100,7 @@ const DisableDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
       size="sm"
     >
       <form className="flex flex-col gap-4" onSubmit={submit}>
-        <Field label={t.account.current}>
+        <Field label={t.account.current} info={t.fieldInfo.account.current}>
           <Input
             type="password"
             icon="lock"
@@ -110,7 +110,7 @@ const DisableDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
             required
           />
         </Field>
-        <Field label={t.account.twoFactor.codeOrRecovery}>
+        <Field label={t.account.twoFactor.codeOrRecovery} info={t.fieldInfo.account.codeOrRecovery}>
           <Input icon="shield" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" required />
         </Field>
         {disable.isError && <Alert variant="error">{errorMessage(disable.error, t.common.unknownError)}</Alert>}
@@ -186,7 +186,7 @@ export const TwoFactorCard: React.FC<{ user: CurrentUser }> = ({ user }) => {
               />
             </div>
           </div>
-          <Field label={t.account.twoFactor.enterCode}>
+          <Field label={t.account.twoFactor.enterCode} info={t.fieldInfo.account.enterCode}>
             <OtpInput value={code} onChange={setCode} autoFocus />
           </Field>
           {enable.isError && <Alert variant="error">{errorMessage(enable.error, t.common.unknownError)}</Alert>}

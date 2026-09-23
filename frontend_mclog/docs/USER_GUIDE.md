@@ -176,7 +176,7 @@ Solo visibles con rol `admin`. El procedimiento completo está en [docs/USER_GUI
 
 | Sección | Para qué |
 |---|---|
-| **Alertas** | Canales (webhook, correo, Telegram) con envío de prueba, reglas (umbral de repeticiones o error nuevo) e historial de avisos. Los interruptores activan y desactivan sin borrar |
+| **Alertas** | Canales (webhook, correo, Telegram) con envío de prueba y edición (los secretos guardados se conservan si dejas el campo vacío), reglas (umbral de repeticiones o error nuevo) e historial de avisos. Los interruptores activan y desactivan sin borrar |
 | **API keys** | Crear claves para que las máquinas envíen o consulten, con permisos, alcance por aplicación y caducidad. El secreto se muestra **una sola vez**, en una ventana que no se cierra hasta que confirmas que lo guardaste |
 | **Usuarios** | Alta, cambio de rol, reseteo de contraseña y baja. Las etiquetas **Root** y **2FA** marcan la cuenta root (no se puede degradar ni eliminar) y quién tiene la verificación en dos pasos activa |
 | **Lab** | Escenarios de prueba que envían logs de verdad para ver cada pantalla en acción, y un compositor para enviar un log a medida |

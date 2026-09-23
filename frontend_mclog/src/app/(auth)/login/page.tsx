@@ -93,7 +93,7 @@ export default function LoginPage() {
     return (
       <AuthLayout title={t.auth.twoFactorTitle} subtitle={t.auth.twoFactorSubtitle}>
         <form className="flex flex-col gap-5" onSubmit={submitCode} aria-busy={verifying}>
-          <Field label={t.auth.twoFactorCode} hint={t.auth.twoFactorHint}>
+          <Field label={t.auth.twoFactorCode} hint={t.auth.twoFactorHint} info={t.fieldInfo.auth.twoFactorCode}>
             <Input
               icon="shield"
               size="lg"
@@ -125,7 +125,7 @@ export default function LoginPage() {
   return (
     <AuthLayout title={t.auth.signIn} subtitle={t.auth.subtitle}>
       <form className="flex flex-col gap-5" onSubmit={submit} aria-busy={pending}>
-        <Field label={t.auth.email}>
+        <Field label={t.auth.email} info={t.fieldInfo.auth.email}>
           <Input
             type="email"
             icon="mail"
@@ -139,7 +139,7 @@ export default function LoginPage() {
             required
           />
         </Field>
-        <Field label={t.auth.password}>
+        <Field label={t.auth.password} info={t.fieldInfo.auth.password}>
           <Input
             type={visible ? "text" : "password"}
             icon="lock"

@@ -251,7 +251,7 @@ function ReportsView() {
               run();
             }}
           >
-            <Fieldset legend={t.reports.kind}>
+            <Fieldset legend={t.reports.kind} info={t.fieldInfo.reports.kind}>
               <div role="radiogroup" aria-label={t.reports.kind} className="flex flex-col gap-2">
                 {REPORT_KINDS.map((kind) => {
                   const selected = options.kind === kind;
@@ -286,13 +286,13 @@ function ReportsView() {
               </div>
             </Fieldset>
 
-            <Field label={t.reports.range}>
+            <Field label={t.reports.range} info={t.fieldInfo.reports.range}>
               <DateRangePicker value={options.range} onChange={(range) => set("range", range)} presets={PRESETS} />
             </Field>
 
             {/* Una columna en el panel lateral: a dos, "Todos los entornos" se cortaba. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
-              <Field label={t.logs.application}>
+              <Field label={t.logs.application} info={t.fieldInfo.reports.application}>
                 <Select
                   icon="box"
                   value={options.application ?? ""}
@@ -302,7 +302,7 @@ function ReportsView() {
                   allowCustom
                 />
               </Field>
-              <Field label={t.envs.label}>
+              <Field label={t.envs.label} info={t.fieldInfo.reports.environment}>
                 <Select
                   icon="layers"
                   value={options.environment ?? ""}
@@ -312,7 +312,7 @@ function ReportsView() {
               </Field>
             </div>
 
-            <Fieldset legend={t.reports.sections} hint={options.sections.length === 0 ? t.reports.noSections : undefined}>
+            <Fieldset legend={t.reports.sections} info={t.fieldInfo.reports.sections} hint={options.sections.length === 0 ? t.reports.noSections : undefined}>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
                 {REPORT_SECTIONS.map((section) => (
                   <Checkbox
@@ -326,17 +326,17 @@ function ReportsView() {
               </div>
             </Fieldset>
 
-            <Fieldset legend={t.reports.options}>
+            <Fieldset legend={t.reports.options} info={t.fieldInfo.reports.options}>
               <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface-2 p-3.5">
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label={t.reports.maxGroups}>
+                  <Field label={t.reports.maxGroups} info={t.fieldInfo.reports.maxGroups}>
                     <Select
                       value={String(options.maxGroups)}
                       onChange={(value) => set("maxGroups", Number(value))}
                       options={MAX_GROUPS_OPTIONS.map((count) => ({ value: String(count), label: String(count) }))}
                     />
                   </Field>
-                  <Field label={t.reports.stackLines}>
+                  <Field label={t.reports.stackLines} info={t.fieldInfo.reports.stackLines}>
                     <Select
                       value={String(options.stackLines)}
                       onChange={(value) => set("stackLines", Number(value))}
@@ -349,21 +349,23 @@ function ReportsView() {
                   checked={options.includeStacks}
                   onChange={(value) => set("includeStacks", value)}
                   label={t.reports.includeStacks}
+                  info={t.fieldInfo.reports.includeStacks}
                   description={t.reports.includeStacksHint(fmt.number(MAX_SAMPLES))}
                 />
                 <Switch
                   checked={options.redact}
                   onChange={(value) => set("redact", value)}
                   label={t.reports.redact}
+                  info={t.fieldInfo.reports.redact}
                   description={t.reports.redactHint}
                 />
               </div>
             </Fieldset>
 
             {isAgent && (
-              <Fieldset legend={t.reports.agent}>
+              <Fieldset legend={t.reports.agent} info={t.fieldInfo.reports.agent}>
                 <div className="flex flex-col gap-4">
-                  <Field label={t.reports.objective}>
+                  <Field label={t.reports.objective} info={t.fieldInfo.reports.objective}>
                     <Select
                       icon="sparkles"
                       value={options.objective}
@@ -371,7 +373,7 @@ function ReportsView() {
                       options={AGENT_OBJECTIVES.map((objective) => ({ value: objective, label: t.reports.objectives[objective] }))}
                     />
                   </Field>
-                  <Field label={t.reports.instructions} aside={t.common.optional}>
+                  <Field label={t.reports.instructions} aside={t.common.optional} info={t.fieldInfo.reports.instructions}>
                     <Textarea
                       rows={3}
                       value={options.instructions}
@@ -384,7 +386,7 @@ function ReportsView() {
               </Fieldset>
             )}
 
-            <Field label={t.reports.reportLanguage}>
+            <Field label={t.reports.reportLanguage} info={t.fieldInfo.reports.reportLanguage}>
               <Segmented
                 label={t.reports.reportLanguage}
                 value={options.locale}

@@ -455,7 +455,7 @@ La segunda es la más útil justo después de un despliegue: no dice "esto falla
 
 Cada regla filtra por aplicación, entorno y nivel, y lleva un **silencio tras avisar**. Sin él, un incidente de una hora te mandaría sesenta avisos idénticos. El silencio arranca aunque el envío falle, a propósito: reintentar cada minuto contra un canal caído solo multiplica el ruido cuando vuelva.
 
-**Canales.** Webhook (sirve para Slack, Discord, Teams o n8n), correo y Telegram. Cada uno tiene un botón de **Enviar prueba**: úsalo al configurarlo, porque te dice el motivo exacto si algo falla.
+**Canales.** Webhook (sirve para Slack, Discord, Teams o n8n), correo y Telegram. Cada uno tiene un botón de **Enviar prueba**: úsalo al configurarlo, porque te dice el motivo exacto si algo falla. Con **Editar** cambias el nombre, la URL, los destinatarios o el chat sin recrear el canal; los secretos (el de firma, el token del bot) no se muestran, y dejarlos vacíos conserva el guardado.
 
 En un webhook puedes poner un **secreto**: cada aviso viaja firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`, para que el receptor compruebe que viene de MCLog. El correo necesita las variables `SMTP_*` del backend; webhook y Telegram se configuran enteros desde el dashboard.
 

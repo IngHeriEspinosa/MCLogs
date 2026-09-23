@@ -191,7 +191,7 @@ Plataforma de despliegue gestionada. En la opción B de despliegue aloja el dash
 ### Refresh token
 Token de vida larga (**14 días** por defecto) cuya única función es obtener un [access token](#access-token) nuevo. Se guarda en base de datos por su [`jti`](#jti-jwt-id), lo que permite revocarlo.
 
-**Es de un solo uso:** cada vez que se usa, el anterior se elimina y se emite uno nuevo. Eso se llama [rotación](#rotación-de-tokens).
+**Se rota:** cada vez que se usa, el anterior se marca como usado y se emite uno nuevo. Eso se llama [rotación](#rotación-de-tokens). El usado sigue valiendo **30 segundos** más, para que las peticiones que salen a la vez al abrir el dashboard no se cierren la sesión entre sí; logout y cambio de contraseña lo borran del todo.
 
 ### Registros
 Pantalla del dashboard con **solo la tabla** de logs, sin resumen ni modo en vivo, pensada para buscar y leer. Añade la [búsqueda avanzada](#búsqueda-avanzada) y abre cada log a pantalla completa, con <kbd>←</kbd> <kbd>→</kbd> para recorrer la página.

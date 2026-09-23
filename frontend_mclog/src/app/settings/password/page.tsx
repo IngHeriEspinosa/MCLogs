@@ -8,6 +8,7 @@ import { Segmented } from "@/components/atoms/Segmented";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
+import { InfoTip } from "@/components/molecules/InfoTip";
 import { DeleteAccountCard } from "@/components/organisms/DeleteAccountCard";
 import { TwoFactorCard } from "@/components/organisms/TwoFactorCard";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
@@ -66,14 +67,23 @@ export default function AccountPage() {
                   {me.data?.email.charAt(0).toUpperCase() ?? "?"}
                 </span>
                 <dl className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
-                  <dt className="text-ink-3">{t.account.email}</dt>
+                  <dt className="flex items-center gap-1.5 text-ink-3">
+                    {t.account.email}
+                    <InfoTip label={t.account.email}>{t.fieldInfo.account.email}</InfoTip>
+                  </dt>
                   <dd className="truncate font-medium text-ink">{me.data?.email ?? "—"}</dd>
-                  <dt className="text-ink-3">{t.account.role}</dt>
+                  <dt className="flex items-center gap-1.5 text-ink-3">
+                    {t.account.role}
+                    <InfoTip label={t.account.role}>{t.fieldInfo.account.role}</InfoTip>
+                  </dt>
                   <dd className="flex flex-wrap gap-1.5">
                     {me.data && <Tag tone={me.data.role === "admin" ? "brand" : "neutral"}>{t.nav.roles[me.data.role]}</Tag>}
                     {me.data?.isRoot && <Tag tone="accent">{t.users.root}</Tag>}
                   </dd>
-                  <dt className="text-ink-3">{t.account.memberSince}</dt>
+                  <dt className="flex items-center gap-1.5 text-ink-3">
+                    {t.account.memberSince}
+                    <InfoTip label={t.account.memberSince}>{t.fieldInfo.account.memberSince}</InfoTip>
+                  </dt>
                   <dd className="text-ink-2">{me.data ? fmt.date(me.data.createdAt) : "—"}</dd>
                 </dl>
               </div>
@@ -82,7 +92,7 @@ export default function AccountPage() {
 
           <Card title={t.account.preferences} description={t.account.preferencesHint} divider>
             <div className="flex flex-col gap-5">
-              <Field label={t.prefs.theme}>
+              <Field label={t.prefs.theme} info={t.fieldInfo.account.theme}>
                 <Segmented
                   label={t.prefs.theme}
                   value={preference}
@@ -95,7 +105,7 @@ export default function AccountPage() {
                   ]}
                 />
               </Field>
-              <Field label={t.prefs.language}>
+              <Field label={t.prefs.language} info={t.fieldInfo.account.language}>
                 <Segmented
                   label={t.prefs.language}
                   value={locale}
@@ -113,7 +123,7 @@ export default function AccountPage() {
         <div className="flex flex-col gap-4 3xl:gap-5">
           <Card title={t.account.changePassword} description={t.account.note} divider>
             <form className="flex flex-col gap-5" onSubmit={submit}>
-              <Field label={t.account.current}>
+              <Field label={t.account.current} info={t.fieldInfo.account.current}>
                 <Input
                   type="password"
                   icon="lock"
@@ -123,7 +133,7 @@ export default function AccountPage() {
                   required
                 />
               </Field>
-              <Field label={t.account.next} hint={t.account.nextHint(PASSWORD_MIN_LENGTH)}>
+              <Field label={t.account.next} hint={t.account.nextHint(PASSWORD_MIN_LENGTH)} info={t.fieldInfo.account.next(PASSWORD_MIN_LENGTH)}>
                 <Input
                   type="password"
                   icon="key"
@@ -134,7 +144,7 @@ export default function AccountPage() {
                   required
                 />
               </Field>
-              <Field label={t.account.repeat} error={localError ?? undefined}>
+              <Field label={t.account.repeat} error={localError ?? undefined} info={t.fieldInfo.account.repeat}>
                 <Input
                   type="password"
                   icon="key"

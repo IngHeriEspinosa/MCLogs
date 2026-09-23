@@ -1,4 +1,5 @@
 import React, { useId } from "react";
+import { InfoTip } from "@/components/molecules/InfoTip";
 
 type SwitchProps = {
   checked: boolean;
@@ -6,6 +7,8 @@ type SwitchProps = {
   /** Nombre accesible. Se muestra salvo con `hideLabel`. */
   label: string;
   description?: React.ReactNode;
+  /** Explicacion detallada, en el icono de informacion junto a la etiqueta visible. */
+  info?: React.ReactNode;
   disabled?: boolean;
   hideLabel?: boolean;
   size?: "sm" | "md";
@@ -16,7 +19,7 @@ type SwitchProps = {
  * etiqueta visible es un <label for> de ese boton: pulsar el texto tambien
  * lo cambia, como en una casilla.
  */
-export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, description, disabled, hideLabel, size = "md" }) => {
+export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, description, info, disabled, hideLabel, size = "md" }) => {
   const id = useId();
   const descriptionId = description ? `${id}-description` : undefined;
   const track = size === "sm" ? "h-4 w-7" : "h-5 w-9";
@@ -49,9 +52,12 @@ export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, descri
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <label htmlFor={id} className={`text-sm font-medium text-ink ${disabled ? "" : "cursor-pointer"}`}>
-          {label}
-        </label>
+        <span className="flex items-center gap-1.5">
+          <label htmlFor={id} className={`text-sm font-medium text-ink ${disabled ? "" : "cursor-pointer"}`}>
+            {label}
+          </label>
+          {info && <InfoTip label={label}>{info}</InfoTip>}
+        </span>
         {description && (
           <span id={descriptionId} className="text-xs leading-relaxed text-ink-3">
             {description}

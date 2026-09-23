@@ -85,7 +85,7 @@ src/
 ## Datos y estado
 
 - **Sesión**: tokens en cookies httpOnly del backend. Hay dos guardas, y la fuente de verdad es siempre el backend:
-  - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla.
+  - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla. Hay **un único refresh en vuelo**: si varias peticiones caducan a la vez, todas esperan al mismo en lugar de rotar el token cada una por su cuenta. Los 401 de `/auth/login`, `/auth/refresh` y `/auth/logout` no se reintentan; `/auth/me` sí, porque es lo que decide si el panel manda al login.
   - `DashboardLayout` pide `/auth/me` y, si falla, manda a `/login?next=<ruta>`. Tras entrar, el login vuelve a esa ruta (solo rutas internas: empieza por `/` y no por `//`); si no hay `next`, va a `/logs`. Se conserva la ruta, no los parámetros de la URL.
 - **Autorización visual, nunca como control**: el menú oculta la administración a quien no es admin, pero cada página comprueba el rol y el backend lo exige igualmente.
 - **Filtros en la URL** (`useLogFilters`):

@@ -91,11 +91,11 @@ const CreateKeyForm: React.FC<{ onCreated: (created: CreatedApiKey) => void }> =
   return (
     <Card title={t.apiKeys.newKey} divider>
       <form className="flex flex-col gap-5" onSubmit={submit}>
-        <Field label={t.apiKeys.name} hint={t.apiKeys.nameHint}>
+        <Field label={t.apiKeys.name} hint={t.apiKeys.nameHint} info={t.fieldInfo.apiKeys.name}>
           <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={t.apiKeys.namePlaceholder} maxLength={120} required />
         </Field>
 
-        <Fieldset legend={t.apiKeys.scopes} hint={scopes.length === 0 ? t.apiKeys.scopeRequired : undefined}>
+        <Fieldset legend={t.apiKeys.scopes} info={t.fieldInfo.apiKeys.scopes} hint={scopes.length === 0 ? t.apiKeys.scopeRequired : undefined}>
           {SCOPES.map((scope) => (
             <Checkbox
               key={scope}
@@ -108,11 +108,11 @@ const CreateKeyForm: React.FC<{ onCreated: (created: CreatedApiKey) => void }> =
           ))}
         </Fieldset>
 
-        <Field label={t.apiKeys.applications} hint={t.apiKeys.applicationsHint} aside={t.common.optional}>
+        <Field label={t.apiKeys.applications} hint={t.apiKeys.applicationsHint} aside={t.common.optional} info={t.fieldInfo.apiKeys.applications}>
           <Input value={applications} onChange={(event) => setApplications(event.target.value)} placeholder={t.apiKeys.applicationsPlaceholder} />
         </Field>
 
-        <Field label={t.apiKeys.expiry} hint={t.apiKeys.expiryHint} aside={t.common.optional}>
+        <Field label={t.apiKeys.expiry} hint={t.apiKeys.expiryHint} aside={t.common.optional} info={t.fieldInfo.apiKeys.expiry}>
           <DatePicker
             value={expiresAt}
             onChange={setExpiresAt}

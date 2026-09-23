@@ -3,7 +3,8 @@ import { CSSProperties, RefObject, useCallback, useEffect, useRef, useState } fr
 import { useIsomorphicLayoutEffect } from "@/hooks/useElementSize";
 
 type FloatingOptions = {
-  align?: "start" | "end";
+  /** "center" centra el panel sobre el ancla (tooltips). */
+  align?: "start" | "center" | "end";
   /** Separacion con el ancla, en px. */
   offset?: number;
   /** El panel mide al menos lo que su ancla (selects). */
@@ -45,7 +46,7 @@ export function useFloating<A extends HTMLElement = HTMLButtonElement, F extends
     const placeAbove = height > below && above > below;
     const available = Math.max(MIN_HEIGHT, placeAbove ? above : below);
 
-    let left = align === "end" ? rect.right - width : rect.left;
+    let left = align === "end" ? rect.right - width : align === "center" ? rect.left + (rect.width - width) / 2 : rect.left;
     left = Math.max(VIEWPORT_MARGIN, Math.min(left, viewportWidth - width - VIEWPORT_MARGIN));
     const top = placeAbove ? rect.top - offset - Math.min(height, available) : rect.bottom + offset;
 

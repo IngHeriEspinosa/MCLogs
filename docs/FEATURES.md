@@ -202,10 +202,10 @@ Los intentos fallidos están limitados a 10 cada 15 minutos por IP (`LOGIN_RATE_
 
 Cada refresh token se persiste por su `jti` en la tabla `RefreshToken`. Al usarlo:
 
-1. Se valida la firma y que el registro exista, no esté revocado y no haya expirado.
-2. **Se elimina el registro anterior** y se emite un par nuevo.
+1. Se valida la firma y que el registro exista y no haya expirado.
+2. **Se marca el registro como usado** (`revokedAt`) y se emite un par nuevo.
 
-Es decir, un refresh token **es de un solo uso**. Si alguien roba uno y la víctima lo usa antes, el robado deja de servir.
+Es decir, un refresh token **se rota**: si alguien roba uno y la víctima lo usa antes, el robado deja de servir. Hay un **margen de 30 segundos** tras la rotación en el que el token usado sigue valiendo: al abrir el dashboard con el access token caducado salen varias peticiones a la vez con el mismo refresh, y sin ese margen solo la primera entraba y las demás cerraban la sesión. El margen no resucita sesiones revocadas: logout y cambio de contraseña **borran** la fila, no la marcan.
 
 ### 6.3 Auto-refresh transparente
 
@@ -263,7 +263,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Mi cuenta** | Preferencias, cambio de contraseña, verificación en dos pasos y eliminar la propia cuenta |
 | **Badges por severidad** | Color por nivel para localizar errores de un vistazo |
 | **Export** | CSV y NDJSON con los filtros activos |
-| **Reportes** | Informe Markdown para personas, brief para agentes de IA (Markdown) y datos en JSON; enmascarado de correos, IPs y tokens |
+| **Reportes** | Informe Markdown para personas, brief para agentes de IA (Markdown) y datos en JSON (`mclog.agent-report/v2`); comparación con el periodo anterior (fallos nuevos, que empeoran o que desaparecen), warnings agrupados opcionales, enmascarado de correos, IPs y tokens con recuento de lo tapado, preferencias recordadas y **Ctrl + Enter** para generar |
 | **Filtros en la URL** | `?range=7d&level=error&application=x`, incluida la búsqueda avanzada (`&errorCode=ECONNRESET`) — copiar el enlace reproduce la vista exacta |
 | **Estados de carga** | Skeletons al cargar; al refiltrar se mantiene la tabla anterior atenuada (sin parpadeo) |
 | **Sesión automática** | Un 401 dispara un reintento vía `/auth/refresh`; si falla, redirige a `/login` |

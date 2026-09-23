@@ -58,7 +58,7 @@ export const DeleteAccountCard: React.FC<{ user: CurrentUser }> = ({ user }) => 
         description={t.account.danger.dialogBody(user.email)}
       >
         <form className="flex flex-col gap-4" onSubmit={submit}>
-          <Field label={t.account.danger.password}>
+          <Field label={t.account.danger.password} info={t.fieldInfo.account.deletePassword}>
             <Input
               type="password"
               icon="lock"
@@ -69,11 +69,11 @@ export const DeleteAccountCard: React.FC<{ user: CurrentUser }> = ({ user }) => 
             />
           </Field>
           {user.twoFactorEnabled && (
-            <Field label={t.account.twoFactor.codeOrRecovery}>
+            <Field label={t.account.twoFactor.codeOrRecovery} info={t.fieldInfo.account.codeOrRecovery}>
               <Input icon="shield" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" required />
             </Field>
           )}
-          <Field label={t.account.danger.typeToConfirm(word)}>
+          <Field label={t.account.danger.typeToConfirm(word)} info={t.fieldInfo.account.typeToConfirm(word)}>
             <Input value={typed} onChange={(event) => setTyped(event.target.value)} autoComplete="off" placeholder={word} required />
           </Field>
           {remove.isError && <Alert variant="error">{errorMessage(remove.error, t.common.unknownError)}</Alert>}

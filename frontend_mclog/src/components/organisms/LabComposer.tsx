@@ -118,7 +118,7 @@ export const LabComposer: React.FC<LabComposerProps> = ({ environment: defaultEn
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t.lab.composer.application}>
+          <Field label={t.lab.composer.application} info={t.fieldInfo.lab.application}>
             <div className="flex items-center">
               <span className="flex h-9 items-center rounded-l-lg border border-r-0 border-line bg-surface-2 px-2.5 font-mono text-[0.8125rem] text-ink-3">
                 {LAB_PREFIX}
@@ -132,13 +132,13 @@ export const LabComposer: React.FC<LabComposerProps> = ({ environment: defaultEn
               />
             </div>
           </Field>
-          <Field label={t.lab.composer.service} aside={t.common.optional}>
+          <Field label={t.lab.composer.service} aside={t.common.optional} info={t.fieldInfo.lab.service}>
             <Input value={service} onChange={(event) => setService(event.target.value)} className="font-mono" maxLength={120} />
           </Field>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
-          <Field label={t.lab.composer.level}>
+          <Field label={t.lab.composer.level} info={t.fieldInfo.lab.level}>
             <Segmented
               label={t.lab.composer.level}
               value={level}
@@ -155,7 +155,7 @@ export const LabComposer: React.FC<LabComposerProps> = ({ environment: defaultEn
               }))}
             />
           </Field>
-          <Field label={t.lab.composer.environment}>
+          <Field label={t.lab.composer.environment} info={t.fieldInfo.lab.composerEnvironment}>
             <Select
               icon="layers"
               value={environment}
@@ -165,7 +165,7 @@ export const LabComposer: React.FC<LabComposerProps> = ({ environment: defaultEn
           </Field>
         </div>
 
-        <Field label={t.lab.composer.message} error={missingMessage ? t.lab.composer.messageRequired : undefined}>
+        <Field label={t.lab.composer.message} info={t.fieldInfo.lab.message} error={missingMessage ? t.lab.composer.messageRequired : undefined}>
           <Textarea
             rows={3}
             value={message}
@@ -176,7 +176,7 @@ export const LabComposer: React.FC<LabComposerProps> = ({ environment: defaultEn
           />
         </Field>
 
-        <Field label={t.lab.composer.traceId} aside={t.common.optional}>
+        <Field label={t.lab.composer.traceId} aside={t.common.optional} info={t.fieldInfo.lab.traceId}>
           <Input
             value={traceId}
             onChange={(event) => setTraceId(event.target.value)}
@@ -203,14 +203,14 @@ export const LabComposer: React.FC<LabComposerProps> = ({ environment: defaultEn
           {advanced && (
             <div className="flex flex-col gap-4 border-t border-line p-3.5">
               <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
-                <Field label={t.lab.composer.errorName}>
+                <Field label={t.lab.composer.errorName} info={t.fieldInfo.lab.errorName}>
                   <Input value={errorName} onChange={(event) => setErrorName(event.target.value)} className="font-mono" placeholder="TimeoutError" />
                 </Field>
-                <Field label={t.lab.composer.errorCode}>
+                <Field label={t.lab.composer.errorCode} info={t.fieldInfo.lab.errorCode}>
                   <Input value={errorCode} onChange={(event) => setErrorCode(event.target.value)} className="font-mono" placeholder="ETIMEDOUT" />
                 </Field>
               </div>
-              <Field label={t.lab.composer.errorStack}>
+              <Field label={t.lab.composer.errorStack} info={t.fieldInfo.lab.errorStack}>
                 <Textarea
                   rows={4}
                   value={errorStack}
@@ -221,6 +221,7 @@ export const LabComposer: React.FC<LabComposerProps> = ({ environment: defaultEn
               </Field>
               <Field
                 label={t.lab.composer.metadata}
+                info={t.fieldInfo.lab.metadata}
                 hint={t.lab.composer.metadataHint}
                 error={metadata.invalid ? t.lab.composer.metadataInvalid : undefined}
               >

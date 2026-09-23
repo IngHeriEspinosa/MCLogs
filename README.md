@@ -31,7 +31,7 @@ Desglose completo en [docs/FEATURES.md](docs/FEATURES.md). En resumen:
 - **Alertas** por webhook firmado, correo y Telegram, con reglas de umbral o de error nuevo y silencio configurable.
 - **Logs en vivo** en el dashboard por Server-Sent Events.
 - **Retención automática** por días, más purga puntual por fecha y aplicación.
-- **Sesiones** con JWT, refresh rotativo de un solo uso y renovación transparente.
+- **Sesiones** con JWT, refresh rotativo y renovación transparente.
 - **Despliegue** en un VPS con Docker Compose y Caddy (HTTPS automático y copias de seguridad diarias), o repartido entre CapRover (API y base de datos) y Railway (dashboard).
 - **Observabilidad** del propio servicio: `/health`, `/metrics` Prometheus y logging estructurado.
 
@@ -118,9 +118,13 @@ La ingesta se autentica con el header **`x-api-key`** y una clave con permiso `i
 ## Tests
 
 ```bash
-# Backend — 174 tests en 14 suites (auth, 2FA, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
+# Backend — 175 tests en 14 suites (auth, 2FA, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
 cd Back_MCLog
 docker compose up -d db       # requiere la DB en localhost:5435
+npm test
+
+# Dashboard — 33 tests (reportes, enmascarado, Markdown y preferencias; runner nativo de Node 24)
+cd frontend_mclog
 npm test
 
 # Librería — 95 tests

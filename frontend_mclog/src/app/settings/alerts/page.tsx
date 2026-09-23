@@ -98,7 +98,7 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
   return (
     <Card title={editing ? t.alerts.editChannel : t.alerts.newChannel} divider>
       <form className="flex flex-col gap-5" onSubmit={submit}>
-        <Field label={t.alerts.type}>
+        <Field label={t.alerts.type} info={t.fieldInfo.alerts.channelType}>
           {editing ? (
             <span className="flex items-center gap-2 text-sm text-ink">
               <Icon name={CHANNEL_ICON[type]} className="h-4 w-4 text-ink-3" />
@@ -114,16 +114,16 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
             />
           )}
         </Field>
-        <Field label={t.alerts.name}>
+        <Field label={t.alerts.name} info={t.fieldInfo.alerts.channelName}>
           <Input value={name} onChange={(event) => setName(event.target.value)} required />
         </Field>
 
         {type === "webhook" && (
           <>
-            <Field label={t.alerts.url} hint={t.alerts.urlHint}>
+            <Field label={t.alerts.url} hint={t.alerts.urlHint} info={t.fieldInfo.alerts.url}>
               <Input type="url" icon="webhook" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://hooks.slack.com/services/…" required />
             </Field>
-            <Field label={t.alerts.secret} hint={keepHint ?? t.alerts.secretHint} aside={t.common.optional}>
+            <Field label={t.alerts.secret} hint={keepHint ?? t.alerts.secretHint} aside={t.common.optional} info={t.fieldInfo.alerts.secret}>
               <Input
                 value={secret}
                 onChange={(event) => setSecret(event.target.value)}
@@ -135,14 +135,14 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
         )}
 
         {type === "email" && (
-          <Field label={t.alerts.recipients} hint={t.alerts.recipientsHint}>
+          <Field label={t.alerts.recipients} hint={t.alerts.recipientsHint} info={t.fieldInfo.alerts.recipients}>
             <Input icon="mail" value={to} onChange={(event) => setTo(event.target.value)} placeholder="ops@company.com, oncall@company.com" required />
           </Field>
         )}
 
         {type === "telegram" && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.alerts.botToken} hint={keepHint}>
+            <Field label={t.alerts.botToken} hint={keepHint} info={t.fieldInfo.alerts.botToken}>
               <Input
                 value={botToken}
                 onChange={(event) => setBotToken(event.target.value)}
@@ -151,7 +151,7 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
                 required={!editing}
               />
             </Field>
-            <Field label={t.alerts.chatId}>
+            <Field label={t.alerts.chatId} info={t.fieldInfo.alerts.chatId}>
               <Input value={chatId} onChange={(event) => setChatId(event.target.value)} className="font-mono" required />
             </Field>
           </div>
@@ -324,11 +324,11 @@ const RuleForm: React.FC = () => {
   return (
     <Card title={t.alerts.newRule} divider>
       <form className="flex flex-col gap-5" onSubmit={submit}>
-        <Field label={t.alerts.name}>
+        <Field label={t.alerts.name} info={t.fieldInfo.alerts.ruleName}>
           <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={t.alerts.ruleNamePlaceholder} required />
         </Field>
 
-        <Field label={t.alerts.type}>
+        <Field label={t.alerts.type} info={t.fieldInfo.alerts.ruleType}>
           <Segmented
             label={t.alerts.type}
             value={type}
@@ -343,7 +343,7 @@ const RuleForm: React.FC = () => {
         <p className="-mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs leading-relaxed text-ink-2">{t.alerts.ruleTypeHints[type]}</p>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t.alerts.application}>
+          <Field label={t.alerts.application} info={t.fieldInfo.alerts.application}>
             <Select
               icon="box"
               value={application}
@@ -353,7 +353,7 @@ const RuleForm: React.FC = () => {
               allowCustom
             />
           </Field>
-          <Field label={t.alerts.environment}>
+          <Field label={t.alerts.environment} info={t.fieldInfo.alerts.environment}>
             <Select
               icon="layers"
               value={environment}
@@ -363,7 +363,7 @@ const RuleForm: React.FC = () => {
           </Field>
         </div>
 
-        <Field label={t.alerts.minLevel}>
+        <Field label={t.alerts.minLevel} info={t.fieldInfo.alerts.minLevel}>
           <Select
             value={level}
             onChange={setLevel}
@@ -375,12 +375,17 @@ const RuleForm: React.FC = () => {
         </Field>
 
         <div className="grid grid-cols-3 gap-3">
-          <Field label={type === "threshold" ? t.alerts.threshold : t.alerts.newErrors}>{numberInput(threshold, setThreshold, 1)}</Field>
-          <Field label={t.alerts.window}>{numberInput(windowMinutes, setWindowMinutes, 1, 1440)}</Field>
-          <Field label={t.alerts.cooldown}>{numberInput(cooldownMinutes, setCooldownMinutes, 0, 1440)}</Field>
+          <Field
+            label={type === "threshold" ? t.alerts.threshold : t.alerts.newErrors}
+            info={type === "threshold" ? t.fieldInfo.alerts.threshold : t.fieldInfo.alerts.newErrors}
+          >
+            {numberInput(threshold, setThreshold, 1)}
+          </Field>
+          <Field label={t.alerts.window} info={t.fieldInfo.alerts.window}>{numberInput(windowMinutes, setWindowMinutes, 1, 1440)}</Field>
+          <Field label={t.alerts.cooldown} info={t.fieldInfo.alerts.cooldown}>{numberInput(cooldownMinutes, setCooldownMinutes, 0, 1440)}</Field>
         </div>
 
-        <Fieldset legend={t.alerts.notifyVia} hint={channelIds.length === 0 ? t.alerts.pickChannel : undefined}>
+        <Fieldset legend={t.alerts.notifyVia} info={t.fieldInfo.alerts.notifyVia} hint={channelIds.length === 0 ? t.alerts.pickChannel : undefined}>
           {channels.data?.length === 0 ? (
             <p className="text-xs text-ink-3">{t.alerts.needChannel}</p>
           ) : (

@@ -256,7 +256,7 @@ Para automatizaciones es mejor una **API key** con el permiso justo: no caduca a
 | Endpoint | Body | Respuesta |
 |---|---|---|
 | `GET /auth/me` | — | `{ data: { id, email, role, isRoot, twoFactorEnabled, createdAt } }` |
-| `PATCH /auth/me/password` | `{ currentPassword, newPassword }` (≥10, distinta) | `{ ok, message }`; revoca **todas** las sesiones y limpia cookies |
+| `PATCH /auth/me/password` | `{ currentPassword, newPassword }` (≥8, distinta) | `{ ok, message }`; revoca **todas** las sesiones y limpia cookies |
 | `POST /auth/me/2fa/setup` | — | `{ data: { secret, otpauthUri, qrCode } }` (`qrCode` = SVG en data URI). `409` si ya está activo |
 | `POST /auth/me/2fa/enable` | `{ code }` | `{ data: { recoveryCodes: [8] } }`, **solo esta vez**. `400` código incorrecto · `409` ya activo o sin `/setup` previo |
 | `POST /auth/me/2fa/disable` | `{ password, code }` | `{ ok: true }`. `code` puede ser TOTP o de recuperación |
@@ -294,7 +294,7 @@ abiertas al stream en vivo). La ruta se etiqueta por su patrón
 |---|---|---|
 | `GET/POST /api/keys`, `DELETE /api/keys/:id` | JWT **admin** | Listar, crear y revocar API keys. El secreto se devuelve una única vez al crear |
 | `/api/alerts/channels`, `/api/alerts/rules`, `/api/alerts/events` | JWT **admin** | Canales, reglas e historial de avisos. `POST /channels/:id/test` envía un aviso de prueba |
-| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** | Gestión de usuarios (alta con contraseña ≥10; `PATCH` cambia `role` y/o `password` y revoca sus sesiones). No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`) ni dejar el servicio sin admin (`409`). No hay endpoint para quitar el 2FA de otro usuario |
+| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** | Gestión de usuarios (alta con contraseña ≥8; `PATCH` cambia `role` y/o `password` y revoca sus sesiones). No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`) ni dejar el servicio sin admin (`409`). No hay endpoint para quitar el 2FA de otro usuario |
 
 La cuenta propia y el 2FA están en [3.3](#33-autenticación).
 
@@ -348,12 +348,15 @@ login (con 2FA)  →  mfaToken (5 min) firmado con "JWT_ACCESS_SECRET:mfa", audi
                     (requireAuth no lo acepta como access token)
 login/2fa        →  verifica mfaToken + código TOTP o de recuperación → el mismo par de arriba
 
-refresh → verifica firma + fila viva (no revocada, no expirada)
-        → BORRA la fila anterior  ← rotación: un refresh token es de un solo uso
+refresh → verifica firma + fila existente y no expirada
+        → si la fila ya está marcada como usada hace más de 30 s → 401
+        → marca la fila como usada (revokedAt)  ← rotación con margen de 30 s
         → emite un par nuevo
 
 logout  → elimina la fila por jti + limpia cookies
 ```
+
+El **margen de 30 segundos** existe porque, al abrir el dashboard con el access token caducado, varias peticiones salen a la vez con el mismo refresh token; sin margen solo la primera rotaba y el resto recibía `401`, lo que cerraba la sesión. Logout y cambio de contraseña **borran** la fila en lugar de marcarla, así que el margen no resucita sesiones revocadas.
 
 `requireAuth` implementa **auto-refresh**: ante un `TokenExpiredError` intenta refrescar con el header `x-refresh-token` o la cookie, y si lo logra sirve la petición renovando cookies y headers en la misma respuesta.
 
@@ -529,7 +532,8 @@ npm pack           # tarball de publicación
 
 | Suite | Comando | Cobertura |
 |---|---|---|
-| Backend | `cd Back_MCLog && npm test` | **174 tests en 14 suites** (vitest + supertest contra PostgreSQL real) |
+| Backend | `cd Back_MCLog && npm test` | **175 tests en 14 suites** (vitest + supertest contra PostgreSQL real) |
+| Dashboard | `cd frontend_mclog && npm test` | **33 tests en 10 suites** (generación de reportes, enmascarado, Markdown y preferencias; runner nativo de Node 24, sin dependencias) |
 | Librería | `cd packages/mclog && npm test` | **95 tests** (cliente con fetch inyectado + middleware con supertest) |
 | Cliente NetSuite | `node integrations/netsuite/test_mclog_client.js` | **40 comprobaciones** (arnés que simula `define()` y los módulos `N/`, sin dependencias) |
 

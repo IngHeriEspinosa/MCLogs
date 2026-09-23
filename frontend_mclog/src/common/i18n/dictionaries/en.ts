@@ -49,6 +49,8 @@ export const en: Dictionary = {
     chartView: "View chart",
     none: "—",
     retry: "Retry",
+    moreInfo: "More information",
+    infoAbout: (field: string) => `More about “${field}”`,
   },
 
   nav: {
@@ -907,6 +909,151 @@ export const en: Dictionary = {
       typeToConfirm: (word: string) => `Type ${word} to confirm`,
       confirmWord: "DELETE",
       confirm: "Delete permanently",
+    },
+  },
+
+  fieldInfo: {
+    auth: {
+      email: "The email an administrator used to create your MCLog account.",
+      password:
+        "Your MCLog password. After several failed attempts in a row, sign-in is blocked for a few minutes for security. If you forgot it, ask an administrator to reset it from Users.",
+      twoFactorCode:
+        "The 6-digit code shown by your authenticator app. It changes every 30 seconds and each one works only once.\nIf you don't have your phone, type one of your recovery codes (format xxxxx-xxxxx); they are also used up once used.",
+    },
+
+    log: {
+      time: "When the event happened according to the application that sent it, or when it reached MCLog if none was given. Shown in your time zone.",
+      application:
+        "Name of the system that sent the log, e.g. billing or netsuite-prod. Each integration sets it, and it's the main axis for filtering, grouping errors and scoping API keys and alerts.",
+      service:
+        "Component inside the application that produced the log: a microservice, a module or a script. It's optional and helps tell apart parts of the same application.",
+      environment:
+        "Where the code was running: production, staging or development. Keeps what affects real users apart from test noise.",
+      host: "Machine, container or instance that emitted the log. Useful to see whether a failure is concentrated on one server.",
+      traceId:
+        "Identifier shared by every log of the same operation, even across applications. “View trace” shows the whole operation in chronological order.",
+      spanId: "Identifier of one specific step inside the trace: a call, a query or a stage of the operation.",
+      error: "Error class (e.g. TypeError) and, in parentheses, its code (e.g. ECONNRESET), if the application sent them.",
+      fingerprint:
+        "Failure fingerprint: a hash of the application, service, error class and code, the first stack frame and the message stripped of variable data (numbers, IDs, URLs, emails).\nOccurrences of the same failure share a fingerprint, which is why they show up as a single row in Errors. Only computed for error and warning.",
+      id: "MCLog's internal, unique identifier for the record. Use it to reference the log unambiguously, e.g. when asking an AI agent to fetch it with get_log.",
+    },
+
+    records: {
+      message: "Finds the text anywhere in the message, case-insensitive: “timeout” matches “Gateway Timeout after 30s”.",
+      service: "Filters by the component that produced the log. Partial, case-insensitive match: “pay” matches payments and paypal-sync.",
+      host: "Filters by the machine or container that emitted the log. Partial match: “web-” matches web-01, web-02…",
+      traceId: "Shows only the logs of one operation. It must be the full, exact identifier: partial matches don't work in this field.",
+      errorName: "Filters by the error class the application sent, such as TypeError or TimeoutError. Partial, case-insensitive match.",
+      errorCode: "Filters by the error code, such as ECONNRESET, 500 or SSS_USAGE_LIMIT_EXCEEDED. Partial, case-insensitive match.",
+    },
+
+    reports: {
+      kind:
+        "Sets the format and who the report is for:\n• Markdown report: to read or share with your team.\n• AI agent brief: a .md with instructions, rules and data, ready to paste into an assistant.\n• JSON: an object with a stable schema for processing in code.\nPicking an AI format turns on sensitive-data masking.",
+      range:
+        "Time window the report analyzes. The comparison also uses the previous window of the same length: with “Last 24 hours”, the 24 hours before that.",
+      application: "Limits the report to a single application. Leave it on “All applications” to analyze the whole service.",
+      environment: "Limits the report to one environment. Production is usually what matters, so test errors don't skew the numbers.",
+      sections:
+        "Blocks included in the report. Each one adds data and size: drop the ones you don't need so the document is shorter and fits better in an AI model's context.",
+      options: "How much detail goes into the report and which data is hidden before exporting it.",
+      maxGroups:
+        "How many distinct failures (grouped by fingerprint) are detailed, most frequent first. More failures give a fuller picture but make the report longer. Also caps grouped warnings.",
+      stackLines:
+        "Maximum stack trace lines per failure. The first ones are usually enough to find the origin; the rest is cut with a note. Only applies with “Include stack traces” on.",
+      includeStacks:
+        "The stack shows the chain of calls that led to the error: it's the most useful clue to the cause, and also what makes the report grow the most. Turn it off if you only need numbers and trends.",
+      redact:
+        "Replaces emails, IPs, JWTs, Bearer tokens, passwords and keys in key=value pairs, and long key-like strings, with markers like [REDACTED:email].\nIdentifiers needed to investigate are kept: fingerprint, traceId, log ID and UUIDs. Everything happens in your browser.",
+      agent: "Settings that only affect AI briefs: what task you give the agent and what extra context it gets.",
+      objective:
+        "The task the brief gives the agent:\n• Triage and root cause: what's failing, ordered by impact, with the most likely cause.\n• Regression: what started or got worse in the window, as after a deploy.\n• Incident summary: timeline, scope and impact.\n• Only my instructions: the agent follows just your notes.",
+      instructions:
+        "Context only you know: a recent deploy, a configuration change, the application you're worried about… It's added to the brief as “Operator notes”. Not saved between visits.",
+      reportLanguage: "Language the report is written in, independent of the interface. In briefs it also tells the agent which language to answer in.",
+    },
+
+    apiKeys: {
+      name: "A name that says who uses the key and where, e.g. “NetSuite production”. It's only for recognizing it; it doesn't change what the key can do.",
+      scopes:
+        "What the key can do:\n• ingest: send logs. This is what your applications carry; if it leaks, nothing can be read with it.\n• read: query logs, errors and traces. Needed by AI agents and the MCP server.\n• metrics: read /metrics in Prometheus format.\nGrant only the permissions you really need.",
+      applications:
+        "Restricts the key to those applications: with ingest it can only send logs under their names, and with read it only sees their records. Type the exact names, comma separated.",
+      expiry:
+        "Date after which the key stops working on its own. Handy for temporary access: a trial or an external vendor. Without a date, it works until you revoke it.",
+    },
+
+    users: {
+      email: "Email the person will sign in with. It's unique: no two users can share it.",
+      password: (min: number) =>
+        `Initial password, at least ${min} characters. Share it over a secure channel and ask for it to be changed from My account on first sign-in.`,
+      role: "• User: views logs, errors, traces and reports.\n• Administrator: also manages API keys, users, alerts and the Lab, and can purge logs.",
+    },
+
+    alerts: {
+      channelType:
+        "Where the alert is delivered:\n• Webhook: a JSON POST to the URL you set (Slack, Discord, Teams, n8n…).\n• Email: a message to one or more addresses.\n• Telegram: a bot message to a chat or group.\nIt can't be changed once the channel exists.",
+      channelName: "Name to recognize the channel when assigning it to rules, e.g. “Slack #incidents” or “On-call email”.",
+      url: "Address that receives a JSON POST for each alert: title, rule, match count, samples and a dashboard link. For Slack, Discord or Teams, use an “incoming webhook” URL.",
+      secret:
+        "Key shared with the receiver. MCLog signs the body with it and sends the signature in x-mclog-signature (sha256=…). The receiver computes the same signature and drops anything that doesn't match. Once saved, it isn't shown again.",
+      recipients: "Addresses that will receive the alert, comma separated. Delivery uses the backend's SMTP server: if it isn't configured, “Send test” will fail.",
+      botToken:
+        "The token @BotFather gives you when you create the bot (123456:ABC-DEF…). It grants full control of the bot: once saved, only its first characters are shown.",
+      chatId: "Identifier of the chat, group or channel the bot will post alerts to. Add the bot to the group first; group IDs start with “-”.",
+      ruleName: "Shows up in the title of every alert and in the history. Make it say what it watches, e.g. “Billing errors in production”.",
+      ruleType:
+        "• Repeat threshold: fires when at least N logs matching the rule pile up inside the window. Measures volume.\n• New error: fires when N or more failures whose first occurrence falls inside the window show up. Catches regressions even from a single log.",
+      application: "Watches only this application's logs, by exact name. With “All”, the rule counts logs from every application.",
+      environment: "Watches only this environment. Rules are usually limited to production so tests don't trigger alerts.",
+      minLevel: "Which levels count: “Error only” counts errors; “Warning and error”, both. Info and debug never trigger a rule.",
+      threshold: "Minimum number of logs that must match inside the window to fire. With 1, it fires on the first one.",
+      newErrors: "Minimum number of never-seen failures (new fingerprints) that must show up inside the window to fire. With 1, it fires on the first one.",
+      window:
+        "Minutes looked back on each check, which runs every minute. A short window reacts fast to spikes; a long one catches slow trickles. Maximum 1440 (24 h).",
+      cooldown:
+        "Minutes the rule stays quiet after firing, even if the condition still holds. Avoids one alert per minute during an incident. It starts even if delivery fails. With 0 it can fire on every check.",
+      notifyVia: "Channels the alert will be sent through; you can pick several. Disabled channels are skipped.",
+    },
+
+    lab: {
+      environment:
+        "Environment for every log the Lab sends: the scenarios' and, by default, the custom log's. In development they stay isolated; in production they count in metrics and alerts.",
+      application:
+        "Application name for the log. It always carries the lab- prefix so “Delete lab data” reaches it and it doesn't mix with your real applications.",
+      service: "Component inside the application, e.g. api or worker. It's part of the fingerprint: the same error in another service is another group.",
+      level: "Log severity. Only error and warning are grouped by fingerprint and show up in Errors; info and debug are informational.",
+      composerEnvironment: "Environment for this log. Defaults to the one you picked above for the whole Lab.",
+      message:
+        "Main text of the log and the only required field. Numbers, IDs and URLs in it don't break grouping: they're ignored when computing the fingerprint.",
+      traceId:
+        "Ties several logs of one operation together: send a few with the same traceId and you'll see them together in the Trace view. “Generate” creates a random 32-character hex one.",
+      errorName: "Error class, such as TimeoutError. It's part of the fingerprint: two errors of different classes are never grouped together.",
+      errorCode: "Error code, such as ETIMEDOUT or 504. Also part of the fingerprint.",
+      errorStack:
+        "The error's call stack. MCLog uses its first frame, without line numbers, to compute the fingerprint, so the group doesn't split when you rebuild.",
+      metadata:
+        "Extra data as a JSON object: order ID, user, attempt… It's shown in the log detail and travels in reports, but isn't used for searching or grouping.",
+    },
+
+    account: {
+      email: "The email you sign in to MCLog with.",
+      role: "Your access level. A user views logs, errors and reports; an administrator also manages keys, users, alerts and the Lab. Root is the service's initial account: it can't be deleted or demoted.",
+      memberSince: "Date your account was created.",
+      theme: "Console appearance. “System” follows your operating system's light or dark mode and switches with it.",
+      language: "Interface language and date and number formatting. Reports can be generated in another language from their own option.",
+      current: "Your current password, to confirm it's really you making the change.",
+      next: (min: number) =>
+        `At least ${min} characters and different from the current one. A long phrase is safer and easier to remember than a short word with symbols.`,
+      repeat: "Type the new password again to rule out typos.",
+      enterCode:
+        "The 6-digit code the app shows after scanning the QR. It confirms the app and the server are in sync; if it fails, check that your phone's time is set automatically.",
+      codeOrRecovery:
+        "The 6-digit code from your authenticator app or, if you can't reach it, one of your recovery codes. Each recovery code works only once.",
+      deletePassword: "Asked again so nobody can delete your account from a session you left open.",
+      typeToConfirm: (word: string) =>
+        `Type ${word} exactly, in capitals. It's a safeguard against accidental deletion: this can't be undone.`,
     },
   },
 
