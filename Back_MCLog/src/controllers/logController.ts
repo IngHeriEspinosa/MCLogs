@@ -1,10 +1,11 @@
 import { Environment, LogLevel } from '@prisma/client';
 import { Request, Response } from 'express';
 import logger from '../config/logger';
-import { config } from '../config/env';
 import type { AuthenticatedRequest } from '../middlewares/requireAuth';
+import { workspaceIdOf } from '../middlewares/workspaceContext';
 import { computeFingerprint, shouldFingerprint } from '../utils/fingerprint';
 import { getLevelTimeline } from '../services/analysisService';
+import { getSetting } from '../services/settingsService';
 import {
     CreateLogInput,
     createLog,
@@ -64,6 +65,7 @@ const toCreateInput = (body: Record<string, unknown>, req: Request, res: Respons
     const resolvedService = service ?? application;
 
     return {
+        workspaceId: workspaceIdOf(req),
         application,
         service: resolvedService,
         host: host ?? req.hostname,
@@ -107,8 +109,9 @@ export const log = async (req: Request, res: Response) => {
 
 export const logBatch = async (req: Request, res: Response) => {
     const logs = req.body.logs as Record<string, unknown>[];
-    if (logs.length > config.maxBatchSize) {
-        res.status(400).json({ error: `Batch too large (max ${config.maxBatchSize} logs)` });
+    const maxBatchSize = getSetting('maxBatchSize');
+    if (logs.length > maxBatchSize) {
+        res.status(400).json({ error: `Batch too large (max ${maxBatchSize} logs)` });
         return;
     }
     if (rejectedByScope(allowedApplications(req), logs.map((item) => item.application), res)) return;
@@ -131,6 +134,7 @@ const parseFilters = (req: Request) => {
     const { application, level, environment, search, service, host, traceId, fingerprint, message, errorName, errorCode, from, to } =
         req.query;
     return {
+        workspaceId: workspaceIdOf(req),
         application: application as string | undefined,
         level: level as string | undefined,
         environment: environment as string | undefined,
@@ -163,8 +167,9 @@ export const getLogs = async (req: Request, res: Response) => {
 
     try {
         if (format === 'ndjson' || format === 'csv') {
-            const requested = parseInt((req.query.pageSize as string) ?? String(config.maxExportRows), 10);
-            const limit = Math.min(Math.max(requested || config.maxExportRows, 1), config.maxExportRows);
+            const maxExportRows = getSetting('maxExportRows');
+            const requested = parseInt((req.query.pageSize as string) ?? String(maxExportRows), 10);
+            const limit = Math.min(Math.max(requested || maxExportRows, 1), maxExportRows);
             const rows = await exportLogs(filters, limit, sort);
 
             if (format === 'ndjson') {
@@ -202,7 +207,7 @@ export const getLog = async (req: Request, res: Response) => {
     }
 
     try {
-        const logEntry = await getLogById(id);
+        const logEntry = await getLogById(id, workspaceIdOf(req));
         const applications = allowedApplications(req);
         // Fuera de alcance se responde 404, no 403: un 403 confirmaria que el log existe.
         if (!logEntry || (applications && !applications.includes(logEntry.application))) {
@@ -218,6 +223,7 @@ export const getLog = async (req: Request, res: Response) => {
 
 export const stats = async (req: Request, res: Response) => {
     const filters = {
+        workspaceId: workspaceIdOf(req),
         application: req.query.application as string | undefined,
         environment: req.query.environment as string | undefined,
         applicationsIn: allowedApplications(req)
@@ -246,8 +252,9 @@ export const purgeLogs = async (req: Request, res: Response) => {
     const before = req.query.before as unknown as Date;
     const application = req.query.application as string | undefined;
     try {
-        const deleted = await deleteLogsBefore(before, application);
-        logger.info('Logs purged', { before, application, deleted });
+        const workspaceId = workspaceIdOf(req);
+        const deleted = await deleteLogsBefore(workspaceId, before, application);
+        logger.info('Logs purged', { workspaceId, before, application, deleted });
         res.json({ deleted });
     } catch (error) {
         logger.error('Error purging logs', { error });

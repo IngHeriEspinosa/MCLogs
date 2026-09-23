@@ -94,17 +94,20 @@ const errorResult = (message: string) => ({
   isError: true as const,
 });
 
-/** Contexto de la peticion: las restricciones de la API key que la autentico. */
+/** Contexto de la peticion: su espacio y las restricciones de la API key que la autentico. */
 export type McpContext = {
-  /** Aplicaciones visibles. Vacio o ausente = todas. */
+  /** Espacio de trabajo: las herramientas nunca ven nada fuera de el. */
+  workspaceId: number;
+  /** Aplicaciones visibles. Vacio o ausente = todas las del espacio. */
   applications?: string[];
 };
 
 const windowFrom = (hours: number) => ({ from: new Date(Date.now() - hours * HOUR_MS), to: new Date() });
 
-export const buildMcpServer = (context: McpContext = {}): McpServer => {
+export const buildMcpServer = (context: McpContext): McpServer => {
+  const { workspaceId } = context;
   const applicationsIn = context.applications?.length ? context.applications : undefined;
-  const scoped = (filters: LogFilters): LogFilters => ({ ...filters, applicationsIn });
+  const scoped = (filters: Omit<LogFilters, "workspaceId">): LogFilters => ({ ...filters, workspaceId, applicationsIn });
 
   const server = new McpServer(
     { name: "mclog", version: APP_VERSION },
@@ -119,7 +122,7 @@ export const buildMcpServer = (context: McpContext = {}): McpServer => {
         "5. get_trace o get_log_context para entender que llevo hasta el fallo.",
         applicationsIn
           ? `Esta conexion solo alcanza estas aplicaciones: ${applicationsIn.join(", ")}.`
-          : "Esta conexion alcanza todas las aplicaciones.",
+          : "Esta conexion alcanza todas las aplicaciones de su espacio de trabajo.",
       ].join("\n"),
     },
   );
@@ -142,7 +145,7 @@ export const buildMcpServer = (context: McpContext = {}): McpServer => {
     },
     async ({ hours }) => {
       const { from, to } = windowFrom(hours ?? DEFAULT_APPLICATIONS_HOURS);
-      const applications = await listApplications(applicationsIn, from);
+      const applications = await listApplications(workspaceId, applicationsIn, from);
       return jsonResult({
         window: { from: iso(from), to: iso(to) },
         total: applications.length,
@@ -303,7 +306,7 @@ export const buildMcpServer = (context: McpContext = {}): McpServer => {
       inputSchema: { id: z.number().int().min(1).describe("Id del log") },
     },
     async ({ id }) => {
-      const log = (await getLogById(id)) as AnyLog | null;
+      const log = (await getLogById(id, workspaceId)) as AnyLog | null;
       if (!log || (applicationsIn && !applicationsIn.includes(log.application))) {
         return errorResult(`No existe ningun log accesible con id ${id}.`);
       }
@@ -320,7 +323,7 @@ export const buildMcpServer = (context: McpContext = {}): McpServer => {
       inputSchema: { traceId: z.string().min(1).max(128).describe("Identificador de correlacion") },
     },
     async ({ traceId }) => {
-      const logs = (await getTrace(traceId, { applicationsIn })) as unknown as AnyLog[];
+      const logs = (await getTrace(traceId, { workspaceId, applicationsIn })) as unknown as AnyLog[];
       if (logs.length === 0) return errorResult(`No hay logs accesibles con traceId "${traceId}".`);
 
       return jsonResult({
@@ -346,7 +349,7 @@ export const buildMcpServer = (context: McpContext = {}): McpServer => {
       },
     },
     async ({ id, beforeSeconds, afterSeconds, limit }) => {
-      const context = await getLogContext(id, { beforeSeconds, afterSeconds, limit }, { applicationsIn });
+      const context = await getLogContext(id, { beforeSeconds, afterSeconds, limit }, { workspaceId, applicationsIn });
       if (!context) return errorResult(`No existe ningun log accesible con id ${id}.`);
 
       return jsonResult({

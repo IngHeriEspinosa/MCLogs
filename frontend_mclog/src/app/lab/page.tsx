@@ -11,7 +11,8 @@ import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { LAB_PREFIX, LAB_SCENARIOS, LabEnvironment } from "@/common/lab/scenarios";
-import { useMe } from "@/hooks/useAuth";
+import { useWorkspace } from "@/hooks/useWorkspaces";
+import { usePublicSettings } from "@/hooks/useSettings";
 import { useApplications } from "@/hooks/useErrors";
 import { usePurgeLab, useLabRunner } from "@/hooks/useLab";
 import { ENVIRONMENTS } from "@/hooks/useOptions";
@@ -25,16 +26,17 @@ import { ENVIRONMENTS } from "@/hooks/useOptions";
  */
 export default function LabPage() {
   const { t, fmt } = useI18n();
-  const me = useMe();
+  const workspace = useWorkspace();
+  const { labEnabled } = usePublicSettings();
   const applications = useApplications();
   const [environment, setEnvironment] = useState<LabEnvironment>("development");
   const { runs, run, stop, idle } = useLabRunner();
   const purge = usePurgeLab((applications.data ?? []).map((app) => app.application));
 
-  if (me.isSuccess && me.data.role !== "admin") {
+  if ((workspace.ready && workspace.current && !workspace.isOwner) || !labEnabled) {
     return (
       <DashboardLayout title={t.lab.title} eyebrow={t.lab.eyebrow} width="narrow">
-        <Alert variant="error">{t.common.adminOnly}</Alert>
+        <Alert variant="error">{labEnabled ? t.common.ownerOnly : t.lab.disabled}</Alert>
       </DashboardLayout>
     );
   }

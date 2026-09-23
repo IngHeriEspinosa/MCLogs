@@ -156,6 +156,7 @@ function ErrorsView() {
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 3xl:gap-4">
           <StatTile
             label={t.errors.kpiGroups}
+            info={t.fieldInfo.metrics.groups}
             value={`${fmt.number(data.length)}${data.length >= 100 ? "+" : ""}`}
             icon="hash"
             accent={level === "warn" ? "warn" : "error"}
@@ -164,6 +165,7 @@ function ErrorsView() {
           />
           <StatTile
             label={t.errors.kpiOccurrences}
+            info={t.fieldInfo.metrics.occurrences}
             value={fmt.compact(occurrences)}
             icon="activity"
             accent="neutral"
@@ -172,6 +174,7 @@ function ErrorsView() {
           />
           <StatTile
             label={t.errors.kpiTopApp}
+            info={t.fieldInfo.metrics.topApp}
             value={<span className="font-mono text-[1.375rem]">{topApp ? topApp[0] : "—"}</span>}
             hint={topApp ? t.errors.occurrencesCount(fmt.number(topApp[1])) : undefined}
             icon="box"
@@ -181,6 +184,7 @@ function ErrorsView() {
           />
           <StatTile
             label={t.errors.kpiTopShare}
+            info={t.fieldInfo.metrics.topShare}
             value={fmt.percent(data[0] && occurrences ? data[0].count / occurrences : 0)}
             hint={t.errors.kpiTopShareHint}
             icon="chart"

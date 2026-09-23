@@ -14,6 +14,8 @@ import { config } from "../config/env";
 export type LogEvent = {
   /** Ausente en los lotes: `createMany` no devuelve las filas creadas. */
   id?: number;
+  /** El stream solo entrega a cada conexion los logs de su espacio. */
+  workspaceId: number;
   timestamp: string;
   application: string;
   service: string | null;

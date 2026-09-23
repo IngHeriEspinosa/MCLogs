@@ -17,7 +17,7 @@ import { addDays, fromDateValue, startOfDay } from "@/components/molecules/Calen
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
-import { useMe } from "@/hooks/useAuth";
+import { useWorkspace } from "@/hooks/useWorkspaces";
 import { ApiKeyScope, CreatedApiKey, useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/hooks/useApiKeys";
 
 const SCOPES: ApiKeyScope[] = ["ingest", "read", "metrics"];
@@ -243,13 +243,13 @@ const KeysTable: React.FC = () => {
 
 export default function ApiKeysPage() {
   const { t } = useI18n();
-  const me = useMe();
+  const workspace = useWorkspace();
   const [created, setCreated] = useState<CreatedApiKey | null>(null);
 
-  if (me.isSuccess && me.data.role !== "admin") {
+  if (workspace.ready && workspace.current && !workspace.isOwner) {
     return (
       <DashboardLayout title={t.apiKeys.title} eyebrow={t.apiKeys.eyebrow} width="narrow">
-        <Alert variant="error">{t.common.adminOnly}</Alert>
+        <Alert variant="error">{t.common.ownerOnly}</Alert>
       </DashboardLayout>
     );
   }

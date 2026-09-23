@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { prisma } from "../config/prisma";
 import { config } from "../config/env";
 import { verifySecondFactor } from "./twoFactorService";
+import { createWorkspace, setDefaultWorkspaceId } from "./workspaceService";
 
 const parseDurationMs = (value: string) => {
   const match = value.match(/^(\d+)(ms|s|m|h|d)$/);
@@ -22,20 +23,34 @@ const refreshTtlMs = parseDurationMs(String(refreshTtl));
  * Da de alta la cuenta root (ADMIN_EMAIL) si no existe y la marca como tal.
  * Solo hay un root: si ADMIN_EMAIL cambia, la cuenta anterior pasa a ser un
  * admin normal.
+ *
+ * Tambien garantiza que el root administre al menos un espacio, y lo fija como
+ * espacio por defecto: es donde escribe la API_KEY heredada.
  */
 export const ensureAdminUser = async () => {
   const email = process.env.ADMIN_EMAIL;
   if (!email || !process.env.ADMIN_PASSWORD) return;
   const existing = await prisma.user.findUnique({ where: { email } });
+  let rootId: number;
   if (existing) {
+    rootId = existing.id;
     if (!existing.isRoot || existing.role !== "admin") {
       await prisma.user.update({ where: { id: existing.id }, data: { isRoot: true, role: "admin" } });
     }
   } else {
     const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
-    await prisma.user.create({ data: { email, passwordHash: hash, role: "admin", isRoot: true } });
+    const created = await prisma.user.create({
+      data: { email, passwordHash: hash, role: "admin", isRoot: true, activatedAt: new Date() },
+    });
+    rootId = created.id;
   }
   await prisma.user.updateMany({ where: { isRoot: true, email: { not: email } }, data: { isRoot: false } });
+
+  const owned = await prisma.workspaceMember.findFirst({
+    where: { userId: rootId, role: "owner", workspace: { deletedAt: null } },
+    orderBy: { workspaceId: "asc" },
+  });
+  setDefaultWorkspaceId(owned?.workspaceId ?? (await createWorkspace(rootId, "Principal", email)).id);
 };
 
 const issueTokens = async (userId: number, email: string, role: string) => {
@@ -74,7 +89,8 @@ const completeLogin = async (user: { id: number; email: string; role: string }) 
 
 export const login = async (email: string, password: string): Promise<LoginResult> => {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new Error("Invalid credentials");
+  // Una cuenta invitada no entra hasta elegir su contrasena con el enlace.
+  if (!user || !user.activatedAt) throw new Error("Invalid credentials");
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new Error("Invalid credentials");
   if (user.twoFactorEnabled) {

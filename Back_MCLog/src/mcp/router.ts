@@ -4,7 +4,9 @@ import logger from "../config/logger";
 import { requireAuthOrReadKey } from "../middlewares/authApiKey";
 import { AuthenticatedRequest } from "../middlewares/requireAuth";
 import { queryLimiter } from "../middlewares/rateLimiters";
+import { requireWorkspace, workspaceIdOf } from "../middlewares/workspaceContext";
 import { buildMcpServer } from "./server";
+import { getSetting } from "../services/settingsService";
 
 /**
  * Endpoint MCP sobre HTTP (transporte Streamable HTTP).
@@ -16,9 +18,16 @@ import { buildMcpServer } from "./server";
  *
  * La autenticacion es la misma que la del resto de consultas: JWT de usuario o
  * API key con scope `read`, incluida su restriccion por aplicacion, que se
- * traslada al servidor MCP para que las herramientas no vean de mas.
+ * traslada al servidor MCP para que las herramientas no vean de mas. El espacio
+ * es el de la clave o, con JWT, el de la cabecera `X-Workspace-Id`.
  */
 const router = express.Router();
+
+// Apagado desde la configuracion: 404, como si el endpoint no existiera.
+router.use((_req: Request, res: Response, next) => {
+  if (getSetting("mcpEnabled")) return next();
+  res.status(404).json({ error: "MCP endpoint is disabled" });
+});
 
 /** Codigo JSON-RPC para peticiones mal formadas o no soportadas. */
 const JSONRPC_INVALID_REQUEST = -32600;
@@ -29,9 +38,9 @@ const jsonRpcError = (res: Response, status: number, code: number, message: stri
   res.status(status).json({ jsonrpc: "2.0", error: { code, message }, id: null });
 };
 
-router.post("/", queryLimiter, requireAuthOrReadKey, async (req: Request, res: Response) => {
+router.post("/", queryLimiter, requireAuthOrReadKey, requireWorkspace, async (req: Request, res: Response) => {
   const applications = (req as AuthenticatedRequest).apiKey?.applications;
-  const server = buildMcpServer({ applications });
+  const server = buildMcpServer({ workspaceId: workspaceIdOf(req), applications });
 
   const transport = new StreamableHTTPServerTransport({
     // Sin generador de sesion: modo sin estado, una peticion y fuera.

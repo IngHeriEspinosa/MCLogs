@@ -24,7 +24,7 @@ Haz que MCLog te avise por Slack, Teams, Discord, correo o Telegram cuando algo 
 
 ## Paso 1 — Crea un canal
 
-1. Abre **Administración → Alertas**, pestaña **Canales**.
+1. Abre **Espacio → Alertas**, pestaña **Canales**.
 2. Pulsa **Nuevo canal**.
 3. **Nombre**: por ejemplo `Slack #incidentes`.
 4. **Tipo** y sus campos:
@@ -72,7 +72,7 @@ Las reglas se comprueban **cada minuto**.
 
 No hace falta esperar a un fallo real:
 
-1. Abre **Administración → Lab**.
+1. Abre **Espacio → Lab**.
 2. En **Entorno de destino**, elige **el mismo entorno que filtra tu regla**. Si tu regla vigila Producción, tendrás que elegir Producción: la pantalla te avisará de que esos logs cuentan en las métricas.
 3. Ejecuta:
    - **Pico de incidente** para una regla de **Umbral** (envía 80 errores y warnings de `lab-billing` en 5 minutos).

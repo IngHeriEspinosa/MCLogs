@@ -17,7 +17,7 @@ import { Select } from "@/components/molecules/Select";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
-import { useMe } from "@/hooks/useAuth";
+import { useWorkspace } from "@/hooks/useWorkspaces";
 import {
   AlertChannel,
   AlertChannelType,
@@ -536,13 +536,13 @@ const HistoryTab: React.FC = () => {
 
 export default function AlertsPage() {
   const { t } = useI18n();
-  const me = useMe();
+  const workspace = useWorkspace();
   const [tab, setTab] = useState<Tab>("channels");
 
-  if (me.isSuccess && me.data.role !== "admin") {
+  if (workspace.ready && workspace.current && !workspace.isOwner) {
     return (
       <DashboardLayout title={t.alerts.title} eyebrow={t.alerts.eyebrow} width="narrow">
-        <Alert variant="error">{t.common.adminOnly}</Alert>
+        <Alert variant="error">{t.common.ownerOnly}</Alert>
       </DashboardLayout>
     );
   }

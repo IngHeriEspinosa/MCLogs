@@ -20,7 +20,7 @@ Envía los logs y los errores de tus scripts de NetSuite (SuiteScript 2.1) a MCL
 
 ## Paso 1 — Crea una API key para NetSuite
 
-1. En el dashboard de MCLog, con un usuario admin, abre **Administración → API keys** y pulsa **Nueva clave**.
+1. En el dashboard de MCLog, con un usuario admin, abre **Espacio → API keys** y pulsa **Nueva clave**.
 2. **Nombre**: `NetSuite producción` (o el entorno que corresponda).
 3. **Permisos**: solo **Enviar logs**.
 4. **Aplicaciones** (recomendado): los nombres que usarás en `application`, separados por comas, por ejemplo `SuiteApp-Facturacion, SuiteApp-SyncInventario`.

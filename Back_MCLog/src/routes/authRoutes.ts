@@ -9,6 +9,7 @@ import {
   verifySecondFactor,
 } from "../services/twoFactorService";
 import {
+  ACCOUNT_MODES,
   PASSWORD_MIN_LENGTH,
   USER_ROLES,
   UserServiceError,
@@ -17,10 +18,11 @@ import {
   createUser,
   deleteOwnAccount,
   deleteUser,
-  getUserById,
+  getCurrentUser,
   listUsers,
   updateUser,
 } from "../services/userService";
+import { WORKSPACE_NAME_MAX, WORKSPACE_ROLES } from "../services/workspaceService";
 import { setAuthCookies, clearAuthCookies } from "../middlewares/setAuthCookies";
 import { AuthenticatedRequest, requireAuth } from "../middlewares/requireAuth";
 import { requireRole } from "../middlewares/requireRole";
@@ -175,8 +177,8 @@ router.post(
 router.get("/me", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     // Se relee de base de datos en lugar de confiar en el JWT: el rol puede
-    // haber cambiado despues de emitirse el token.
-    const user = req.user ? await getUserById(req.user.id) : null;
+    // haber cambiado despues de emitirse el token. Incluye sus espacios.
+    const user = req.user ? await getCurrentUser(req.user.id) : null;
     if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
@@ -267,7 +269,10 @@ router.post(
   },
 );
 
-// --- Administracion de usuarios ---
+// --- Administracion de cuentas (admin de plataforma) ---
+//
+// El admin de plataforma gestiona cuentas, no datos: ve cuantas cuentas hay y
+// en cuantos espacios esta cada una, pero no los espacios ajenos ni sus logs.
 
 const adminOnly = [requireAuth, requireRole("admin")];
 
@@ -284,15 +289,37 @@ router.post(
   adminOnly,
   [
     body("email").isEmail().withMessage("A valid email is required").normalizeEmail(),
-    passwordRule("password"),
+    passwordRule("password").optional(),
     body("role").optional().isIn(USER_ROLES).withMessage(`role must be one of: ${USER_ROLES.join(", ")}`),
+    body("mode").optional().isIn(ACCOUNT_MODES).withMessage(`mode must be one of: ${ACCOUNT_MODES.join(", ")}`),
+    body("workspaceName").optional().isString().trim().isLength({ min: 1, max: WORKSPACE_NAME_MAX }),
+    body("workspaceId").optional().isInt({ min: 1 }).toInt(),
+    body("workspaceRole").optional().isIn(WORKSPACE_ROLES),
+    body("locale").optional().isIn(RESET_LOCALES),
     handleValidation,
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const user = await createUser({ email: req.body.email, password: req.body.password, role: req.body.role });
-      logger.info("User created", { id: user.id, email: user.email, role: user.role, by: req.user?.email });
-      res.status(201).json({ data: user });
+      const { user, emailSent, invitePath } = await createUser({
+        email: req.body.email,
+        password: req.body.password,
+        role: req.body.role,
+        mode: req.body.mode,
+        workspaceName: req.body.workspaceName,
+        workspaceId: req.body.workspaceId,
+        workspaceRole: req.body.workspaceRole,
+        requesterId: req.user!.id,
+        locale: req.body.locale,
+      });
+      logger.info("User created", {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        mode: req.body.mode ?? "own",
+        pending: user.activatedAt === null,
+        by: req.user?.email,
+      });
+      res.status(201).json({ data: user, emailSent, invitePath });
     } catch (error) {
       respondWithError(error, res, "Error creating user");
     }

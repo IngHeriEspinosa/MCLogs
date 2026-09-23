@@ -18,7 +18,7 @@ Envía los logs y las excepciones de tu aplicación Node.js a MCLog con la libre
 
 ## Paso 1 — Crea una API key para tu aplicación
 
-1. En el dashboard, abre **Administración → API keys** y pulsa **Nueva clave**.
+1. En el dashboard, abre **Espacio → API keys** y pulsa **Nueva clave**.
 2. **Nombre**: el de tu aplicación y entorno, por ejemplo `facturacion producción`.
 3. **Permisos**: solo **Enviar logs**.
 4. **Aplicaciones**: escribe el nombre exacto que usarás en `application`, por ejemplo `facturacion`. Así, si la clave se filtra, no podrá escribir en nombre de otra aplicación ni leer nada.
@@ -153,7 +153,7 @@ En el dashboard, **Ver traza** mostrará la operación completa, de todos los se
 | Síntoma | Causa y solución |
 |---|---|
 | No llega nada y no ves ningún error | La librería no escribe en consola por defecto. Añade `onError` (paso 4) para ver el motivo |
-| `MCLog HTTP 401` | Clave mal copiada, revocada o caducada. Revísala en Administración → API keys |
+| `MCLog HTTP 401` | Clave mal copiada, revocada o caducada. Revísala en Espacio → API keys |
 | `MCLog HTTP 403` con `allowedApplications` | La clave está acotada a otra aplicación: el `application` del cliente no coincide |
 | `MCLog HTTP 400` | Un campo no es válido; el mensaje trae el detalle. Lo más común: `level` o `environment` mal escritos |
 | `MCLog HTTP 429` frecuente | Superas 2000 peticiones/minuto. Agrupa con `sendBatch` |

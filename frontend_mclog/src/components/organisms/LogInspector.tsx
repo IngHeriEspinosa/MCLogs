@@ -16,32 +16,23 @@ import { useLogContext } from "@/hooks/useErrors";
 
 type LogInspectorProps = {
   log: LogRow;
-  /**
-   * "panel" junto a la tabla (pantallas anchas), "drawer" sobre el contenido,
-   * o "dialog": modal al 90 % de la pantalla, con el detalle a dos columnas.
-   */
-  mode: "panel" | "drawer" | "dialog";
   onClose: () => void;
   onSelect: (log: LogEntry) => void;
   onFilterFingerprint: (fingerprint: string) => void;
-  /** Solo en modo dialog: recorrer la pagina sin cerrar el detalle. */
+  /** Recorrer la pagina sin cerrar el detalle. */
   onPrev?: () => void;
   onNext?: () => void;
   /** Posicion en la pagina actual, empezando en 1. */
   position?: { index: number; total: number };
 };
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 /**
- * Detalle de un log. En pantallas anchas es una columna fija junto a la tabla,
- * asi que se puede recorrer la tabla con las flechas y ver cada detalle sin
- * perder el sitio; en pantallas estrechas se desliza encima como un cajon
- * modal, con el foco atrapado dentro mientras esta abierto.
+ * Detalle de un log en un dialogo modal al 90 % de la pantalla, con el detalle
+ * a dos columnas: mensajes, stacks y metadata largos se leen sin recortes, y
+ * las flechas recorren la pagina sin cerrarlo.
  */
 export const LogInspector: React.FC<LogInspectorProps> = ({
   log,
-  mode,
   onClose,
   onSelect,
   onFilterFingerprint,
@@ -50,55 +41,29 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   position,
 }) => {
   const { t, fmt, locale } = useI18n();
-  const panelRef = useRef<HTMLElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const full: LogEntry | null = "streamKey" in log ? null : log;
   const context = useLogContext(full?.id ?? null);
-  const isDialog = mode === "dialog";
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
-      if (!isDialog || (event.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+      if ((event.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
       if (event.key === "ArrowLeft" && onPrev) onPrev();
       if (event.key === "ArrowRight" && onNext) onNext();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose, onPrev, onNext, isDialog]);
+  }, [onClose, onPrev, onNext]);
 
-  // En modo cajon: foco dentro al abrir y de vuelta a donde estaba al cerrar.
+  // <dialog> nativo: el navegador atrapa el foco y deja inerte el resto; al
+  // cerrar se devuelve a la fila desde la que se abrio.
   useEffect(() => {
-    if (mode !== "drawer") return;
-    const previous = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-    return () => previous?.focus?.();
-  }, [mode]);
-
-  // En modo dialogo, <dialog> nativo: el navegador atrapa el foco y deja inerte
-  // el resto; al cerrar se devuelve a la fila desde la que se abrio.
-  useEffect(() => {
-    if (!isDialog) return;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
     return () => previous?.focus?.();
-  }, [isDialog]);
-
-  const trapFocus = (event: React.KeyboardEvent) => {
-    if (mode !== "drawer" || event.key !== "Tab" || !panelRef.current) return;
-    const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-    if (items.length === 0) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
+  }, []);
 
   const origin = new Date(log.timestamp).getTime();
   const formatOffset = (ms: number) => {
@@ -125,7 +90,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   const messageSection = (
     <section>
       <h3 className="eyebrow mb-2">{t.inspector.message}</h3>
-      <div className={`${isDialog ? "max-h-[40vh]" : "max-h-60"} overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[0.8125rem] leading-relaxed text-ink`}>
+      <div className={`max-h-[40vh] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-surface-2 p-3 font-mono text-[0.8125rem] leading-relaxed text-ink`}>
         {log.message}
       </div>
     </section>
@@ -187,14 +152,14 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   const stackSection = full?.errorStack && (
       <section>
         <h3 className="eyebrow mb-2">{t.inspector.stack}</h3>
-        <CodeBlock code={full.errorStack} language="stack" maxHeight={isDialog ? "60vh" : "22rem"} />
+        <CodeBlock code={full.errorStack} language="stack" maxHeight="60vh" />
       </section>
     );
 
   const metadataSection = full?.metadata && Object.keys(full.metadata).length > 0 && (
       <section>
         <h3 className="eyebrow mb-2">{t.inspector.metadata}</h3>
-        <CodeBlock code={JSON.stringify(full.metadata, null, 2)} language="json" maxHeight={isDialog ? "60vh" : "22rem"} />
+        <CodeBlock code={JSON.stringify(full.metadata, null, 2)} language="json" maxHeight="60vh" />
       </section>
     );
 
@@ -260,7 +225,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           </p>
         </div>
         <div className="-mr-2 flex shrink-0 items-center gap-1">
-          {isDialog && (onPrev || onNext) && (
+          {(onPrev || onNext) && (
             <>
               {position && (
                 <span className="mr-1 hidden font-mono text-xs tabular-nums text-ink-3 sm:inline">
@@ -276,82 +241,39 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
         </div>
       </header>
 
-      {isDialog ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1.7fr)_minmax(22rem,1fr)] lg:overflow-hidden">
-          <div className="flex min-w-0 flex-col gap-5 px-6 py-5 lg:overflow-y-auto">
-            {!full && <Alert variant="info">{t.inspector.liveRow}</Alert>}
-            {messageSection}
-            {actionsBar}
-            {stackSection}
-            {metadataSection}
-          </div>
-          <div className="flex min-w-0 flex-col gap-5 border-t border-line bg-surface-2/40 px-6 py-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
-            {propertiesSection}
-            {contextSection}
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1.7fr)_minmax(22rem,1fr)] lg:overflow-hidden">
+        <div className="flex min-w-0 flex-col gap-5 px-6 py-5 lg:overflow-y-auto">
           {!full && <Alert variant="info">{t.inspector.liveRow}</Alert>}
           {messageSection}
           {actionsBar}
-          {propertiesSection}
           {stackSection}
           {metadataSection}
+        </div>
+        <div className="flex min-w-0 flex-col gap-5 border-t border-line bg-surface-2/40 px-6 py-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
+          {propertiesSection}
           {contextSection}
         </div>
-      )}
+      </div>
     </>
   );
 
-  if (isDialog) {
-    return (
-      <dialog
-        ref={dialogRef}
-        aria-label={t.inspector.title}
-        onCancel={(event) => {
-          event.preventDefault();
-          onClose();
-        }}
-        onClick={(event) => {
-          if (event.target === dialogRef.current) onClose();
-        }}
-        className="m-auto h-[90vh] max-h-none w-[90vw] max-w-none flex-col overflow-hidden rounded-2xl border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-[rgb(4_10_14/0.55)] backdrop:backdrop-blur-[2px] open:flex open:animate-pop-in"
-      >
-        {content}
-        {(onPrev || onNext) && (
-          <footer className="hidden border-t border-line px-6 py-2 text-[0.6875rem] text-ink-3 lg:block">{t.inspector.navHint}</footer>
-        )}
-      </dialog>
-    );
-  }
-
-  if (mode === "drawer") {
-    return (
-      <>
-        <div aria-hidden onClick={onClose} className="fixed inset-0 z-40 animate-fade-in bg-[rgb(4_10_14/0.45)]" />
-        <aside
-          ref={panelRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label={t.inspector.title}
-          tabIndex={-1}
-          onKeyDown={trapFocus}
-          className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl animate-slide-in-right flex-col bg-surface shadow-pop outline-none sm:border-l sm:border-line"
-        >
-          {content}
-        </aside>
-      </>
-    );
-  }
-
   return (
-    <aside
-      ref={panelRef}
+    <dialog
+      ref={dialogRef}
       aria-label={t.inspector.title}
-      className="sticky top-[4.5rem] flex max-h-[calc(100vh-5.5rem)] min-w-0 animate-slide-in-right flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-card"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === dialogRef.current) onClose();
+      }}
+      className="m-auto h-[90vh] max-h-none w-[90vw] max-w-none flex-col overflow-hidden rounded-2xl border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-[rgb(4_10_14/0.55)] backdrop:backdrop-blur-[2px] open:flex open:animate-pop-in"
     >
       {content}
-    </aside>
+      {(onPrev || onNext) && (
+        <footer className="hidden border-t border-line px-6 py-2 text-[0.6875rem] text-ink-3 lg:block">{t.inspector.navHint}</footer>
+      )}
+    </dialog>
   );
 };

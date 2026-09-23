@@ -4,6 +4,8 @@ import { logsIngested } from '../config/metrics';
 import { emitLogCreated } from '../events/logEvents';
 
 export type CreateLogInput = {
+    /** Espacio al que va el log: el de la API key o el de la sesion. */
+    workspaceId: number;
     application: string;
     service?: string;
     host?: string;
@@ -24,6 +26,7 @@ export type CreateLogInput = {
 /** Forma que viaja por el stream en vivo: sin metadata ni stack, que ahi no aportan. */
 const toEvent = (input: CreateLogInput, id?: number) => ({
     ...(id !== undefined ? { id } : {}),
+    workspaceId: input.workspaceId,
     timestamp: (input.timestamp ?? new Date()).toISOString(),
     application: input.application,
     service: input.service ?? null,
@@ -57,6 +60,11 @@ export const createLogsBatch = async (inputs: CreateLogInput[]) => {
 };
 
 export type LogFilters = {
+    /**
+     * Espacio de trabajo. Obligatorio a proposito: una consulta sin acotar
+     * mezclaria datos de varios espacios, y asi el compilador no la deja pasar.
+     */
+    workspaceId: number;
     application?: string;
     level?: string;
     environment?: string;
@@ -91,8 +99,8 @@ type Sort = {
 
 export const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
     const {
-        application, level, environment, search, service, host, traceId, fingerprint, message, errorName, errorCode,
-        from, to, applicationsIn
+        workspaceId, application, level, environment, search, service, host, traceId, fingerprint, message, errorName,
+        errorCode, from, to, applicationsIn
     } = filters;
 
     // from y to comparten la misma clave "timestamp": deben combinarse en un solo objeto
@@ -100,6 +108,7 @@ export const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
         from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
 
     const where: Prisma.LogWhereInput = {
+        workspaceId,
         ...(application && { application: { contains: application, mode: 'insensitive' } }),
         ...(service && { service: { contains: service, mode: 'insensitive' } }),
         ...(host && { host: { contains: host, mode: 'insensitive' } }),
@@ -162,11 +171,12 @@ export const exportLogs = async (filters: LogFilters, limit: number, sort: Sort)
     });
 };
 
-export const getLogById = async (id: number) => {
-    return prisma.log.findUnique({ where: { id } });
+/** Un log por id, solo si es del espacio: un id ajeno se trata como inexistente. */
+export const getLogById = async (id: number, workspaceId: number) => {
+    return prisma.log.findFirst({ where: { id, workspaceId } });
 };
 
-export const getLogStats = async (filters: LogFilters = {}) => {
+export const getLogStats = async (filters: LogFilters) => {
     const since24h = new Date(Date.now() - 24 * 3600 * 1000);
     const where = buildWhere(filters);
     const where24h: Prisma.LogWhereInput = { AND: [where, { timestamp: { gte: since24h } }] };
@@ -195,19 +205,19 @@ export const getLogStats = async (filters: LogFilters = {}) => {
 };
 
 /**
- * Borra en lotes los logs anteriores a una fecha. Un unico DELETE masivo sobre
+ * Borra en lotes los logs que cumplen `where`. Un unico DELETE masivo sobre
  * una tabla de millones de filas mantiene el bloqueo demasiado tiempo y compite
  * con la ingesta, asi que se trocea y se cede el control entre lotes.
  */
-export const deleteLogsOlderThanInBatches = async (
-    before: Date,
+export const deleteLogsInBatches = async (
+    where: Prisma.LogWhereInput,
     batchSize = 5000,
     maxBatches = 1000
 ): Promise<number> => {
     let deleted = 0;
     for (let batch = 0; batch < maxBatches; batch++) {
         const rows = await prisma.log.findMany({
-            where: { timestamp: { lt: before } },
+            where,
             select: { id: true },
             take: batchSize
         });
@@ -223,9 +233,14 @@ export const deleteLogsOlderThanInBatches = async (
     return deleted;
 };
 
-export const deleteLogsBefore = async (before: Date, application?: string) => {
+/** Retencion: los logs anteriores a una fecha, en todos los espacios. */
+export const deleteLogsOlderThanInBatches = (before: Date, batchSize?: number, maxBatches?: number) =>
+    deleteLogsInBatches({ timestamp: { lt: before } }, batchSize, maxBatches);
+
+export const deleteLogsBefore = async (workspaceId: number, before: Date, application?: string) => {
     const result = await prisma.log.deleteMany({
         where: {
+            workspaceId,
             timestamp: { lt: before },
             ...(application && { application })
         }

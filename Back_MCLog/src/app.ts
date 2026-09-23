@@ -12,6 +12,8 @@ import { swaggerSpec } from "./config/swagger";
 import logRoutes from "./routes/logRoutes";
 import apiKeyRoutes from "./routes/apiKeyRoutes";
 import alertRoutes from "./routes/alertRoutes";
+import workspaceRoutes from "./routes/workspaceRoutes";
+import settingsRoutes from "./routes/settingsRoutes";
 import mcpRouter from "./mcp/router";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
@@ -81,14 +83,20 @@ export const createApp = () => {
 
   // Servidor MCP: permite que un asistente de IA consulte los logs con
   // herramientas en lugar de construir URLs. Autenticado como cualquier lectura.
-  if (config.mcpEnabled) {
-    app.use("/mcp", mcpRouter);
-  }
+  // Se monta siempre: si esta apagado (configuracion `mcpEnabled`) el propio
+  // router responde 404, y se puede encender sin reiniciar.
+  app.use("/mcp", mcpRouter);
 
-  // Administración de API keys: solo admin (el propio router aplica auth y rol)
+  // Configuracion de la aplicacion: la edita solo la cuenta root.
+  app.use("/api/settings", settingsRoutes);
+
+  // Espacios de trabajo y sus miembros (el propio router aplica auth y rol).
+  app.use("/api/workspaces", workspaceRoutes);
+
+  // API keys del espacio activo: solo su dueño.
   app.use("/api/keys", apiKeyRoutes);
 
-  // Alertas: canales, reglas e historial. Solo admin.
+  // Alertas del espacio activo (canales, reglas e historial): solo su dueño.
   app.use("/api/alerts", alertRoutes);
 
   // Auth y rate limiting se aplican por ruta dentro de logRoutes

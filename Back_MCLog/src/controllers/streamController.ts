@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
-import { config } from "../config/env";
 import logger from "../config/logger";
 import { sseConnections } from "../config/metrics";
 import { LOG_CREATED, LogEvent, logEvents } from "../events/logEvents";
 import type { AuthenticatedRequest } from "../middlewares/requireAuth";
+import { workspaceIdOf } from "../middlewares/workspaceContext";
+import { getSetting } from "../services/settingsService";
 
 /**
  * Stream de logs en vivo por Server-Sent Events.
@@ -21,6 +22,7 @@ const PING_INTERVAL_MS = 25_000;
 let activas = 0;
 
 type StreamFilters = {
+  workspaceId: number;
   level?: string;
   application?: string;
   environment?: string;
@@ -29,6 +31,8 @@ type StreamFilters = {
 };
 
 const matches = (event: LogEvent, filters: StreamFilters): boolean => {
+  // Lo primero y lo mas barato: los logs de otro espacio no se miran siquiera.
+  if (event.workspaceId !== filters.workspaceId) return false;
   if (filters.applicationsIn?.length && !filters.applicationsIn.includes(event.application)) return false;
   if (filters.level && event.level !== filters.level) return false;
   if (filters.environment && event.environment !== filters.environment) return false;
@@ -39,13 +43,17 @@ const matches = (event: LogEvent, filters: StreamFilters): boolean => {
 };
 
 export const streamLogs = (req: Request, res: Response) => {
-  if (activas >= config.sseMaxConnections) {
+  const maxConnections = getSetting("maxLiveConnections");
+  if (activas >= maxConnections) {
     res.status(503).json({ error: "Too many live connections, try again later" });
     return;
   }
+  // El tope se puede subir en caliente: el aviso de fugas de Node lo acompaña.
+  if (logEvents.getMaxListeners() < maxConnections + 10) logEvents.setMaxListeners(maxConnections + 10);
 
   const applications = (req as AuthenticatedRequest).apiKey?.applications;
   const filters: StreamFilters = {
+    workspaceId: workspaceIdOf(req),
     level: req.query.level as string | undefined,
     application: req.query.application as string | undefined,
     environment: req.query.environment as string | undefined,

@@ -10,7 +10,24 @@ export type ManagedUser = {
   isRoot: boolean;
   twoFactorEnabled: boolean;
   createdAt: string;
+  /** Null mientras la invitacion esta pendiente. */
+  activatedAt: string | null;
+  /** En cuantos espacios esta; el admin de plataforma no ve cuales. */
+  workspaceCount: number;
 };
+
+/** Alta de cuenta: con espacio propio o dentro de uno del que eres dueño. */
+export type CreateUserInput = {
+  email: string;
+  role: UserRole;
+  mode: "own" | "join";
+  workspaceName?: string;
+  workspaceId?: number;
+  workspaceRole?: "owner" | "member";
+  locale: string;
+};
+
+export type CreateUserResult = { data: ManagedUser; emailSent: boolean; invitePath?: string };
 
 export const PASSWORD_MIN_LENGTH = 8;
 
@@ -23,9 +40,12 @@ export const useUsers = () =>
 export const useCreateUser = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { email: string; password: string; role: UserRole }) =>
-      client.post("/auth/users", input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+    mutationFn: async (input: CreateUserInput) => (await client.post<CreateUserResult>("/auth/users", input)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["users"] });
+      // Si entro a uno de mis espacios, cambia su numero de miembros.
+      void qc.invalidateQueries({ queryKey: ["me"] });
+    },
   });
 };
 

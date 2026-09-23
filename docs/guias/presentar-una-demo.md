@@ -28,8 +28,8 @@ El hilo de la demo es una historia, no una lista de pantallas: *"nos avisan de q
 Hazlo todo con la misma cuenta y el mismo navegador que usarás en la demo.
 
 1. **Entra** y comprueba que la verificación en dos pasos funciona con tu móvil.
-2. **Limpia el Lab**: **Administración → Lab → Borrar datos del lab → Sí, borrar**. Así los recuentos de la demo salen redondos ("25 ocurrencias", no "73").
-3. **Crea el canal de alertas** en **Administración → Alertas → Canales → Nuevo canal**, pulsa **Enviar prueba** y comprueba que el aviso llega donde el público lo verá ([Configurar alertas](configurar-alertas.md)).
+2. **Limpia el Lab**: **Espacio → Lab → Borrar datos del lab → Sí, borrar**. Así los recuentos de la demo salen redondos ("25 ocurrencias", no "73").
+3. **Crea el canal de alertas** en **Espacio → Alertas → Canales → Nuevo canal**, pulsa **Enviar prueba** y comprueba que el aviso llega donde el público lo verá ([Configurar alertas](configurar-alertas.md)).
 4. **Crea dos reglas**, las dos con **Entorno: Desarrollo** (el Lab envía ahí por defecto) y **Aplicación: Todas**:
 
    | Nombre | Tipo | Umbral / Ventana | Silencio |
@@ -81,11 +81,11 @@ No enseñes nada todavía: la pantalla vacía obliga a escuchar.
 2. Escribe tu correo y contraseña y pulsa **Entrar**.
 3. Aparece **Verificación en dos pasos**: escribe el código del móvil y pulsa **Verificar**.
 
-**Qué decir:** «Cada usuario entra con su cuenta, y los administradores con verificación en dos pasos: una contraseña robada no basta.» Señala el menú de la izquierda: **Observabilidad** para investigar, **Administración** solo para admins.
+**Qué decir:** «Cada usuario entra con su cuenta, y los administradores con verificación en dos pasos: una contraseña robada no basta.» Señala el menú de la izquierda: el **selector de espacio** arriba (cada cliente o equipo ve solo lo suyo), **Observabilidad** para investigar y **Espacio** solo para su dueño.
 
 ### Paso 3 — Los logs llegan (2 min)
 
-1. **Administración → Lab**. Explica en una frase: «El Lab envía logs de prueba reales, como los mandaría una aplicación.»
+1. **Espacio → Lab**. Explica en una frase: «El Lab envía logs de prueba reales, como los mandaría una aplicación.»
 2. En **Tráfico normal**, pulsa **Ejecutar**. Mientras corre: «120 registros de tres servicios en la última hora.»
 3. Pulsa **Ver en Logs**.
 4. Recorre despacio: las **tarjetas** (registros, errores, warnings), el gráfico de **Actividad** («arrastro sobre el gráfico y acoto el rango»), la **tabla**.
@@ -113,7 +113,7 @@ No enseñes nada todavía: la pantalla vacía obliga a escuchar.
 
 1. Lab → **Pico de incidente** → **Ejecutar**. «80 errores en cinco minutos: la facturación se queda sin conexiones a la base de datos.»
 2. Mientras se envía, pulsa **Ver en Logs**: el pico rojo en **Actividad**.
-3. Cambia a la pestaña de Telegram/Slack. El aviso llega en el minuto siguiente (lo cronometraste ayer). Si tarda, sigue hablando: enseña **Administración → Alertas → Reglas** y explica los dos tipos:
+3. Cambia a la pestaña de Telegram/Slack. El aviso llega en el minuto siguiente (lo cronometraste ayer). Si tarda, sigue hablando: enseña **Espacio → Alertas → Reglas** y explica los dos tipos:
 
    > «**Umbral**: más de N errores en X minutos. **Error nuevo**: algo que no había fallado nunca. La segunda es la más útil después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".»
 
@@ -163,7 +163,7 @@ Luego, la IA en sí. Elige una de las dos:
    **Qué decir:** «En NetSuite es un fichero en el File Cabinet y cuatro líneas en el script. `exception` manda la clase del error y el stack, que es lo que permite agrupar. Si MCLog no responde, el script sigue: nunca rompe el negocio. Y en Map/Reduce se manda en lote: 500 logs por llamada, diez unidades de governance.»
 
 2. Para lo que no es NetSuite: Lab → **Log a medida**, rellena un mensaje y señala el panel **Petición** en **cURL**: «Cualquier cosa que haga un POST vale. Esta es la petición exacta.»
-3. **Administración → API keys**: señala la clave `demo-netsuite`. «Cada aplicación tiene su clave, con permiso solo de enviar y acotada a su nombre. Si se filtra, no puede leer nada ni escribir en nombre de otra, y se revoca en un clic.»
+3. **Espacio → API keys**: señala la clave `demo-netsuite`. «Cada aplicación tiene su clave, con permiso solo de enviar y acotada a su nombre. Si se filtra, no puede leer nada ni escribir en nombre de otra, y se revoca en un clic.»
 
 ### Paso 10 — Cierre (2 min)
 
@@ -206,7 +206,7 @@ Deja en pantalla la dirección de la documentación y cede la palabra.
 2. Revoca la clave `demo-netsuite` si no la vas a usar en el piloto.
 3. Pausa o borra las dos reglas `Demo · …`, o súbeles el silencio.
 4. Envía al departamento: la dirección de la documentación, la guía [Primeros pasos](primeros-pasos.md) para quien quiera probar en su equipo, e [Integrar NetSuite](integrar-netsuite.md) para quien vaya a hacer el piloto.
-5. Crea los usuarios de quienes vayan a entrar ([Administrar usuarios y claves](administrar-usuarios-y-claves.md)).
+5. Crea los usuarios de quienes vayan a entrar ([Administrar espacios, usuarios y claves](administrar-usuarios-y-claves.md)).
 
 ## Siguiente paso
 

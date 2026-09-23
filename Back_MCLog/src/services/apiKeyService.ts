@@ -9,6 +9,8 @@ export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
 export type ApiKeyPrincipal = {
     id: number;
     name: string;
+    /** Espacio de la clave: todo lo que escribe o lee queda dentro de el. */
+    workspaceId: number;
     scopes: string[];
     /** Aplicaciones permitidas. Vacio = sin restriccion. */
     applications: string[];
@@ -56,6 +58,7 @@ const extractPrefix = (raw: string): string | null => {
 export const looksLikeApiKey = (raw: string) => extractPrefix(raw) !== null;
 
 export type CreateApiKeyInput = {
+    workspaceId: number;
     name: string;
     scopes: string[];
     applications?: string[];
@@ -75,6 +78,7 @@ export const createApiKey = async (input: CreateApiKeyInput) => {
 
     const apiKey = await prisma.apiKey.create({
         data: {
+            workspaceId: input.workspaceId,
             name: input.name,
             prefix,
             keyHash: sha256(key),
@@ -88,19 +92,17 @@ export const createApiKey = async (input: CreateApiKeyInput) => {
     return { key, apiKey: toPublicApiKey(apiKey) };
 };
 
-export const listApiKeys = async (): Promise<PublicApiKey[]> => {
-    const keys = await prisma.apiKey.findMany({ orderBy: { createdAt: 'desc' } });
+export const listApiKeys = async (workspaceId: number): Promise<PublicApiKey[]> => {
+    const keys = await prisma.apiKey.findMany({ where: { workspaceId }, orderBy: { createdAt: 'desc' } });
     return keys.map(toPublicApiKey);
 };
 
-export const getApiKey = async (id: number): Promise<PublicApiKey | null> => {
-    const apiKey = await prisma.apiKey.findUnique({ where: { id } });
-    return apiKey ? toPublicApiKey(apiKey) : null;
-};
-
-/** Revoca una clave. Idempotente: revocarla de nuevo no cambia la fecha original. */
-export const revokeApiKey = async (id: number): Promise<PublicApiKey | null> => {
-    const existing = await prisma.apiKey.findUnique({ where: { id } });
+/**
+ * Revoca una clave del espacio. Idempotente: revocarla de nuevo no cambia la
+ * fecha original. Una clave de otro espacio se trata como inexistente.
+ */
+export const revokeApiKey = async (id: number, workspaceId: number): Promise<PublicApiKey | null> => {
+    const existing = await prisma.apiKey.findFirst({ where: { id, workspaceId } });
     if (!existing) return null;
     if (existing.revokedAt) return toPublicApiKey(existing);
     const updated = await prisma.apiKey.update({ where: { id }, data: { revokedAt: new Date() } });
@@ -140,6 +142,7 @@ export const verifyApiKey = async (raw: string): Promise<ApiKeyPrincipal | null>
     return {
         id: apiKey.id,
         name: apiKey.name,
+        workspaceId: apiKey.workspaceId,
         scopes: apiKey.scopes,
         applications: apiKey.applications,
         legacy: false

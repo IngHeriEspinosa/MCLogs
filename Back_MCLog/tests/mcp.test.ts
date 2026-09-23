@@ -3,6 +3,7 @@ import request from "supertest";
 import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
+import { getDefaultWorkspaceId } from "../src/services/workspaceService";
 import { createApiKey, resetApiKeyCaches } from "../src/services/apiKeyService";
 import { config } from "../src/config/env";
 
@@ -10,6 +11,7 @@ process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
 const prisma = createPrismaClient();
+let workspaceId: number;
 
 let readKey: string;
 let scopedKey: string;
@@ -50,13 +52,14 @@ const ingest = (payload: Record<string, unknown>) =>
 
 beforeAll(async () => {
   await ensureAdminUser();
+  workspaceId = (await getDefaultWorkspaceId())!;
   await prisma.log.deleteMany();
   await prisma.apiKey.deleteMany();
   resetApiKeyCaches();
 
-  readKey = (await createApiKey({ name: "mcp lectura", scopes: ["read"] })).key;
-  scopedKey = (await createApiKey({ name: "mcp acotada", scopes: ["read"], applications: ["facturacion"] })).key;
-  ingestKey = (await createApiKey({ name: "mcp ingesta", scopes: ["ingest"] })).key;
+  readKey = (await createApiKey({ workspaceId, name: "mcp lectura", scopes: ["read"] })).key;
+  scopedKey = (await createApiKey({ workspaceId, name: "mcp acotada", scopes: ["read"], applications: ["facturacion"] })).key;
+  ingestKey = (await createApiKey({ workspaceId, name: "mcp ingesta", scopes: ["ingest"] })).key;
 
   const stack = "TypeError: x\n    at cobrar (/app/src/pagos.js:42:15)";
   for (const pedido of [1, 2, 3]) {

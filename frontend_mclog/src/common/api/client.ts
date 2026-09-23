@@ -1,15 +1,32 @@
 import axios from "axios";
 import { API_BASE } from "@/config/api";
+import { getActiveWorkspaceId, whenWorkspaceReady } from "@/common/workspace/active";
 
 const client = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
 });
 
+// Datos de un espacio: logs, claves, alertas... La gestion de espacios lleva
+// el id en la ruta y la configuracion es de toda la plataforma: ninguna de las
+// dos necesita cabecera ni esperar a saber el espacio.
+const WORKSPACE_SCOPED = /^\/(api\/(?!(workspaces|settings)(\/|$))|mcp(\/|$))/;
+
+// Las peticiones de datos esperan a saber el espacio activo y lo mandan en
+// X-Workspace-Id. Asi el panel nunca pide datos de un espacio equivocado.
+client.interceptors.request.use(async (config) => {
+  if (!WORKSPACE_SCOPED.test(config.url ?? "")) return config;
+  await whenWorkspaceReady();
+  const workspaceId = getActiveWorkspaceId();
+  if (workspaceId !== null) config.headers.set("X-Workspace-Id", String(workspaceId));
+  return config;
+});
+
+// El acceso vive en "/" (y en su alias /login): desde ahi no se redirige.
 const redirectToLogin = () => {
-  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-    window.location.href = "/login";
-  }
+  if (typeof window === "undefined") return;
+  const { pathname } = window.location;
+  if (pathname !== "/" && !pathname.startsWith("/login")) window.location.href = "/";
 };
 
 // Endpoints donde un 401 no significa "sesion caducada": reintentarlos tras un

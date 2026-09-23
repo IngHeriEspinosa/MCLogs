@@ -73,13 +73,15 @@ Por eso conviene usar **subdominios del mismo dominio raíz**.
 | API key `ingest` | Escribir logs | Aplicaciones emisoras |
 | API key `read` | Consultar logs y usar MCP | Asistentes de IA, integraciones |
 | API key `metrics` | Leer `/metrics` | Prometheus |
-| JWT de usuario | Consultar y enviar; con rol `admin`, también administrar | Personas, desde el dashboard (y el Lab) |
+| JWT de usuario | Consultar los espacios de los que es miembro; administrar los que posee | Personas, desde el dashboard (y el Lab) |
 
 Decisiones clave:
 
+- **Todo pertenece a un espacio de trabajo.** Logs, claves y alertas llevan `workspaceId`, y cada petición resuelve su espacio antes de tocar datos: el de la API key, o el de la cabecera `X-Workspace-Id` validando que la sesión sea miembro. Un espacio ajeno responde `404`. Dentro del espacio, `owner` administra y `member` solo observa; el `admin` de plataforma gestiona cuentas pero no ve los datos de espacios a los que no pertenece. Se eligió una columna por tabla (aislamiento lógico en una sola base) frente a un esquema o una base por espacio: mantiene una única migración y un único pool de conexiones, y el filtro obligatorio en el tipo (`LogFilters.workspaceId`) y los índices que empiezan por `workspaceId` lo hacen seguro y rápido.
+
 - **Los permisos se separan porque el daño de una filtración lo define el permiso, no la clave.** Una clave de ingesta comprometida escribe logs basura; no expone nada de lo almacenado.
 - **Una clave puede acotarse a una lista de aplicaciones**, y la restricción se aplica en escritura y en lectura, incluido el detalle por id, que responde `404` en lugar de `403` para no confirmar que el registro existe.
-- **Ninguna API key recibe rol `admin`.** Purgar logs o administrar el servicio exige una sesión de persona.
+- **Ninguna API key administra nada ni sale de su espacio.** Purgar logs o administrar un espacio exige la sesión de su dueño.
 - De cada clave **solo se guarda el sha256**. El secreto viaja en claro una única vez, al crearla.
 - Las claves se aceptan en `x-api-key` y en `Authorization: Bearer`, porque los clientes MCP solo permiten cabeceras estándar. Un `Bearer` sin forma de clave MCLog se trata como JWT.
 - El **refresh token se rota** en cada uso y se persiste por `jti`, con un margen de 30 s en el que el usado sigue valiendo (las peticiones simultáneas del dashboard comparten el mismo refresh); logout lo revoca, y cambiar contraseña o rol revoca todos los del usuario.
@@ -126,14 +128,16 @@ Se calcula en el servidor para `error` y `warn`. Un emisor puede mandar la suya 
 ### Otras entidades
 
 ```prisma
-model User         { id, email @unique, passwordHash, role, isRoot, createdAt,
+model Workspace       { id, name, createdAt, deletedAt? }
+model WorkspaceMember { workspaceId → Workspace, userId → User, role (owner|member) }
+model User         { id, email @unique, passwordHash, role, isRoot, createdAt, activatedAt?,
                      twoFactorEnabled, twoFactorSecret?, twoFactorLastStep?, recoveryCodes[],
-                     refreshTokens[], apiKeys[] }
+                     refreshTokens[], apiKeys[], memberships[] }
 model RefreshToken { id, token @unique (jti), userId → User, expiresAt, revokedAt? }
-model ApiKey       { id, name, prefix @unique, keyHash @unique, scopes[], applications[],
+model ApiKey       { id, workspaceId → Workspace, name, prefix @unique, keyHash @unique, scopes[], applications[],
                      createdById? → User, expiresAt?, lastUsedAt?, revokedAt? }
-model AlertChannel { id, name, type, config Json, enabled }
-model AlertRule    { id, name, type, filtros, threshold, windowMinutes, cooldownMinutes,
+model AlertChannel { id, workspaceId → Workspace, name, type, config Json, enabled }
+model AlertRule    { id, workspaceId → Workspace, name, type, filtros, threshold, windowMinutes, cooldownMinutes,
                      lastTriggeredAt?, channels[] }
 model AlertEvent   { id, ruleId → AlertRule, triggeredAt, count, sampleLogIds[], deliveries Json }
 ```

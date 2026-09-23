@@ -15,6 +15,11 @@ type InfoTipProps = {
   children: React.ReactNode;
   /** Nombre del campo, para el nombre accesible del boton. */
   label?: string;
+  /**
+   * Lo que se pulsa, en lugar del icono de informacion: p. ej. el icono de una
+   * tarjeta de metrica. Con el, `className` sustituye al estilo del boton.
+   */
+  trigger?: React.ReactNode;
   className?: string;
 };
 
@@ -30,7 +35,7 @@ type InfoTipProps = {
  * El texto vive tambien, oculto, junto al boton: el lector de pantalla lo lee
  * como descripcion al llegar al icono, sin esperar a que se abra el panel.
  */
-export const InfoTip: React.FC<InfoTipProps> = ({ children, label, className = "" }) => {
+export const InfoTip: React.FC<InfoTipProps> = ({ children, label, trigger, className = "" }) => {
   const { t } = useI18n();
   const descriptionId = useId();
   const [hovered, setHovered] = useState(false);
@@ -88,11 +93,15 @@ export const InfoTip: React.FC<InfoTipProps> = ({ children, label, className = "
         onPointerLeave={hoverTo(false)}
         onFocus={(event) => setFocused(event.currentTarget.matches(":focus-visible"))}
         onBlur={() => setFocused(false)}
-        className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full align-middle transition-colors ${
-          open ? "text-brand" : "text-ink-3 hover:text-ink"
-        } ${className}`}
+        className={
+          trigger
+            ? className
+            : `inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full align-middle transition-colors ${
+                open ? "text-brand" : "text-ink-3 hover:text-ink"
+              } ${className}`
+        }
       >
-        <Icon name="info" className="h-3.5 w-3.5" />
+        {trigger ?? <Icon name="info" className="h-3.5 w-3.5" />}
       </button>
       <span id={descriptionId} hidden>
         {children}

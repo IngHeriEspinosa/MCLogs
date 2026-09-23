@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { API_BASE } from "@/config/api";
+import { getActiveWorkspaceId, subscribeActiveWorkspace } from "@/common/workspace/active";
 import type { LogEntry } from "@/hooks/useAuth";
 
 /** Log recibido por el stream: sin metadata ni stack, que ahí no aportan. */
@@ -28,8 +29,9 @@ export type StreamStatus = "off" | "connecting" | "live" | "error";
  * Conexión al stream de logs en vivo.
  *
  * Usa EventSource, que no admite cabeceras propias: la autenticación viaja en
- * la cookie de sesión, igual que el resto del dashboard. El navegador reconecta
- * solo si la conexión se cae, así que aquí no hay lógica de reintento.
+ * la cookie de sesión, igual que el resto del dashboard, y el espacio en
+ * `?workspace=`. El navegador reconecta solo si la conexión se cae, así que
+ * aquí no hay lógica de reintento. Al cambiar de espacio se reabre.
  */
 export const useLogStream = (enabled: boolean, filters: StreamFilters, max = 50) => {
   const [logs, setLogs] = useState<BufferedLog[]>([]);
@@ -41,9 +43,10 @@ export const useLogStream = (enabled: boolean, filters: StreamFilters, max = 50)
   const clave = JSON.stringify(filters);
   const maxRef = useRef(max);
   maxRef.current = max;
+  const workspaceId = useSyncExternalStore(subscribeActiveWorkspace, getActiveWorkspaceId, () => null);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || workspaceId === null) {
       setStatus("off");
       setLogs([]);
       return;
@@ -52,6 +55,8 @@ export const useLogStream = (enabled: boolean, filters: StreamFilters, max = 50)
     const params = new URLSearchParams(
       Object.entries(JSON.parse(clave) as StreamFilters).filter(([, valor]) => valor) as [string, string][],
     );
+    params.set("workspace", String(workspaceId));
+    setLogs([]);
 
     setStatus("connecting");
     const source = new EventSource(`${API_BASE}/api/logs/stream?${params.toString()}`, { withCredentials: true });
@@ -73,7 +78,7 @@ export const useLogStream = (enabled: boolean, filters: StreamFilters, max = 50)
       source.close();
       setStatus("off");
     };
-  }, [enabled, clave]);
+  }, [enabled, clave, workspaceId]);
 
   return { logs, status, clear: () => setLogs([]) };
 };

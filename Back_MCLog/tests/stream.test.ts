@@ -4,6 +4,7 @@ import request from "supertest";
 import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
+import { getDefaultWorkspaceId } from "../src/services/workspaceService";
 import { createApiKey, resetApiKeyCaches } from "../src/services/apiKeyService";
 import { activeStreamConnections } from "../src/controllers/streamController";
 import { LOG_CREATED, logEvents } from "../src/events/logEvents";
@@ -13,6 +14,7 @@ process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
 const prisma = createPrismaClient();
+let workspaceId: number;
 
 let baseUrl: string;
 let server: ReturnType<typeof app.listen>;
@@ -82,11 +84,12 @@ const enviarLog = (payload: Record<string, unknown>) =>
 
 beforeAll(async () => {
   await ensureAdminUser();
+  workspaceId = (await getDefaultWorkspaceId())!;
   await prisma.apiKey.deleteMany();
   resetApiKeyCaches();
 
-  readKey = (await createApiKey({ name: "stream lectura", scopes: ["read"] })).key;
-  scopedKey = (await createApiKey({ name: "stream acotada", scopes: ["read"], applications: ["facturacion"] })).key;
+  readKey = (await createApiKey({ workspaceId, name: "stream lectura", scopes: ["read"] })).key;
+  scopedKey = (await createApiKey({ workspaceId, name: "stream acotada", scopes: ["read"], applications: ["facturacion"] })).key;
 
   server = app.listen(0);
   const { port } = server.address() as AddressInfo;

@@ -736,6 +736,8 @@ export const swaggerSpec = swaggerJSDoc({
           type: "http",
           scheme: "bearer",
           bearerFormat: "JWT",
+          description:
+            "Sesion de usuario. Las rutas de datos (/api/logs*, /api/keys, /api/alerts, /mcp) se acotan al espacio de la cabecera X-Workspace-Id (o ?workspace= en el stream); sin ella, al espacio por defecto de la cuenta. Con API key, el espacio es siempre el de la clave.",
         },
       },
       schemas: {

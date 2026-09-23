@@ -14,7 +14,7 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 4. [Exportación](#4-exportación)
 5. [Retención y purga](#5-retención-y-purga)
 6. [Autenticación y sesiones](#6-autenticación-y-sesiones)
-7. [Autorización por roles](#7-autorización-por-roles)
+7. [Espacios de trabajo y roles](#7-espacios-de-trabajo-y-roles)
 8. [Dashboard web](#8-dashboard-web)
 9. [Clientes de integración](#9-clientes-de-integración)
 10. [Observabilidad del propio servicio](#10-observabilidad-del-propio-servicio)
@@ -36,7 +36,7 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 
 Recibe y almacena eventos de cualquier aplicación capaz de hacer una petición HTTP.
 
-**Quién:** aplicaciones emisoras, autenticadas con una API key de permiso `ingest` (o con JWT de usuario, que es como envía el Lab).
+**Quién:** aplicaciones emisoras, autenticadas con una API key de permiso `ingest` (o con JWT del dueño del espacio, que es como envía el Lab). El log entra en el espacio de la clave.
 **Código:** [logRoutes.ts](../Back_MCLog/src/routes/logRoutes.ts) → [validateLog.ts](../Back_MCLog/src/middlewares/validateLog.ts) → [logController.ts](../Back_MCLog/src/controllers/logController.ts) → [logService.ts](../Back_MCLog/src/services/logService.ts)
 
 ### 1.1 Log individual — `POST /api/log`
@@ -167,7 +167,7 @@ No pagina: devuelve hasta `MAX_EXPORT_ROWS` (10 000 por defecto) filas, o menos 
 
 `DELETE /api/logs?before=<ISO>[&application=<nombre>]` — borra logs anteriores a una fecha, opcionalmente de una sola aplicación.
 
-**Quién:** solo usuarios con rol **`admin`**.
+**Quién:** solo el **dueño** del espacio, y solo sobre los logs de ese espacio.
 **Código:** [`purgeLogs`](../Back_MCLog/src/controllers/logController.ts) → [`deleteLogsBefore`](../Back_MCLog/src/services/logService.ts)
 
 `before` es obligatorio y debe ser ISO-8601 — no existe forma de borrar "todo" por accidente. Devuelve `{ "deleted": n }` y deja constancia de la operación en los logs del servicio.
@@ -183,8 +183,8 @@ Dos planos completamente separados, por diseño:
 | Plano | Quién | Mecanismo | Puede leer |
 |---|---|---|---|
 | **Ingesta** | Máquinas (NetSuite, scripts, servicios) | API key con permiso `ingest` | ❌ No |
-| **Consulta automatizada** | Asistentes de IA, integraciones | API key con permiso `read` | ✅ Solo sus aplicaciones |
-| **Consulta y administración** | Personas (dashboard) | JWT access + refresh, con segundo factor opcional | ✅ Sí |
+| **Consulta automatizada** | Asistentes de IA, integraciones | API key con permiso `read` | ✅ Solo su espacio y sus aplicaciones |
+| **Consulta y administración** | Personas (dashboard) | JWT access + refresh, con segundo factor opcional | ✅ Solo los espacios de los que es miembro |
 
 **Consecuencia de seguridad:** si una clave de ingesta se filtra, el atacante puede *escribir* logs basura, pero **no puede leer** los de nadie. Detalle de los permisos en [13](#13-api-keys-con-permisos).
 
@@ -223,16 +223,33 @@ Esa cuenta es la **root** del servicio: nadie puede eliminarla ni quitarle el ro
 
 ---
 
-## 7. Autorización por roles
+## 7. Espacios de trabajo y roles
 
-**Código:** [requireRole.ts](../Back_MCLog/src/middlewares/requireRole.ts)
+**Código:** [workspaceService.ts](../Back_MCLog/src/services/workspaceService.ts) · [workspaceContext.ts](../Back_MCLog/src/middlewares/workspaceContext.ts) · [workspaceRoutes.ts](../Back_MCLog/src/routes/workspaceRoutes.ts)
 
-| Rol | Puede |
+Un **espacio de trabajo** es la unidad de aislamiento: logs, API keys, canales y reglas de alerta pertenecen a uno, y solo sus miembros los ven. Una cuenta puede estar en varios espacios, con un rol distinto en cada uno, y cualquier cuenta puede crear espacios nuevos (queda como su dueña).
+
+| Rol en el espacio | Puede |
 |---|---|
-| `user` | Consultar, buscar, ver estadísticas, exportar, generar reportes y gestionar su propia cuenta |
-| `admin` | Todo lo anterior **+ purgar logs** (`DELETE /api/logs`), API keys, usuarios, alertas y el Lab |
+| `member` | Consultar, buscar, ver estadísticas, trazas y errores, exportar, generar reportes y el stream en vivo del espacio |
+| `owner` | Todo lo anterior **+ purgar logs** (`DELETE /api/logs`), miembros, API keys, alertas y el Lab del espacio |
 
-Sin sesión → `401`. Con sesión pero rol insuficiente → `403`.
+| Rol de plataforma | Puede |
+|---|---|
+| `user` | Nada más allá de su rol en cada espacio y su propia cuenta |
+| `admin` | Además, dar de alta y de baja cuentas (`/auth/users`). **No ve los datos de los espacios a los que no pertenece** |
+
+**Cómo se elige el espacio de cada petición.** Con API key, el de la clave: la cabecera se ignora y una clave nunca sale de su espacio. Con sesión, la cabecera `X-Workspace-Id` (o `?workspace=` en el stream, porque `EventSource` no admite cabeceras); sin ella, el espacio por defecto de la cuenta (el más antiguo que administra). La membresía se comprueba en cada petición, con una caché en memoria de 30 s que se vacía al cambiar cualquier membresía.
+
+**Aislamiento por tipo.** `LogFilters.workspaceId` es obligatorio: una consulta sin acotar no compila. Todos los índices de `Log` empiezan por `workspaceId`, así que un espacio pequeño no paga por el volumen de los grandes.
+
+**Invariantes:**
+
+- Un espacio tiene siempre **al menos un dueño** (`409` al quitar o degradar al último).
+- Un espacio ajeno responde **`404`**, no `403`: no se confirma que exista.
+- Borrar un espacio es lógico e inmediato (sus claves se revocan y sus reglas se desactivan); el planificador purga sus logs por lotes después.
+
+Sin sesión → `401`. Con sesión pero rol insuficiente en el espacio → `403`. Espacio al que no se pertenece → `404`.
 
 ---
 
@@ -260,7 +277,9 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Registros** | La tabla sin resumen, con **búsqueda avanzada** por campo (mensaje, servicio, host, traceId exacto, nombre y código del error) y el detalle del log a pantalla completa, con ←/→ para recorrer la página |
 | **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición y brief para IA |
 | **Traza** | Una operación entre sistemas en línea temporal, con los saltos de tiempo entre pasos |
-| **Administración** | API keys, usuarios (con etiquetas Root y 2FA), alertas y el **Lab** de pruebas (ver [21](#21-lab-de-pruebas)) |
+| **Selector de espacio** | En lo alto del menú: espacio activo y rol, cambio de espacio sin recargar, crear espacio y salir del actual. Cada pestaña puede estar en un espacio distinto |
+| **Espacio** (dueño) | Miembros e invitaciones, API keys, alertas y el **Lab** de pruebas (ver [21](#21-lab-de-pruebas)) |
+| **Plataforma** (admin) | Cuentas: alta con espacio propio o dentro de uno tuyo, con enlace de activación |
 | **Mi cuenta** | Preferencias, cambio de contraseña, verificación en dos pasos y eliminar la propia cuenta |
 | **Badges por severidad** | Color por nivel para localizar errores de un vistazo |
 | **Export** | CSV y NDJSON con los filtros activos |
@@ -324,7 +343,8 @@ Quién vigila al vigilante. **Código:** [app.ts](../Back_MCLog/src/app.ts), [lo
 | **Límite de cuerpo** | 3 MB (`BODY_LIMIT`) |
 | **API key en tiempo constante** | `crypto.timingSafeEqual`, para no filtrar la clave por diferencias de tiempo |
 | **Verificación en dos pasos** | TOTP con códigos de recuperación, anti-reutilización de códigos; ver [20](#20-verificación-en-dos-pasos-2fa) |
-| **Cuentas protegidas** | La cuenta root y el último admin no se pueden eliminar ni degradar |
+| **Cuentas protegidas** | La cuenta root y el último admin no se pueden eliminar ni degradar; un espacio no se queda sin dueño |
+| **Aislamiento entre espacios** | Cada consulta va acotada al espacio de la petición; un espacio ajeno responde `404` |
 | **Cookies** | `httpOnly` siempre; `secure` y `sameSite` configurables; `secure` automático en producción |
 | **HTTPS forzable** | `FORCE_HTTPS=1` rechaza peticiones no cifradas (salvo las de loopback, que es el healthcheck del contenedor) |
 | **Validación en el borde** | `express-validator` en cada endpoint: tipos, enums, longitudes y formatos ISO |
@@ -343,7 +363,7 @@ Quién vigila al vigilante. **Código:** [app.ts](../Back_MCLog/src/app.ts), [lo
 
 Credenciales para máquinas, administrables desde el dashboard.
 
-**Quién:** solo `admin`. **Código:** [apiKeyService.ts](../Back_MCLog/src/services/apiKeyService.ts) · [apiKeyRoutes.ts](../Back_MCLog/src/routes/apiKeyRoutes.ts) · [authApiKey.ts](../Back_MCLog/src/middlewares/authApiKey.ts)
+**Quién:** el dueño del espacio; cada clave pertenece al espacio en el que se crea. **Código:** [apiKeyService.ts](../Back_MCLog/src/services/apiKeyService.ts) · [apiKeyRoutes.ts](../Back_MCLog/src/routes/apiKeyRoutes.ts) · [authApiKey.ts](../Back_MCLog/src/middlewares/authApiKey.ts)
 
 | Permiso | Permite |
 |---|---|
@@ -357,9 +377,11 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 
 **El aislamiento vale en los dos sentidos.** Una clave acotada a `facturacion` recibe `403` si intenta escribir logs de `ventas`, y al consultar no ve esos registros ni en el listado, ni en las estadísticas, ni pidiendo el log por su id, que responde `404` para no confirmar siquiera que existe.
 
-**Ninguna clave recibe rol `admin`.** Purgar logs o administrar el servicio requiere una sesión de persona.
+**Una clave no sale de su espacio.** Escribe y lee solo en él, aunque la petición mande `X-Workspace-Id` de otro.
 
-> La clave única de la variable `API_KEY` sigue funcionando con permisos `ingest` y `metrics`, para no romper los emisores ya desplegados. Está deprecada: no se puede rotar sin cortar el servicio ni acotar por aplicación.
+**Ninguna clave administra nada.** Purgar logs o administrar un espacio requiere la sesión de su dueño.
+
+> La clave única de la variable `API_KEY` sigue funcionando con permisos `ingest` y `metrics` en el espacio de la cuenta root, para no romper los emisores ya desplegados. Está deprecada: no se puede rotar sin cortar el servicio ni acotar por aplicación.
 
 ---
 
@@ -373,15 +395,19 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 | `PATCH /auth/me/password` | Cada uno la suya. Mínimo 8 caracteres y distinta de la actual |
 | `POST /auth/me/2fa/*` | Cada uno la suya. Verificación en dos pasos con app autenticadora (TOTP) y códigos de recuperación |
 | `DELETE /auth/me` | Cada uno la suya, con contraseña y código 2FA. **La cuenta root (`ADMIN_EMAIL`) no se puede eliminar ni degradar** |
-| Alta, cambio de rol, reseteo de contraseña y baja | `admin` |
+| Alta, cambio de rol, reseteo de contraseña y baja de cuentas | `admin` de plataforma |
+| Miembros de un espacio: invitar, cambiar rol, reenviar enlace, quitar | Dueño del espacio (`/api/workspaces/:id/members`) |
 
 Cambiar la contraseña o el rol de alguien **revoca todos sus refresh tokens**: las sesiones abiertas en otros dispositivos dejan de valer y el nuevo rol se aplica en el siguiente token.
 
-Tres operaciones están bloqueadas para que el servicio no se quede sin administración:
+**Alta sin contraseña compartida.** `POST /auth/users` (admin) y `POST /api/workspaces/:id/members` (dueño) crean la cuenta **pendiente** si no existe y generan un enlace de activación de un solo uso, válido 7 días, reutilizando el mecanismo de "olvidé mi contraseña" (solo se guarda el hash). Se envía por correo si hay SMTP y `PUBLIC_DASHBOARD_URL`; si no, la respuesta incluye `invitePath` para compartirlo a mano. Una cuenta pendiente no puede iniciar sesión. Al dar de alta, el admin elige `mode: "own"` (espacio propio) o `mode: "join"` (uno de sus espacios); nunca, como antes, acceso a todo.
+
+Cuatro operaciones están bloqueadas para que nada se quede sin administración:
 
 - nadie puede borrarse a sí mismo desde la administración de usuarios (para eso está `DELETE /auth/me`);
 - nadie puede eliminar ni degradar la cuenta **root** (`403`);
-- nadie puede eliminar ni degradar al último `admin` (`409`).
+- nadie puede eliminar ni degradar al último `admin` (`409`);
+- no se puede eliminar una cuenta que es la única dueña de un espacio con más miembros (`409`); los espacios en los que estaba sola se borran con ella.
 
 Desde **Mi cuenta**, cada usuario puede **eliminar su propia cuenta**. Le pide su contraseña, el código 2FA si lo tiene activo, y escribir `ELIMINAR`. Sus sesiones desaparecen con él; las API keys que creó siguen funcionando.
 
@@ -459,7 +485,7 @@ La purga va en **lotes de 5000 filas** cediendo el control entre uno y otro: un 
 
 Avisar sin que nadie tenga que estar mirando el dashboard.
 
-**Quién:** solo `admin`. **Código:** [evaluator.ts](../Back_MCLog/src/alerts/evaluator.ts) · [notifiers/](../Back_MCLog/src/alerts/notifiers/) · [alertRoutes.ts](../Back_MCLog/src/routes/alertRoutes.ts)
+**Quién:** el dueño del espacio; canales, reglas e historial son de cada espacio, y una regla solo cuenta los logs de su espacio. **Código:** [evaluator.ts](../Back_MCLog/src/alerts/evaluator.ts) · [notifiers/](../Back_MCLog/src/alerts/notifiers/) · [alertRoutes.ts](../Back_MCLog/src/routes/alertRoutes.ts)
 
 ### 18.1 Reglas
 
@@ -542,7 +568,7 @@ Detalles de diseño:
 
 Una forma de ver MCLog funcionando **sin esperar a que algo falle**: escenarios que envían logs reales y enlazan a la pantalla donde se ve el resultado.
 
-**Quién:** solo `admin`. **Código:** [app/lab/](../frontend_mclog/src/app/lab/) · [common/lab/](../frontend_mclog/src/common/lab/) · [useLab.ts](../frontend_mclog/src/hooks/useLab.ts)
+**Quién:** el dueño del espacio; los logs de prueba entran en el espacio activo. **Código:** [app/lab/](../frontend_mclog/src/app/lab/) · [common/lab/](../frontend_mclog/src/common/lab/) · [useLab.ts](../frontend_mclog/src/hooks/useLab.ts)
 
 | Escenario | Qué demuestra |
 |---|---|
@@ -574,14 +600,15 @@ Además, un **compositor** envía un log a medida y muestra la petición equival
 | `GET` | `/api/logs/trace/:traceId` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `GET` | `/api/logs/:id/context` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `GET` | `/api/logs/applications` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
-| `DELETE` | `/api/logs` | JWT **admin** | [5](#5-retención-y-purga) |
+| `DELETE` | `/api/logs` | JWT **dueño** | [5](#5-retención-y-purga) |
 | `POST` | `/mcp` | Clave `read` o JWT | [16](#16-acceso-para-ia-mcp) |
 | `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **admin** | [18](#18-alertas) |
-| `GET`/`POST`/`DELETE` | `/api/keys` | JWT **admin** | [13](#13-api-keys-con-permisos) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
+| `GET`/`POST`/`DELETE` | `/api/keys` | JWT **dueño** | [13](#13-api-keys-con-permisos) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/workspaces` · `/:id` · `/:id/members` | JWT (dueño para administrar) | [7](#7-espacios-de-trabajo-y-roles) |
 | `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | [20](#20-verificación-en-dos-pasos-2fa) |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin** | [14](#14-gestión-de-usuarios) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin de plataforma** | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/login` · `/auth/login/2fa` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |
 | `GET` | `/health` | — | [10](#10-observabilidad-del-propio-servicio) |
 | `GET` | `/metrics` | Clave `metrics` | [10](#10-observabilidad-del-propio-servicio) |

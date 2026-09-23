@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import client from "@/common/api/client";
+import type { Workspace } from "@/hooks/useWorkspaces";
 
 export type LogEntry = {
   id: number;
@@ -51,11 +52,15 @@ export type LogStats = {
 export type CurrentUser = {
   id: number;
   email: string;
+  /** Rol de plataforma: `admin` gestiona las cuentas, no los datos de otros espacios. */
   role: "user" | "admin";
   /** Cuenta de arranque del servicio: no se puede eliminar ni degradar. */
   isRoot: boolean;
   twoFactorEnabled: boolean;
   createdAt: string;
+  activatedAt: string | null;
+  /** Espacios a los que pertenece, con su rol en cada uno. */
+  workspaces: Workspace[];
 };
 
 /**
@@ -138,7 +143,7 @@ export const useDeleteAccount = () => {
     mutationFn: (data: { password: string; code?: string }) => client.delete("/auth/me", { data }),
     onSuccess: () => {
       qc.clear();
-      window.location.href = "/login";
+      window.location.href = "/";
     },
   });
 };
@@ -149,7 +154,7 @@ export const useLogout = () => {
     mutationFn: () => client.post("/auth/logout", {}),
     onSuccess: () => {
       qc.clear();
-      window.location.href = "/login";
+      window.location.href = "/";
     },
   });
 };

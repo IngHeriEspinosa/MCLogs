@@ -1,6 +1,16 @@
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
+import {
+  WorkspaceSummary,
+  assertCanAddMember,
+  createPendingAccount,
+  createWorkspace,
+  deliverInvitation,
+  getMembershipRole,
+  listUserWorkspaces,
+  releaseWorkspacesOf,
+} from "./workspaceService";
 
 export const PASSWORD_MIN_LENGTH = 8;
 export const USER_ROLES = ["user", "admin"] as const;
@@ -9,7 +19,15 @@ export type UserRole = (typeof USER_ROLES)[number];
 const BCRYPT_COST = 12;
 
 /** Campos de usuario que se pueden devolver por la API: nunca el hash. */
-const publicFields = { id: true, email: true, role: true, isRoot: true, twoFactorEnabled: true, createdAt: true } as const;
+const publicFields = {
+  id: true,
+  email: true,
+  role: true,
+  isRoot: true,
+  twoFactorEnabled: true,
+  createdAt: true,
+  activatedAt: true,
+} as const;
 
 export type PublicUser = {
   id: number;
@@ -18,7 +36,15 @@ export type PublicUser = {
   isRoot: boolean;
   twoFactorEnabled: boolean;
   createdAt: Date;
+  /** Null mientras la invitacion esta pendiente. */
+  activatedAt: Date | null;
 };
+
+/** Lo que ve el admin de plataforma: la cuenta y en cuantos espacios esta, nunca cuales ni sus datos. */
+export type ManagedUser = PublicUser & { workspaceCount: number };
+
+/** La sesion actual, con sus espacios: el panel arranca con una sola peticion. */
+export type CurrentUser = PublicUser & { workspaces: WorkspaceSummary[] };
 
 /** Error de negocio con el codigo HTTP que le corresponde. */
 export class UserServiceError extends Error {
@@ -33,11 +59,24 @@ export class UserServiceError extends Error {
 
 export const hashPassword = (password: string) => bcrypt.hash(password, BCRYPT_COST);
 
-export const listUsers = (): Promise<PublicUser[]> =>
-  prisma.user.findMany({ select: publicFields, orderBy: { createdAt: "asc" } });
+export const listUsers = async (): Promise<ManagedUser[]> => {
+  const users = await prisma.user.findMany({
+    select: {
+      ...publicFields,
+      _count: { select: { memberships: { where: { workspace: { deletedAt: null } } } } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return users.map(({ _count, ...user }) => ({ ...user, workspaceCount: _count.memberships }));
+};
 
 export const getUserById = (id: number): Promise<PublicUser | null> =>
   prisma.user.findUnique({ where: { id }, select: publicFields });
+
+export const getCurrentUser = async (id: number): Promise<CurrentUser | null> => {
+  const [user, workspaces] = await Promise.all([getUserById(id), listUserWorkspaces(id)]);
+  return user ? { ...user, workspaces } : null;
+};
 
 const countAdmins = () => prisma.user.count({ where: { role: "admin" } });
 
@@ -48,20 +87,71 @@ const countAdmins = () => prisma.user.count({ where: { role: "admin" } });
  */
 export const revokeSessions = (userId: number) => prisma.refreshToken.deleteMany({ where: { userId } });
 
-export const createUser = async (input: {
+export const ACCOUNT_MODES = ["own", "join"] as const;
+export type AccountMode = (typeof ACCOUNT_MODES)[number];
+
+export type CreateUserInput = {
   email: string;
-  password: string;
+  /**
+   * Opcional. Sin contrasena la cuenta nace pendiente y recibe un enlace para
+   * elegirla, que es lo que usa el panel: asi nadie conoce la contrasena de otro.
+   */
+  password?: string;
   role?: string;
-}): Promise<PublicUser> => {
+  /** `own`: la cuenta recibe su propio espacio. `join`: entra al espacio `workspaceId`. */
+  mode?: AccountMode;
+  workspaceName?: string;
+  workspaceId?: number;
+  workspaceRole?: "owner" | "member";
+  /** Quien da de alta la cuenta: solo puede sumarla a espacios de los que es dueño. */
+  requesterId: number;
+  locale?: "es" | "en";
+};
+
+export type CreateUserResult = { user: PublicUser; emailSent: boolean; invitePath?: string };
+
+/**
+ * Alta de una cuenta por el admin de plataforma. Siempre acaba dentro de un
+ * espacio: el suyo propio o uno del que quien la crea es dueño. Nunca, como
+ * antes, con acceso a todo.
+ */
+export const createUser = async (input: CreateUserInput): Promise<CreateUserResult> => {
+  const mode = input.mode ?? "own";
+  let joinWorkspaceName: string | undefined;
+
+  if (mode === "join") {
+    if (!input.workspaceId) throw new UserServiceError("workspaceId is required to join a workspace", 400);
+    if ((await getMembershipRole(input.requesterId, input.workspaceId)) !== "owner") {
+      throw new UserServiceError("You can only add people to workspaces you own", 403);
+    }
+    await assertCanAddMember(input.workspaceId);
+    const workspace = await prisma.workspace.findUnique({ where: { id: input.workspaceId } });
+    joinWorkspaceName = workspace?.name;
+  }
+
+  // bcrypt fuera de la transaccion: tarda cerca de un segundo y no debe tener filas bloqueadas.
+  const passwordHash = input.password ? await hashPassword(input.password) : null;
+
+  let workspaceName: string;
+  let user: PublicUser;
   try {
-    return await prisma.user.create({
-      data: {
-        email: input.email,
-        passwordHash: await hashPassword(input.password),
-        role: input.role ?? "user",
-      },
-      select: publicFields,
-    });
+    ({ user, workspaceName } = await prisma.$transaction(async (tx) => {
+      const created = passwordHash
+        ? await tx.user.create({ data: { email: input.email, passwordHash, activatedAt: new Date() } })
+        : await createPendingAccount(input.email, tx);
+      if (input.role && input.role !== created.role) {
+        await tx.user.update({ where: { id: created.id }, data: { role: input.role } });
+      }
+
+      if (mode === "join") {
+        await tx.workspaceMember.create({
+          data: { workspaceId: input.workspaceId!, userId: created.id, role: input.workspaceRole ?? "member" },
+        });
+        return { user: (await tx.user.findUniqueOrThrow({ where: { id: created.id }, select: publicFields })), workspaceName: joinWorkspaceName ?? "" };
+      }
+      const workspace = await createWorkspace(created.id, input.workspaceName, input.email, tx);
+      return { user: await tx.user.findUniqueOrThrow({ where: { id: created.id }, select: publicFields }), workspaceName: workspace.name };
+    }));
   } catch (error) {
     // P2002: violacion de la restriccion unica sobre email.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -69,6 +159,9 @@ export const createUser = async (input: {
     }
     throw error;
   }
+
+  if (user.activatedAt) return { user, emailSent: false };
+  return { user, ...(await deliverInvitation(user, workspaceName, input.locale ?? "es")) };
 };
 
 export const updateUser = async (
@@ -107,8 +200,19 @@ export const deleteUser = async (id: number, requesterId: number): Promise<void>
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new UserServiceError("User not found", 404);
   await assertDeletable(existing);
-  // Los refresh tokens caen en cascada (onDelete: Cascade en el esquema).
-  await prisma.user.delete({ where: { id } });
+  await deleteAccount(id);
+};
+
+/**
+ * Borra la cuenta junto con los espacios en los que estaba sola. Los refresh
+ * tokens y las membresias caen en cascada (onDelete: Cascade en el esquema).
+ */
+const deleteAccount = async (id: number) => {
+  const releaseWorkspaces = await releaseWorkspacesOf(id);
+  await prisma.$transaction(async (tx) => {
+    await releaseWorkspaces(tx);
+    await tx.user.delete({ where: { id } });
+  });
 };
 
 /** Reglas comunes a borrar una cuenta, la haga un admin o su titular. */
@@ -139,7 +243,7 @@ export const deleteOwnAccount = async (
     throw new UserServiceError("Invalid verification code", 400);
   }
 
-  await prisma.user.delete({ where: { id: userId } });
+  await deleteAccount(userId);
 };
 
 /** Confirma la contrasena del titular antes de una accion sensible. */

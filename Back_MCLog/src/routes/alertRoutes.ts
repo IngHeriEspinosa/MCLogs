@@ -5,7 +5,7 @@ import logger from "../config/logger";
 import { prisma } from "../config/prisma";
 import { sendTestAlert } from "../alerts/evaluator";
 import { AuthenticatedRequest, requireAuth } from "../middlewares/requireAuth";
-import { requireRole } from "../middlewares/requireRole";
+import { requireWorkspaceOwner, workspaceIdOf } from "../middlewares/workspaceContext";
 import { queryLimiter } from "../middlewares/rateLimiters";
 
 const router = express.Router();
@@ -75,13 +75,30 @@ const validateChannelConfig = (type: string, config: Record<string, unknown>): s
   return null;
 };
 
-router.use(queryLimiter, requireAuth, requireRole("admin"));
+// Canales, reglas e historial son del espacio activo y solo los gestiona su
+// dueño. Cada busqueda por id va acotada al espacio: un id de otro espacio se
+// responde como inexistente.
+router.use(queryLimiter, requireAuth, requireWorkspaceOwner);
+
+/**
+ * Comprueba que todos los canales pertenecen al espacio. Sin esto, una regla
+ * podria enlazar el canal de otro espacio y mandarle sus avisos.
+ */
+const channelsBelongTo = async (channelIds: number[], workspaceId: number) => {
+  if (channelIds.length === 0) return true;
+  const unique = [...new Set(channelIds)];
+  const count = await prisma.alertChannel.count({ where: { id: { in: unique }, workspaceId } });
+  return count === unique.length;
+};
 
 // --- Canales ---
 
-router.get("/channels", async (_req: AuthenticatedRequest, res: Response) => {
+router.get("/channels", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const channels = await prisma.alertChannel.findMany({ orderBy: { createdAt: "asc" } });
+    const channels = await prisma.alertChannel.findMany({
+      where: { workspaceId: workspaceIdOf(req) },
+      orderBy: { createdAt: "asc" },
+    });
     res.json({ data: channels.map(maskChannel) });
   } catch (error) {
     logger.error("Error listing alert channels", { error });
@@ -107,6 +124,7 @@ router.post(
     try {
       const channel = await prisma.alertChannel.create({
         data: {
+          workspaceId: workspaceIdOf(req),
           name: req.body.name,
           type: req.body.type,
           config: req.body.config,
@@ -133,7 +151,9 @@ router.patch(
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const existing = await prisma.alertChannel.findUnique({ where: { id: Number(req.params.id) } });
+      const existing = await prisma.alertChannel.findFirst({
+        where: { id: Number(req.params.id), workspaceId: workspaceIdOf(req) },
+      });
       if (!existing) {
         res.status(404).json({ error: "Channel not found" });
         return;
@@ -172,7 +192,13 @@ router.delete(
   [param("id").isInt({ min: 1 }).toInt(), handleValidation],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      await prisma.alertChannel.delete({ where: { id: Number(req.params.id) } });
+      const { count } = await prisma.alertChannel.deleteMany({
+        where: { id: Number(req.params.id), workspaceId: workspaceIdOf(req) },
+      });
+      if (count === 0) {
+        res.status(404).json({ error: "Channel not found" });
+        return;
+      }
       logger.info("Alert channel deleted", { id: Number(req.params.id), by: req.user?.email });
       res.json({ ok: true });
     } catch {
@@ -186,7 +212,9 @@ router.post(
   "/channels/:id/test",
   [param("id").isInt({ min: 1 }).toInt(), handleValidation],
   async (req: AuthenticatedRequest, res: Response) => {
-    const channel = await prisma.alertChannel.findUnique({ where: { id: Number(req.params.id) } });
+    const channel = await prisma.alertChannel.findFirst({
+      where: { id: Number(req.params.id), workspaceId: workspaceIdOf(req) },
+    });
     if (!channel) {
       res.status(404).json({ error: "Channel not found" });
       return;
@@ -201,9 +229,13 @@ router.post(
 
 const ruleInclude = { channels: true } as const;
 
-router.get("/rules", async (_req: AuthenticatedRequest, res: Response) => {
+router.get("/rules", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const rules = await prisma.alertRule.findMany({ include: ruleInclude, orderBy: { createdAt: "asc" } });
+    const rules = await prisma.alertRule.findMany({
+      where: { workspaceId: workspaceIdOf(req) },
+      include: ruleInclude,
+      orderBy: { createdAt: "asc" },
+    });
     res.json({ data: rules.map((rule) => ({ ...rule, channels: rule.channels.map(maskChannel) })) });
   } catch (error) {
     logger.error("Error listing alert rules", { error });
@@ -239,9 +271,15 @@ router.post(
   [...ruleBodyRules(false), handleValidation],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const workspaceId = workspaceIdOf(req);
       const channelIds: number[] = req.body.channelIds ?? [];
+      if (!(await channelsBelongTo(channelIds, workspaceId))) {
+        res.status(400).json({ error: "Unknown channel" });
+        return;
+      }
       const rule = await prisma.alertRule.create({
         data: {
+          workspaceId,
           name: req.body.name,
           type: req.body.type ?? "threshold",
           enabled: req.body.enabled ?? true,
@@ -270,9 +308,14 @@ router.patch(
   [param("id").isInt({ min: 1 }).toInt(), ...ruleBodyRules(true), handleValidation],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const existing = await prisma.alertRule.findUnique({ where: { id: Number(req.params.id) } });
+      const workspaceId = workspaceIdOf(req);
+      const existing = await prisma.alertRule.findFirst({ where: { id: Number(req.params.id), workspaceId } });
       if (!existing) {
         res.status(404).json({ error: "Rule not found" });
+        return;
+      }
+      if (req.body.channelIds !== undefined && !(await channelsBelongTo(req.body.channelIds, workspaceId))) {
+        res.status(400).json({ error: "Unknown channel" });
         return;
       }
 
@@ -303,7 +346,13 @@ router.delete(
   [param("id").isInt({ min: 1 }).toInt(), handleValidation],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      await prisma.alertRule.delete({ where: { id: Number(req.params.id) } });
+      const { count } = await prisma.alertRule.deleteMany({
+        where: { id: Number(req.params.id), workspaceId: workspaceIdOf(req) },
+      });
+      if (count === 0) {
+        res.status(404).json({ error: "Rule not found" });
+        return;
+      }
       logger.info("Alert rule deleted", { id: Number(req.params.id), by: req.user?.email });
       res.json({ ok: true });
     } catch {
@@ -324,7 +373,10 @@ router.get(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const events = await prisma.alertEvent.findMany({
-        where: req.query.ruleId ? { ruleId: Number(req.query.ruleId) } : undefined,
+        where: {
+          rule: { workspaceId: workspaceIdOf(req) },
+          ...(req.query.ruleId ? { ruleId: Number(req.query.ruleId) } : {}),
+        },
         orderBy: { triggeredAt: "desc" },
         take: Number(req.query.limit ?? 50),
         include: { rule: { select: { id: true, name: true, type: true } } },

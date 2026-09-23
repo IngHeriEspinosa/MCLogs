@@ -27,6 +27,9 @@ const messageFor = (error: unknown, t: Dictionary): string => {
  * Destino del enlace del correo. El token se lee de la URL y se quita de ella
  * en cuanto se carga la pagina: asi no queda en el historial ni en una captura
  * de pantalla de la barra de direcciones.
+ *
+ * Tambien activa las cuentas invitadas (`&invite=1`): es el mismo enlace de un
+ * solo uso, solo cambian los textos.
  */
 export default function ResetPasswordPage() {
   const { t } = useI18n();
@@ -35,14 +38,19 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [repeated, setRepeated] = useState("");
   const [mismatch, setMismatch] = useState(false);
+  const [invite, setInvite] = useState(false);
   const reset = useResetPassword();
 
   useEffect(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("token");
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("token");
     // Un segundo paso del efecto (Strict Mode) ya no ve el token en la URL: no debe pisar el que se leyo.
     setToken((current) => current ?? fromUrl);
+    if (params.get("invite") === "1") setInvite(true);
     if (fromUrl) window.history.replaceState(null, "", window.location.pathname);
   }, []);
+
+  const copy = invite ? { ...t.auth.reset, ...t.auth.invite } : t.auth.reset;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -61,10 +69,10 @@ export default function ResetPasswordPage() {
 
   if (reset.isSuccess) {
     return (
-      <AuthLayout title={t.auth.reset.title}>
+      <AuthLayout title={copy.title}>
         <div className="flex flex-col gap-5">
-          <Alert variant="success">{t.auth.reset.done}</Alert>
-          <ButtonLink href="/login" variant="primary" size="lg" iconRight="arrowRight" className="w-full">
+          <Alert variant="success">{copy.done}</Alert>
+          <ButtonLink href="/" variant="primary" size="lg" iconRight="arrowRight" className="w-full">
             {t.auth.reset.goToSignIn}
           </ButtonLink>
         </div>
@@ -74,13 +82,15 @@ export default function ResetPasswordPage() {
 
   if (token === null || isInvalidLink(reset.error)) {
     return (
-      <AuthLayout title={t.auth.reset.title}>
+      <AuthLayout title={copy.title}>
         <div className="flex flex-col gap-5">
-          <Alert variant="error">{t.auth.reset.invalid}</Alert>
-          <ButtonLink href="/forgot-password" variant="primary" size="lg" className="w-full">
-            {t.auth.reset.requestNew}
-          </ButtonLink>
-          <ButtonLink href="/login" variant="ghost" icon="arrowLeft" className="self-center">
+          <Alert variant="error">{copy.invalid}</Alert>
+          {!invite && (
+            <ButtonLink href="/forgot-password" variant="primary" size="lg" className="w-full">
+              {t.auth.reset.requestNew}
+            </ButtonLink>
+          )}
+          <ButtonLink href="/" variant="ghost" icon="arrowLeft" className="self-center">
             {t.auth.backToSignIn}
           </ButtonLink>
         </div>
@@ -91,10 +101,10 @@ export default function ResetPasswordPage() {
   const pending = reset.isPending;
 
   return (
-    <AuthLayout title={t.auth.reset.title} subtitle={t.auth.reset.subtitle}>
+    <AuthLayout title={copy.title} subtitle={copy.subtitle}>
       <form className="flex flex-col gap-5" onSubmit={submit} aria-busy={pending}>
         <Field
-          label={t.auth.reset.password}
+          label={copy.password}
           hint={t.auth.reset.hint(PASSWORD_MIN_LENGTH)}
           info={t.fieldInfo.auth.resetPassword(PASSWORD_MIN_LENGTH)}
         >
@@ -112,7 +122,7 @@ export default function ResetPasswordPage() {
           />
         </Field>
         <Field
-          label={t.auth.reset.repeat}
+          label={copy.repeat}
           error={mismatch ? t.auth.reset.mismatch : undefined}
           info={t.fieldInfo.auth.resetRepeat}
         >
@@ -131,7 +141,7 @@ export default function ResetPasswordPage() {
         </Field>
         {reset.isError && <Alert variant="error">{messageFor(reset.error, t)}</Alert>}
         <Button type="submit" variant="primary" size="lg" loading={pending} disabled={!token} className="mt-1 w-full">
-          {t.auth.reset.submit}
+          {copy.submit}
         </Button>
       </form>
     </AuthLayout>

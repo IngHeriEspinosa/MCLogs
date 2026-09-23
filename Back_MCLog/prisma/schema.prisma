@@ -14,6 +14,9 @@ datasource db {
 
 model Log {
   id          Int         @id @default(autoincrement())
+  /// Espacio de trabajo al que pertenece. Toda consulta va acotada por el.
+  workspaceId Int
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
   timestamp   DateTime    @default(now())
   application String
   service     String?
@@ -34,25 +37,66 @@ model Log {
   /// mensaje lleve ids, fechas o URLs distintos. Ver src/utils/fingerprint.ts.
   fingerprint String? @db.VarChar(64)
 
+  /// La retencion purga por fecha en todos los espacios a la vez.
   @@index([timestamp])
-  @@index([application])
-  @@index([level])
-  @@index([environment])
-  @@index([traceId])
-  @@index([application, timestamp])
-  @@index([level, timestamp])
-  @@index([fingerprint, timestamp])
-  @@index([environment, level, timestamp])
+  // El resto empieza por workspaceId: cada consulta del panel va acotada a un
+  // espacio, y asi un espacio pequeno no paga por el volumen de los grandes.
+  @@index([workspaceId, timestamp])
+  @@index([workspaceId, application, timestamp])
+  @@index([workspaceId, level, timestamp])
+  @@index([workspaceId, fingerprint, timestamp])
+  @@index([workspaceId, traceId])
+  @@index([workspaceId, environment, level, timestamp])
+}
+
+/// Espacio de trabajo: la unidad de aislamiento. Logs, API keys y alertas
+/// pertenecen a uno, y solo lo ven sus miembros.
+model Workspace {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(120)
+  createdAt DateTime  @default(now())
+  /// Borrado logico: deja de verse al instante y el planificador purga sus
+  /// logs por lotes despues, sin bloquear la peticion que lo borro.
+  deletedAt DateTime?
+
+  members       WorkspaceMember[]
+  logs          Log[]
+  apiKeys       ApiKey[]
+  alertChannels AlertChannel[]
+  alertRules    AlertRule[]
+
+  @@index([deletedAt])
+}
+
+model WorkspaceMember {
+  workspaceId Int
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole @default(member)
+  createdAt   DateTime      @default(now())
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+}
+
+/// owner administra el espacio (miembros, API keys, alertas); member solo observa.
+enum WorkspaceRole {
+  owner
+  member
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
-  passwordHash  String
-  role          String         @default("user")
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String
+  role         String    @default("user")
   /// Cuenta de arranque (ADMIN_EMAIL). No se puede borrar ni degradar.
-  isRoot        Boolean        @default(false)
-  createdAt     DateTime       @default(now())
+  isRoot       Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  /// Null mientras la invitacion esta pendiente: la cuenta existe, pero no
+  /// puede entrar hasta elegir su contrasena con el enlace recibido.
+  activatedAt  DateTime?
 
   /// Autenticacion en dos pasos (TOTP, RFC 6238). El secreto se guarda en
   /// cuanto se genera, pero no se exige hasta confirmarlo con un codigo.
@@ -66,6 +110,20 @@ model User {
   refreshTokens       RefreshToken[]
   apiKeys             ApiKey[]
   passwordResetTokens PasswordResetToken[]
+  memberships         WorkspaceMember[]
+  settingsUpdated     AppSetting[]
+}
+
+/// Configuracion de la aplicacion que la cuenta root cambia en caliente, sin
+/// redesplegar. Una fila por clave; sin fila rige el valor predeterminado (el
+/// de la variable de entorno). El catalogo y sus limites viven en
+/// src/services/settingsService.ts.
+model AppSetting {
+  key         String   @id @db.VarChar(64)
+  value       Json
+  updatedAt   DateTime @updatedAt
+  updatedById Int?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 /// Enlace de "olvide mi contrasena". Solo se guarda el hash: quien lea la base
@@ -98,6 +156,9 @@ model RefreshToken {
 /// el valor en claro se muestra una unica vez, al crearla.
 model ApiKey {
   id           Int       @id @default(autoincrement())
+  /// Espacio en el que escribe y que puede leer. Una clave nunca sale de el.
+  workspaceId  Int
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
   name         String    @db.VarChar(120)
   /// Parte publica de la clave ("mclog_ab12cd34"), usada para localizarla sin exponer el secreto.
   prefix       String    @unique @db.VarChar(32)
@@ -115,26 +176,33 @@ model ApiKey {
   revokedAt    DateTime?
 
   @@index([revokedAt])
+  @@index([workspaceId])
 }
 
 /// Destino al que se envía un aviso. La forma de `config` depende del tipo:
 /// webhook `{ url, secret? }`, email `{ to: string[] }`, telegram `{ botToken, chatId }`.
 model AlertChannel {
-  id        Int              @id @default(autoincrement())
-  name      String           @db.VarChar(120)
-  type      AlertChannelType
-  config    Json
-  enabled   Boolean          @default(true)
-  createdAt DateTime         @default(now())
-  rules     AlertRule[]
+  id          Int              @id @default(autoincrement())
+  workspaceId Int
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id])
+  name        String           @db.VarChar(120)
+  type        AlertChannelType
+  config      Json
+  enabled     Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  rules       AlertRule[]
+
+  @@index([workspaceId])
 }
 
 /// Condición que dispara un aviso.
 model AlertRule {
-  id      Int           @id @default(autoincrement())
-  name    String        @db.VarChar(120)
-  type    AlertRuleType @default(threshold)
-  enabled Boolean       @default(true)
+  id          Int           @id @default(autoincrement())
+  workspaceId Int
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  name        String        @db.VarChar(120)
+  type        AlertRuleType @default(threshold)
+  enabled     Boolean       @default(true)
 
   /// Filtros. Nulo = cualquiera.
   application String?      @db.VarChar(120)
@@ -155,6 +223,7 @@ model AlertRule {
   events          AlertEvent[]
 
   @@index([enabled])
+  @@index([workspaceId])
 }
 
 /// Registro de un disparo, con el resultado del envío a cada canal.

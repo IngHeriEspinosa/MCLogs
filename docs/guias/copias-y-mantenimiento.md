@@ -33,7 +33,7 @@ MCLog borra solo, **cada hora**, los logs más antiguos que `RETENTION_DAYS`. Lo
 docker compose -f docker-compose.prod.yml exec db psql -U mclog -d mclog -c "\dt+"
 ```
 
-**Borrar algo concreto** (por ejemplo, todo lo de una aplicación de pruebas): ver [el borrado manual](../../Back_MCLog/docs/USER_GUIDE.md#borrado-manual). Los datos del Lab se borran desde **Administración → Lab → Borrar datos del lab**.
+**Borrar algo concreto** (por ejemplo, todo lo de una aplicación de pruebas): ver [el borrado manual](../../Back_MCLog/docs/USER_GUIDE.md#borrado-manual). Los datos del Lab se borran desde **Espacio → Lab → Borrar datos del lab**.
 
 ## Parte 2 — Copias de seguridad
 
@@ -138,7 +138,7 @@ Actualiza primero la API y después el dashboard.
 | Cada | Revisa |
 |---|---|
 | Semana | Que hay copias recientes fuera del servidor. El espacio en disco |
-| Mes | **Administración → API keys**: revoca las que llevan tiempo sin **Último uso** o ya no se necesitan. **Usuarios**: da de baja a quien ya no deba entrar, y comprueba que los admins tienen la etiqueta **2FA** |
+| Mes | **Espacio → API keys**: revoca las que llevan tiempo sin **Último uso** o ya no se necesitan. **Usuarios**: da de baja a quien ya no deba entrar, y comprueba que los admins tienen la etiqueta **2FA** |
 | Trimestre | Restaura una copia en otro entorno. Actualiza a la última versión |
 
 ## Si algo falla
@@ -152,5 +152,5 @@ Actualiza primero la API y después el dashboard.
 
 ## Siguiente paso
 
-- [Administrar usuarios y claves](administrar-usuarios-y-claves.md).
+- [Administrar espacios, usuarios y claves](administrar-usuarios-y-claves.md).
 - Referencia completa de despliegue: [DEPLOYMENT.md](../DEPLOYMENT.md).

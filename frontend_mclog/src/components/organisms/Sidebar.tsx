@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import { IconButton } from "@/components/atoms/Button";
 import { Icon, IconName, Logo } from "@/components/atoms/Icon";
 import { useI18n } from "@/common/i18n/I18nProvider";
+import { WorkspaceSwitcher } from "@/components/organisms/WorkspaceSwitcher";
+import { usePublicSettings } from "@/hooks/useSettings";
 
 type NavItem = { href: string; label: string; icon: IconName };
-type NavSection = { label: string; items: NavItem[]; adminOnly?: boolean };
+type NavSection = { label: string; items: NavItem[]; visible: boolean };
 
 const isActive = (pathname: string, href: string) =>
   href === "/logs" ? pathname.startsWith("/logs") || pathname.startsWith("/trace") : pathname.startsWith(href);
@@ -17,7 +19,14 @@ type SidebarProps = {
   onToggleCollapsed: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
-  isAdmin: boolean;
+  /** Hay un espacio activo: sin el no hay nada que observar. */
+  hasWorkspace: boolean;
+  /** Dueño del espacio activo: ve su administracion. */
+  isOwner: boolean;
+  /** Admin de plataforma: ve la gestion de cuentas. */
+  isPlatformAdmin: boolean;
+  /** Cuenta root: ve la configuracion de la aplicacion. */
+  isRoot: boolean;
 };
 
 /**
@@ -25,14 +34,29 @@ type SidebarProps = {
  * mas identidad da a la consola y separa con claridad "donde estoy" de "que
  * estoy mirando". En escritorio se puede contraer a solo iconos; en movil es
  * un panel que se desliza sobre el contenido.
+ *
+ * Tres bloques: lo que se observa (todos los miembros del espacio), la
+ * administracion del espacio (solo su dueño) y la de la plataforma (solo su
+ * admin, que gestiona cuentas pero no ve los datos de otros espacios).
  */
-export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobile, isAdmin }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  collapsed,
+  onToggleCollapsed,
+  mobileOpen,
+  onCloseMobile,
+  hasWorkspace,
+  isOwner,
+  isPlatformAdmin,
+  isRoot,
+}) => {
   const { t } = useI18n();
   const pathname = usePathname();
+  const { labEnabled } = usePublicSettings();
 
   const sections: NavSection[] = [
     {
       label: t.nav.observe,
+      visible: hasWorkspace,
       items: [
         { href: "/logs", label: t.nav.logs, icon: "logs" },
         { href: "/records", label: t.nav.records, icon: "table" },
@@ -41,13 +65,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
       ],
     },
     {
-      label: t.nav.admin,
-      adminOnly: true,
+      label: t.nav.workspace,
+      visible: hasWorkspace && isOwner,
       items: [
+        { href: "/settings/workspace", label: t.nav.members, icon: "users" },
         { href: "/settings/alerts", label: t.nav.alerts, icon: "bell" },
         { href: "/settings/api-keys", label: t.nav.apiKeys, icon: "key" },
-        { href: "/settings/users", label: t.nav.users, icon: "users" },
-        { href: "/lab", label: t.nav.lab, icon: "flask" },
+        ...(labEnabled ? [{ href: "/lab", label: t.nav.lab, icon: "flask" as const }] : []),
+      ],
+    },
+    {
+      label: t.nav.platform,
+      visible: isPlatformAdmin || isRoot,
+      items: [
+        ...(isPlatformAdmin ? [{ href: "/settings/users", label: t.nav.accounts, icon: "shield" as const }] : []),
+        ...(isRoot ? [{ href: "/settings/platform", label: t.nav.configuration, icon: "sliders" as const }] : []),
       ],
     },
   ];
@@ -116,9 +148,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
           />
         </div>
 
-        <nav className="relative flex-1 overflow-y-auto px-3 pb-4 pt-2">
+        <WorkspaceSwitcher collapsed={collapsed} />
+
+        <nav className="relative flex-1 overflow-y-auto px-3 pb-4 pt-3">
           {sections
-            .filter((section) => !section.adminOnly || isAdmin)
+            .filter((section) => section.visible)
             .map((section, index) => (
               <div key={section.label} className={index > 0 ? "mt-6" : ""}>
                 <p

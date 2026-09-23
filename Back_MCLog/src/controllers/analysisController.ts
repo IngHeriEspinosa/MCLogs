@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import logger from "../config/logger";
 import type { AuthenticatedRequest } from "../middlewares/requireAuth";
+import { workspaceIdOf } from "../middlewares/workspaceContext";
 import {
   DEFAULT_APPLICATIONS_HOURS,
   getErrorGroups,
@@ -38,6 +39,7 @@ export const errorGroups = async (req: Request, res: Response) => {
   try {
     const groups = await getErrorGroups(
       {
+        workspaceId: workspaceIdOf(req),
         application: req.query.application as string | undefined,
         service: req.query.service as string | undefined,
         environment: req.query.environment as string | undefined,
@@ -60,7 +62,10 @@ export const errorGroups = async (req: Request, res: Response) => {
 
 export const trace = async (req: Request, res: Response) => {
   try {
-    const logs = await getTrace(req.params.traceId, { applicationsIn: allowedApplications(req) });
+    const logs = await getTrace(req.params.traceId, {
+      workspaceId: workspaceIdOf(req),
+      applicationsIn: allowedApplications(req),
+    });
     if (logs.length === 0) {
       res.status(404).json({ error: "No logs found for that traceId" });
       return;
@@ -87,7 +92,7 @@ export const logContext = async (req: Request, res: Response) => {
     const context = await getLogContext(
       id,
       { beforeSeconds, afterSeconds, limit },
-      { applicationsIn: allowedApplications(req) },
+      { workspaceId: workspaceIdOf(req), applicationsIn: allowedApplications(req) },
     );
     // Fuera de alcance se responde 404 igual que si no existiera, para no
     // confirmar la existencia de logs de otras aplicaciones.
@@ -118,7 +123,7 @@ export const applications = async (req: Request, res: Response) => {
 
   try {
     res.json({
-      data: await listApplications(allowedApplications(req), from),
+      data: await listApplications(workspaceIdOf(req), allowedApplications(req), from),
       from: from.toISOString(),
       to: to.toISOString(),
     });

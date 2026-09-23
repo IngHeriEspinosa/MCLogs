@@ -12,7 +12,7 @@ Del aviso "algo falla en producción" a la causa, en seis pasos. No hace falta s
 ## Antes de empezar
 
 - Un usuario del dashboard (cualquier rol vale).
-- Que tus aplicaciones ya envíen logs. Si quieres **practicar** con datos de prueba, un admin puede ejecutar en **Administración → Lab** los escenarios **Error agrupado**, **Traza distribuida** y **Pico de incidente** ([Probar con el Lab](probar-con-el-lab.md)).
+- Que tus aplicaciones ya envíen logs. Si quieres **practicar** con datos de prueba, un admin puede ejecutar en **Espacio → Lab** los escenarios **Error agrupado**, **Traza distribuida** y **Pico de incidente** ([Probar con el Lab](probar-con-el-lab.md)).
 
 > [!TIP]
 > Empieza siempre por **Errores**, no por Logs. Logs responde "qué ha pasado"; Errores responde "qué está roto", que es lo que quieres saber.

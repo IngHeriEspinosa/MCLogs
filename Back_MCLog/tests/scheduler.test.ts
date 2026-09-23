@@ -4,6 +4,7 @@ import { config } from "../src/config/env";
 import { runRefreshTokenCleanupNow, runRetentionNow } from "../src/jobs/scheduler";
 import { deleteLogsOlderThanInBatches } from "../src/services/logService";
 import { ensureAdminUser } from "../src/services/authService";
+import { getDefaultWorkspaceId } from "../src/services/workspaceService";
 
 process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
@@ -13,9 +14,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const retentionDaysOriginal = config.retentionDays;
 let userId: number;
+let workspaceId: number;
 
 /** Inserta un log con una antiguedad concreta, en dias. */
 const logAgedDays = (days: number, application = "retencion") => ({
+  workspaceId,
   application,
   service: application,
   level: "info" as const,
@@ -26,6 +29,7 @@ const logAgedDays = (days: number, application = "retencion") => ({
 
 beforeAll(async () => {
   await ensureAdminUser();
+  workspaceId = (await getDefaultWorkspaceId())!;
   const admin = await prisma.user.findFirstOrThrow({ where: { role: "admin" } });
   userId = admin.id;
 });

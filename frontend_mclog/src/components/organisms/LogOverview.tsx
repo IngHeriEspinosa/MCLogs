@@ -87,6 +87,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           label={t.overview.records}
           value={fmt.compact(counts.total)}
           hint={scopeHint}
+          info={t.fieldInfo.metrics.records}
           icon="logs"
           accent="brand"
           trend={trend.map((bin) => bin.total)}
@@ -97,6 +98,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           label={t.overview.errors}
           value={fmt.compact(counts.error)}
           hint={t.overview.ofRecords(fmt.percent(errorRate))}
+          info={t.fieldInfo.metrics.errors}
           icon="errors"
           accent="error"
           trend={trend.map((bin) => bin.error)}
@@ -107,6 +109,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           label={t.overview.warnings}
           value={fmt.compact(counts.warn)}
           hint={t.overview.ofRecords(fmt.percent(counts.total ? counts.warn / counts.total : 0))}
+          info={t.fieldInfo.metrics.warnings}
           icon="alertCircle"
           accent="warn"
           trend={trend.map((bin) => bin.warn)}
@@ -117,6 +120,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           label={t.overview.distinctErrors}
           value={`${fmt.number(groupList.length)}${groupList.length >= 100 ? "+" : ""}`}
           hint={t.overview.distinctHint}
+          info={t.fieldInfo.metrics.distinctErrors}
           icon="hash"
           accent="neutral"
           loading={groups.isLoading}
@@ -126,6 +130,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           label={t.overview.apps}
           value={fmt.number(applications.data?.length ?? 0)}
           hint={t.overview.appsHint(appsWithErrors)}
+          info={t.fieldInfo.metrics.apps}
           icon="box"
           accent="neutral"
           loading={applications.isLoading}
@@ -135,13 +140,14 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
       <div className="grid gap-4 xl:grid-cols-12">
         <Card
           title={t.overview.activity}
+          info={t.fieldInfo.metrics.activity}
           description={isAll ? t.overview.last31d : isRelative(range) ? t.time.presets[range.preset] : t.time.custom}
           className="xl:col-span-8 3xl:col-span-6"
         >
           <ActivityChart hours={hours} loading={loading} stale={stale} onSelectRange={onSelectRange} height={260} />
         </Card>
 
-        <Card title={t.overview.levelMix} description={scopeHint} className="xl:col-span-4 3xl:col-span-2">
+        <Card title={t.overview.levelMix} info={t.fieldInfo.metrics.levelMix} description={scopeHint} className="xl:col-span-4 3xl:col-span-2">
           <LevelMix counts={counts} onSelect={onSelectLevel} loading={loading} />
           <div className="mt-5 border-t border-line pt-4">
             <div className="mb-2 flex items-baseline justify-between gap-2 px-2">
@@ -166,6 +172,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
 
         <Card
           title={t.overview.topErrors}
+          info={t.fieldInfo.metrics.topErrors}
           description={scopeHint}
           actions={
             <Link href={`/errors${rangeQuery ? `?${rangeQuery}` : ""}`} className="text-xs font-medium">
@@ -212,6 +219,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
 
         <Card
           title={t.overview.topApps}
+          info={t.fieldInfo.metrics.topApps}
           description={t.overview.topAppsHint}
           className="xl:col-span-6 3xl:col-span-2"
         >

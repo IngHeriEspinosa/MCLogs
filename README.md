@@ -77,11 +77,11 @@ curl -X POST http://localhost:3000/api/log \
   }'
 ```
 
-`dev-key` es la clave heredada del `.env` de desarrollo y solo sirve en local. Para cualquier otra cosa, crea una clave con permiso `ingest` en **Administración → API keys**. Sin escribir código, **Administración → Lab** envía escenarios de prueba completos.
+`dev-key` es la clave heredada del `.env` de desarrollo y solo sirve en local. Para cualquier otra cosa, crea una clave con permiso `ingest` en **Espacio → API keys**. Sin escribir código, **Espacio → Lab** envía escenarios de prueba completos.
 
 ## Conectar una IA a tus logs
 
-Crea una API key con permiso `read` en el dashboard (**Administración → API keys**) y registra el servidor MCP:
+Crea una API key con permiso `read` en el dashboard (**Espacio → API keys**) y registra el servidor MCP:
 
 ```bash
 claude mcp add --transport http mclog https://mclog.tu-dominio.com/mcp   --header "Authorization: Bearer mclog_xxxxxxxx_tu-clave"
@@ -95,7 +95,7 @@ A partir de ahí puedes preguntar «¿qué está fallando en producción hoy?» 
 - **NetSuite / SuiteScript** → [integrations/netsuite/README.md](integrations/netsuite/README.md) — librería lista para subir al File Cabinet.
 - **Apps Node.js** → [packages/mclog/README.md](packages/mclog/README.md) — cliente tipado `@multicomputos-srl/mclog`, sin dependencias.
 
-La ingesta se autentica con el header **`x-api-key`** y una clave con permiso `ingest`, creada en **Administración → API keys**. No se necesitan usuarios ni JWT para enviar logs. La variable `API_KEY` del backend es una clave heredada y deprecada: no la uses para integraciones nuevas.
+La ingesta se autentica con el header **`x-api-key`** y una clave con permiso `ingest`, creada en **Espacio → API keys**. No se necesitan usuarios ni JWT para enviar logs. La variable `API_KEY` del backend es una clave heredada y deprecada: no la uses para integraciones nuevas.
 
 ## Documentación
 

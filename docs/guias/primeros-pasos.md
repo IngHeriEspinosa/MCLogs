@@ -109,7 +109,7 @@ Llegas a la pantalla **Logs**, todavía vacía. A la izquierda tienes el menú; 
 
 Las aplicaciones no usan tu usuario para enviar logs: usan una **API key**.
 
-1. En el menú, abre **Administración → API keys**.
+1. En el menú, abre **Espacio → API keys**.
 2. Pulsa **Nueva clave**.
 3. En **Nombre**, escribe `mi-primera-app`.
 4. En **Permisos**, marca solo **Enviar logs**.

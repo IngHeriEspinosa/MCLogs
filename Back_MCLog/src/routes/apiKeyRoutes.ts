@@ -3,7 +3,7 @@ import { body, param, validationResult } from 'express-validator';
 import logger from '../config/logger';
 import { API_KEY_SCOPES, createApiKey, listApiKeys, revokeApiKey } from '../services/apiKeyService';
 import { AuthenticatedRequest, requireAuth } from '../middlewares/requireAuth';
-import { requireRole } from '../middlewares/requireRole';
+import { requireWorkspaceOwner, workspaceIdOf } from '../middlewares/workspaceContext';
 import { queryLimiter } from '../middlewares/rateLimiters';
 
 const router = express.Router();
@@ -17,11 +17,12 @@ const handleValidation: RequestHandler = (req, res, next) => {
     next();
 };
 
-router.use(queryLimiter, requireAuth, requireRole('admin'));
+// Las claves son del espacio activo y solo las gestiona su dueño.
+router.use(queryLimiter, requireAuth, requireWorkspaceOwner);
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
     try {
-        res.json({ data: await listApiKeys() });
+        res.json({ data: await listApiKeys(workspaceIdOf(req)) });
     } catch (error) {
         logger.error('Error listing API keys', { error });
         res.status(500).json({ error: 'Error listing API keys' });
@@ -47,6 +48,7 @@ router.post(
             const scopes = Array.from(new Set(req.body.scopes as string[]));
             const applications = Array.from(new Set((req.body.applications as string[] | undefined) ?? []));
             const result = await createApiKey({
+                workspaceId: workspaceIdOf(req),
                 name: req.body.name,
                 scopes,
                 applications,
@@ -56,6 +58,7 @@ router.post(
             logger.info('API key created', {
                 id: result.apiKey.id,
                 name: result.apiKey.name,
+                workspaceId: result.apiKey.workspaceId,
                 scopes,
                 applications,
                 by: req.user?.email
@@ -74,7 +77,7 @@ router.delete(
     [param('id').isInt({ min: 1 }).withMessage('id must be an integer').toInt(), handleValidation],
     async (req: AuthenticatedRequest, res: express.Response) => {
         try {
-            const revoked = await revokeApiKey(Number(req.params.id));
+            const revoked = await revokeApiKey(Number(req.params.id), workspaceIdOf(req));
             if (!revoked) {
                 res.status(404).json({ error: 'API key not found' });
                 return;

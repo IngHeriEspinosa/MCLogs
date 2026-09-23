@@ -3,6 +3,8 @@ import logger from "../config/logger";
 import { prisma } from "../config/prisma";
 import { deleteLogsOlderThanInBatches } from "../services/logService";
 import { evaluateRules } from "../alerts/evaluator";
+import { purgeDeletedWorkspaces } from "../services/workspaceService";
+import { getSetting } from "../services/settingsService";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -12,6 +14,8 @@ const REFRESH_TOKEN_CLEANUP_INTERVAL_MS = 6 * HOUR_MS;
 // Cada minuto: es la resolucion mas fina que tiene sentido para un aviso, y el
 // cooldown de cada regla evita que eso se traduzca en ruido.
 const ALERTS_INTERVAL_MS = 60 * 1000;
+// Los espacios borrados ya no se ven; purgar sus logs puede esperar.
+const WORKSPACE_PURGE_INTERVAL_MS = HOUR_MS;
 
 /**
  * Trabajos en ejecucion. Una purga sobre una tabla grande puede durar mas que
@@ -43,12 +47,13 @@ const runExclusively = async (name: string, task: () => Promise<unknown>) => {
  * comportamiento historico y hay que elegirlo a conciencia.
  */
 export const runRetentionNow = async (): Promise<number> => {
-  if (config.retentionDays <= 0) return 0;
-  const before = new Date(Date.now() - config.retentionDays * DAY_MS);
+  const retentionDays = getSetting("retentionDays");
+  if (retentionDays <= 0) return 0;
+  const before = new Date(Date.now() - retentionDays * DAY_MS);
   const deleted = await deleteLogsOlderThanInBatches(before);
   if (deleted > 0) {
     logger.info("Retention purge completed", {
-      retentionDays: config.retentionDays,
+      retentionDays,
       before: before.toISOString(),
       deleted,
     });
@@ -92,17 +97,20 @@ export const startScheduler = () => {
 
   schedule("retention", RETENTION_INTERVAL_MS, runRetentionNow);
   schedule("refreshTokenCleanup", REFRESH_TOKEN_CLEANUP_INTERVAL_MS, runRefreshTokenCleanupNow);
-  schedule("alerts", ALERTS_INTERVAL_MS, () => evaluateRules());
+  // Con las alertas apagadas desde la configuracion, la pasada no evalua nada.
+  schedule("alerts", ALERTS_INTERVAL_MS, async () => (getSetting("alertsEnabled") ? evaluateRules() : 0));
+  schedule("workspacePurge", WORKSPACE_PURGE_INTERVAL_MS, purgeDeletedWorkspaces);
 
   logger.info("Scheduler started", {
-    retentionDays: config.retentionDays,
-    retentionEnabled: config.retentionDays > 0,
+    retentionDays: getSetting("retentionDays"),
+    retentionEnabled: getSetting("retentionDays") > 0,
   });
 
   // Primera pasada nada mas arrancar: si el servicio estuvo caido, no conviene
   // esperar una hora mas para recuperar el mantenimiento pendiente.
   void runExclusively("refreshTokenCleanup", runRefreshTokenCleanupNow);
-  if (config.retentionDays > 0) void runExclusively("retention", runRetentionNow);
+  void runExclusively("workspacePurge", purgeDeletedWorkspaces);
+  void runExclusively("retention", runRetentionNow);
 };
 
 export const stopScheduler = () => {

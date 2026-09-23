@@ -18,7 +18,9 @@
 A la izquierda está el menú:
 
 - **Observabilidad**: **Logs**, **Registros**, **Errores** y **Reportes**.
-- **Administración** (solo si tu rol es `admin`): **Alertas**, **API keys**, **Usuarios** y **Lab**.
+- **Selector de espacio** (arriba): el espacio de trabajo activo y tu rol en él; desde aquí cambias de espacio, creas uno o sales del actual.
+- **Espacio** (solo si eres dueño del espacio activo): **Miembros**, **Alertas**, **API keys** y **Lab**.
+- **Plataforma** (solo admin de plataforma): **Cuentas**.
 - Abajo, **Mi cuenta** y el botón para contraer el menú a solo iconos.
 
 En el móvil, el menú se abre con el botón ☰ de arriba a la izquierda.

@@ -29,7 +29,7 @@ Cada guía recorre un proceso de principio a fin: qué vas a conseguir, qué nec
 | [Investigar un incidente](guias/investigar-incidente.md) | Ir del aviso a la causa: Errores, ocurrencias, traza, contexto y brief para IA |
 | [Buscar registros](guias/buscar-registros.md) | Filtros, búsqueda avanzada por campo, compartir y exportar |
 | [Proteger tu cuenta](guias/seguridad-cuenta.md) | Contraseña, verificación en dos pasos, códigos de recuperación y eliminar la cuenta |
-| [Administrar usuarios y claves](guias/administrar-usuarios-y-claves.md) | Altas, roles, cuenta root, API keys con permisos y rotación |
+| [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md) | Espacios de trabajo, invitaciones, roles, cuenta root, API keys con permisos y rotación |
 | [Configurar alertas](guias/configurar-alertas.md) | Canales (webhook, correo, Telegram), reglas y cómo probarlas |
 | [Probar con el Lab](guias/probar-con-el-lab.md) | Cada escenario de prueba, el compositor de logs y la limpieza |
 | [Presentar MCLog: guion de una demo](guias/presentar-una-demo.md) | 25 minutos para enseñarlo a tu equipo: preparación, guion paso a paso, preguntas previsibles y plan B |

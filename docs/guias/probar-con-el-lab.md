@@ -10,7 +10,7 @@ El Lab envía logs de prueba **reales** a MCLog y te lleva a la pantalla donde s
 
 ## Antes de empezar
 
-- Un usuario **admin**. El Lab está en **Administración → Lab**.
+- Un usuario **admin**. El Lab está en **Espacio → Lab**.
 - No hace falta ninguna API key: el Lab envía con tu propia sesión.
 
 > [!NOTE]

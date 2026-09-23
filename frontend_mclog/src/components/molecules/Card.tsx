@@ -1,9 +1,12 @@
 import React from "react";
+import { InfoTip } from "@/components/molecules/InfoTip";
 
 type CardProps = {
   title?: React.ReactNode;
   eyebrow?: React.ReactNode;
   description?: React.ReactNode;
+  /** Que muestra la tarjeta: un icono de informacion junto al titulo. */
+  info?: React.ReactNode;
   actions?: React.ReactNode;
   children?: React.ReactNode;
   /** Linea bajo la cabecera: para formularios y listas, no para graficos. */
@@ -20,6 +23,7 @@ export const Card: React.FC<CardProps> = ({
   title,
   eyebrow,
   description,
+  info,
   actions,
   children,
   divider,
@@ -39,7 +43,12 @@ export const Card: React.FC<CardProps> = ({
         >
           <div className="min-w-0">
             {eyebrow && <p className="eyebrow mb-1">{eyebrow}</p>}
-            {title && <h2 className="font-heading text-[0.9375rem] font-semibold text-ink">{title}</h2>}
+            {title && (
+              <h2 className="flex items-center gap-1.5 font-heading text-[0.9375rem] font-semibold text-ink">
+                {title}
+                {info && <InfoTip label={typeof title === "string" ? title : undefined}>{info}</InfoTip>}
+              </h2>
+            )}
             {description && <p className="mt-0.5 text-xs leading-relaxed text-ink-3">{description}</p>}
           </div>
           {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}

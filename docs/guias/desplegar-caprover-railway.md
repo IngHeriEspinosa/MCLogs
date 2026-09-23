@@ -133,7 +133,7 @@ Si por algún motivo los dominios no comparten dominio raíz, cambia a `COOKIE_S
 1. Abre `https://mclog.tu-dominio.com`. Verás la portada; pulsa **Iniciar sesión**.
 2. Entra con `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 3. **Mi cuenta → Cambiar contraseña**, y después **Verificación en dos pasos**. Guía: [Proteger tu cuenta](seguridad-cuenta.md).
-4. Comprueba la cadena completa con **Administración → Lab → Tráfico normal → Ejecutar**, mira que los logs aparecen en **Logs**, y luego **Borrar datos del lab**.
+4. Comprueba la cadena completa con **Espacio → Lab → Tráfico normal → Ejecutar**, mira que los logs aparecen en **Logs**, y luego **Borrar datos del lab**.
 
 ## Paso 7 — Programa las copias de seguridad
 
@@ -171,4 +171,4 @@ Más casos en [DEPLOYMENT.md](../DEPLOYMENT.md#resolución-de-problemas).
 ## Siguiente paso
 
 - [Copias y mantenimiento](copias-y-mantenimiento.md): cómo actualizar la API y el dashboard.
-- [Administrar usuarios y claves](administrar-usuarios-y-claves.md).
+- [Administrar espacios, usuarios y claves](administrar-usuarios-y-claves.md).

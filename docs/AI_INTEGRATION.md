@@ -8,7 +8,7 @@ La diferencia práctica: en vez de copiar un stack trace al chat, preguntas *"¿
 
 ## 1. Crear la clave de lectura
 
-En el dashboard, **Administración → API keys → Nueva clave**:
+En el dashboard, **Espacio → API keys → Nueva clave**:
 
 | Campo | Valor |
 |---|---|
@@ -23,7 +23,7 @@ Copia el secreto en ese momento: en la base de datos solo queda su hash, así qu
 
 La conexión por MCP usa **solo la clave**: la verificación en dos pasos de tu usuario no interviene, y el asistente nunca necesita tu contraseña.
 
-> **¿Aún no tienes logs que investigar?** Un admin puede generar unos de prueba en **Administración → Lab** (por ejemplo, **Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
+> **¿Aún no tienes logs que investigar?** Un admin puede generar unos de prueba en **Espacio → Lab** (por ejemplo, **Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
 
 ---
 
@@ -199,7 +199,7 @@ Sin librería, en cualquier lenguaje, basta un campo `error` en el JSON:
 | `401` | La clave no existe, está revocada o ha caducado |
 | `403` | La clave no tiene el permiso `read` (probablemente es de ingesta) |
 | `405` | Se está usando GET. El endpoint es sin estado y solo acepta POST; los clientes MCP ya lo hacen bien |
-| El asistente no ve una aplicación | La clave está acotada a otras. Míralo en Administración → API keys |
+| El asistente no ve una aplicación | La clave está acotada a otras. Míralo en Espacio → API keys |
 | No encuentra nada | ¿Están llegando los logs? Compruébalo en el dashboard antes de culpar al MCP |
 
 Prueba manual del endpoint, sin cliente de por medio:
@@ -221,6 +221,7 @@ Debe devolver las ocho herramientas.
 - **Las respuestas van recortadas a propósito.** Los listados no llevan metadata y los mensajes se cortan a 2000 caracteres, porque todo lo que devuelve la herramienta consume contexto del modelo. `get_log` es el que entrega el registro entero.
 - **El endpoint no guarda estado.** Cada petición se atiende y se cierra, así que el servicio sigue escalando horizontalmente sin sesiones pegadas a una instancia.
 - **La clave manda, no el asistente.** Todos los límites de una API key acotada se aplican dentro de MCP: el modelo no puede pedir lo que su clave no alcanza.
+- **Cada clave ve un solo espacio de trabajo**: el espacio en el que se creó. Para que un asistente investigue otro espacio, crea una clave `read` desde ese espacio. Si en lugar de una clave usas una sesión (JWT), el espacio se indica con la cabecera `X-Workspace-Id`.
 - **Se puede apagar** con `MCP_ENABLED=0` si no quieres exponerlo.
 
 Referencia de la API REST equivalente en [TECHNICAL.md](TECHNICAL.md). Despliegue en [DEPLOYMENT.md](DEPLOYMENT.md).

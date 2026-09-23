@@ -8,7 +8,7 @@ Cualquier aplicación que pueda hacer una petición HTTP puede enviar logs a MCL
 
 Pide al administrador una clave (o créala tú si eres admin):
 
-1. En el dashboard, **Administración → API keys → Nueva clave**.
+1. En el dashboard, **Espacio → API keys → Nueva clave**.
 2. Rellena el formulario:
    - **Nombre**: el de tu aplicación, para reconocerla (`facturacion producción`).
    - **Permisos**: solo **Enviar logs** (`ingest`).
@@ -69,7 +69,7 @@ Si no envías `message`, se usa el de la excepción. Un `code` numérico se guar
 |---|---|---|
 | `201` | Creado | — |
 | `400` | Validación: falta un campo o tiene un valor inválido | El body trae `errors` con el detalle por campo. No reintentes: fallará igual |
-| `401` | Clave inexistente, revocada o caducada | Revísala en Administración → API keys |
+| `401` | Clave inexistente, revocada o caducada | Revísala en Espacio → API keys |
 | `403` | La clave no tiene permiso `ingest`, o `application` queda fuera de su alcance | El body trae `allowedApplications`. Es configuración, no una caída |
 | `413` | El body supera el límite del servidor (3 MB) | Trocea el lote |
 | `429` | Límite de ingesta superado (2000 peticiones/min por clave) | Espera y reintenta, respetando `Retry-After`; agrupa en lotes |
@@ -217,7 +217,7 @@ Incluye automáticamente `scriptId`, `deploymentId`, `executionContext`, `accoun
 3. **Usa `traceId`** para correlacionar una operación que cruza varios sistemas (pásalo entre servicios y búscalo en el dashboard).
 4. **`metadata` compacta**: ids y valores relevantes, no dumps completos de registros (el límite del body es 3 MB, pero la consulta agradece payloads pequeños).
 5. **Una `application` por app real** y `service` para el subcomponente — así el filtro por aplicación del dashboard se mantiene útil.
-6. **Una clave por emisor, con los permisos justos.** Créalas desde el dashboard (Administración → API keys) con permiso `ingest` y acotadas a su aplicación: así una clave filtrada no puede leer nada ni escribir en nombre de otra. Rotarlas no corta el servicio: creas la nueva, actualizas al emisor y revocas la vieja.
+6. **Una clave por emisor, con los permisos justos.** Créalas desde el dashboard (Espacio → API keys) con permiso `ingest` y acotadas a su aplicación: así una clave filtrada no puede leer nada ni escribir en nombre de otra. Rotarlas no corta el servicio: creas la nueva, actualizas al emisor y revocas la vieja.
 7. **Manda la excepción entera** en el campo `error` cuando registres un fallo. Es lo que permite agrupar.
 
 ## Consulta programática (opcional)

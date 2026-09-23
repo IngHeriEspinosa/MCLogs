@@ -2,11 +2,44 @@
 // Template: DashboardLayout (riel de navegacion, barra superior y cabecera de pagina)
 import React, { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Button } from "@/components/atoms/Button";
+import { EmptyState } from "@/components/atoms/EmptyState";
+import { Card } from "@/components/molecules/Card";
 import { Sidebar } from "@/components/organisms/Sidebar";
 import { Topbar } from "@/components/organisms/Topbar";
+import { CreateWorkspaceDialog } from "@/components/organisms/WorkspaceSwitcher";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { useMe } from "@/hooks/useAuth";
 import { usePreference } from "@/hooks/usePreference";
+import { useWorkspace } from "@/hooks/useWorkspaces";
+import { usePublicSettings } from "@/hooks/useSettings";
+
+/** Paginas que no dependen de un espacio: la cuenta propia y la administracion de la plataforma. */
+const WORKSPACE_FREE = ["/settings/password", "/settings/users", "/settings/platform"];
+
+/** Lo que ve quien aun no pertenece a ningun espacio, en lugar de vistas vacias. */
+const NoWorkspace: React.FC = () => {
+  const { t } = useI18n();
+  const { canCreateWorkspace } = usePublicSettings();
+  const [creating, setCreating] = useState(false);
+  return (
+    <Card>
+      <EmptyState
+        icon="layers"
+        title={t.workspace.noWorkspaceTitle}
+        description={canCreateWorkspace ? t.workspace.noWorkspaceBody : t.workspace.noWorkspaceInviteOnly}
+        action={
+          canCreateWorkspace && (
+            <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
+              {t.workspace.create}
+            </Button>
+          )
+        }
+      />
+      <CreateWorkspaceDialog open={creating} onClose={() => setCreating(false)} />
+    </Card>
+  );
+};
 
 /**
  * Ancho del contenido. Las vistas de datos llegan hasta 4K (3840 px) y usan
@@ -58,15 +91,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 }) => {
   const { t } = useI18n();
   const me = useMe();
+  const workspace = useWorkspace();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = usePreference<boolean>("sidebarCollapsed", false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // /auth/me falla cuando no hay cookie de sesion o ha caducado. El destino
-  // viaja en ?next= para volver aqui despues de entrar.
+  // viaja en ?next= para volver aqui despues de entrar, con su query: el
+  // enlace de una alerta lleva el espacio (?ws=) y los filtros.
   useEffect(() => {
-    if (me.isError) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    if (me.isError) router.replace(`/?next=${encodeURIComponent(pathname + window.location.search)}`);
   }, [me.isError, pathname, router]);
 
   useEffect(() => setMobileOpen(false), [pathname]);
@@ -96,11 +131,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         onToggleCollapsed={() => setCollapsed(!collapsed)}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
-        isAdmin={me.data?.role === "admin"}
+        hasWorkspace={workspace.current !== null}
+        isOwner={workspace.isOwner}
+        isPlatformAdmin={workspace.isPlatformAdmin}
+        isRoot={workspace.isRoot}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar title={title} section={eyebrow} onOpenMenu={() => setMobileOpen(true)} me={me.data} />
+        <Topbar
+          title={title}
+          section={eyebrow}
+          onOpenMenu={() => setMobileOpen(true)}
+          me={me.data}
+          workspaceRole={workspace.current?.role}
+        />
         <main id="content" className="relative flex-1">
           <div
             aria-hidden
@@ -108,7 +152,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           />
           <div className={`relative mx-auto w-full px-4 py-6 sm:px-6 xl:px-8 3xl:px-10 3xl:py-8 ${WIDTH[width]}`}>
             <PageHeader title={title} eyebrow={eyebrow} description={description} actions={actions} />
-            {children}
+            {workspace.ready && workspace.workspaces.length === 0 && !WORKSPACE_FREE.includes(pathname) ? (
+              <NoWorkspace />
+            ) : (
+              children
+            )}
           </div>
         </main>
       </div>

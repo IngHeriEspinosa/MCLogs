@@ -50,7 +50,7 @@ export default function AccountPage() {
     // El backend revoca todos los refresh tokens, incluido el de esta sesion,
     // asi que hay que volver a entrar. Se deja leer el mensaje antes de salir.
     setTimeout(() => {
-      window.location.href = "/login";
+      window.location.href = "/";
     }, 2500);
   };
 

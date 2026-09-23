@@ -27,7 +27,7 @@ Si no sabes qué significa alguna palabra, está en el [Glosario](GLOSSARY.md). 
 
 > Tras **10 intentos fallidos en 15 minutos**, el login responde "Demasiados intentos. Prueba de nuevo más tarde.". Espera a que pase la ventana: los intentos correctos no cuentan.
 
-A la izquierda tienes el menú de secciones (en el móvil se abre con el botón ☰). Las de administración solo aparecen si tu usuario es `admin`:
+A la izquierda tienes el menú de secciones (en el móvil se abre con el botón ☰). Arriba del todo está el **selector de espacio**: el espacio de trabajo que estás viendo y tu rol en él (**Dueño** o **Miembro**). Todo lo que ves —logs, errores, reportes— es de ese espacio; ábrelo para cambiar a otro, crear uno nuevo o salir del actual. La sección **Espacio** solo aparece si eres dueño del espacio activo, y **Plataforma** si eres admin de plataforma:
 
 | Sección | Para qué |
 |---|---|
@@ -35,10 +35,11 @@ A la izquierda tienes el menú de secciones (en el móvil se abre con el botón 
 | **Registros** | Solo la tabla, con **búsqueda avanzada** por campo y el detalle a pantalla completa |
 | **Errores** | Los fallos agrupados por causa. Casi siempre, el mejor sitio para empezar |
 | **Reportes** | Informes en Markdown y briefs para agentes de IA |
-| **Alertas** | Avisos automáticos por webhook, correo o Telegram (admin) |
-| **API keys** | Claves para que las máquinas envíen o consulten (admin) |
-| **Usuarios** | Alta, roles y contraseñas (admin) |
-| **Lab** | Escenarios de prueba que envían logs reales para ver cada pantalla en acción (admin) |
+| **Miembros** | Quién ve el espacio: invitar, cambiar rol, quitar (dueño) |
+| **Alertas** | Avisos automáticos por webhook, correo o Telegram (dueño) |
+| **API keys** | Claves para que las máquinas envíen o consulten en este espacio (dueño) |
+| **Lab** | Escenarios de prueba que envían logs reales para ver cada pantalla en acción (dueño) |
+| **Cuentas** | Alta y baja de cuentas de la plataforma (admin de plataforma) |
 | **Mi cuenta** | Tus datos, tus preferencias, tu contraseña, la verificación en dos pasos y la eliminación de tu cuenta |
 
 Arriba a la derecha, en todas las pantallas, cambias el **idioma** (español / inglés) y el **tema** (claro, oscuro o el de tu sistema). Se recuerdan en ese navegador.
@@ -249,7 +250,7 @@ Guía completa con ejemplos por lenguaje en [INTEGRATION.md](INTEGRATION.md). Re
 ## B.1 Lo que necesitas
 
 - La **URL** del servicio (ej. `https://mclog.tu-dominio.com`)
-- Una **API key con permiso `ingest`**, que te da el administrador desde el dashboard (**Administración → API keys**).
+- Una **API key con permiso `ingest`**, que te da el administrador desde el dashboard (**Espacio → API keys**).
 
 No necesitas usuario ni contraseña para enviar logs: eso es solo para consultar. Pide que la clave venga **acotada a tu aplicación**: así, si se filtra, no puede escribir en nombre de otra ni leer nada.
 
@@ -392,31 +393,34 @@ El procedimiento completo, con requisitos, DNS, certificados y resolución de pr
 
 **Lo primero tras desplegar:** entra con la cuenta root (`ADMIN_EMAIL`), cambia su contraseña en **Mi cuenta** y activa la verificación en dos pasos.
 
-## C.3 Usuarios
+## C.3 Espacios y cuentas
 
-En **Administración → Usuarios**, si tu rol es `admin`. Puedes dar de alta, cambiar el rol, restablecer contraseñas y eliminar.
+Cada **espacio de trabajo** está aislado: sus logs, API keys y alertas solo los ven sus miembros. Dentro de un espacio, el **dueño** lo administra (miembros, claves, alertas, Lab, purga) y el **miembro** solo observa. Cualquier cuenta puede crear espacios desde el selector. Guía paso a paso: [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md).
 
-**Dar de alta a alguien:** **Nuevo usuario** → **Correo**, **Contraseña** (mínimo 8 caracteres) y **Rol** → **Crear usuario**. Ya puede entrar; pásale la contraseña por un canal seguro y pídele que la cambie en **Mi cuenta**.
+**Invitar a alguien a tu espacio:** **Espacio → Miembros** → **Invitar a alguien** → **Correo** y **Rol** → **Invitar**. Si ya tiene cuenta entra al momento; si no, recibe un enlace para elegir su contraseña (o lo ves en pantalla para compartirlo, si el servidor no tiene correo configurado).
 
-| Rol | Puede |
+**Dar de alta una cuenta** (admin de plataforma): **Plataforma → Cuentas** → **Nueva cuenta** → **Correo**, **Espacio propio** o **Unirse a mi espacio**, y **Rol en la plataforma** → **Crear cuenta**. La persona recibe su enlace de activación igual que en una invitación.
+
+| Rol de plataforma | Puede |
 |---|---|
-| `user` | Consultar, buscar, ver errores, estadísticas, exportar y generar reportes |
-| `admin` | Todo lo anterior, más purgar logs y administrar claves, usuarios, alertas y el Lab |
+| `user` | Lo que le permita su rol en cada espacio |
+| `admin` | Además, dar de alta y de baja cuentas. No ve los datos de los espacios a los que no pertenece |
 
-En la lista, dos etiquetas junto al correo:
+En la lista de cuentas, estas etiquetas junto al correo:
 
 - **Root**: la cuenta de arranque del servicio (`ADMIN_EMAIL`). No se puede degradar ni eliminar, así que el servicio nunca se queda sin una puerta de entrada.
 - **2FA**: esa persona tiene activada la verificación en dos pasos.
+- **Pendiente**: aún no ha activado la cuenta con su enlace.
 
 Cambiar la contraseña o el rol de alguien **cierra sus sesiones abiertas** en todos los dispositivos, y el rol nuevo se aplica de inmediato.
 
-Algunas operaciones están bloqueadas a propósito, para que el servicio no se quede sin administración: nadie puede borrarse a sí mismo desde esta pantalla, nadie puede eliminar o degradar la cuenta root, y nadie puede eliminar o degradar al último `admin`.
+Algunas operaciones están bloqueadas a propósito, para que nada se quede sin administración: nadie puede borrarse a sí mismo desde esta pantalla, nadie puede eliminar o degradar la cuenta root ni al último `admin`, un espacio siempre conserva al menos un dueño, y no se puede eliminar una cuenta que es la única dueña de un espacio con más miembros.
 
 Cada quien cambia su propia contraseña, activa la verificación en dos pasos o elimina su cuenta en **Mi cuenta** ([A.7](#a7-tu-cuenta-y-su-seguridad)). Un admin **no** puede quitar la verificación en dos pasos de otra persona; si alguien pierde el móvil y los códigos de recuperación, sigue la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#recuperar-una-cuenta-con-2fa).
 
 ## C.4 API keys
 
-En **Administración → API keys**. Cada clave lleva permisos, y conviene dar los justos:
+En **Espacio → API keys**. Cada clave lleva permisos, y conviene dar los justos:
 
 | Permiso | Para |
 |---|---|
@@ -444,7 +448,7 @@ En **Administración → API keys**. Cada clave lleva permisos, y conviene dar l
 
 ## C.5 Alertas
 
-En **Administración → Alertas**. Una **regla** define cuándo avisar y un **canal** por dónde. Se comprueban cada minuto.
+En **Espacio → Alertas**. Una **regla** define cuándo avisar y un **canal** por dónde. Se comprueban cada minuto.
 
 **Reglas.** Dos tipos:
 
@@ -477,7 +481,7 @@ Pon `RETENTION_DAYS` en el `.env` y olvídate: cada hora se purgan los logs más
 
 Con varias instancias detrás de un balanceador, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 
-Para una purga puntual, por ejemplo vaciar una aplicación concreta, sigue existiendo el borrado manual, con una sesión de admin:
+Para una purga puntual, por ejemplo vaciar una aplicación concreta, sigue existiendo el borrado manual, con la sesión del dueño del espacio (indicado en `X-Workspace-Id`):
 
 ```bash
 curl -s -X POST https://tu-api/auth/login \
@@ -486,13 +490,14 @@ curl -s -X POST https://tu-api/auth/login \
 TOKEN=$(jq -r .accessToken login.json)
 
 curl -X DELETE "https://tu-api/api/logs?before=2026-01-01T00:00:00Z&application=pruebas" \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Workspace-Id: 1"
 # → {"deleted": 12345}
 ```
 
 > **Si tu cuenta tiene verificación en dos pasos**, `login.json` no trae `accessToken` sino `"mfaRequired": true` y un `mfaToken`: completa antes el segundo paso con `POST /auth/login/2fa`, como se explica en la [guía de operación](../Back_MCLog/docs/USER_GUIDE.md#borrado-manual).
 
-Requiere rol `admin`. Una API key no puede purgar, por muchos permisos que tenga. Los logs del **Lab** se borran más fácil desde su propia pantalla ([C.11](#c11-el-lab)).
+Requiere ser dueño del espacio, y solo borra logs de ese espacio. Una API key no puede purgar, por muchos permisos que tenga. Los logs del **Lab** se borran más fácil desde su propia pantalla ([C.11](#c11-el-lab)).
 
 ## C.8 Monitoreo
 
@@ -528,7 +533,7 @@ docker compose -f docker-compose.prod.yml start api
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| `401` al ingerir | Clave inexistente, revocada o caducada | Revísala en Administración → API keys |
+| `401` al ingerir | Clave inexistente, revocada o caducada | Revísala en Espacio → API keys |
 | `403` al ingerir | La clave no tiene permiso `ingest`, o el log es de una aplicación fuera de su alcance | La respuesta indica las aplicaciones permitidas |
 | `403` al consultar | La clave no tiene permiso `read` | Las claves de ingesta no pueden leer, por diseño |
 | `429 Too Many Requests` | Superado el límite de ingesta | Agrupa con `/api/logs/batch` antes de subir `INGEST_RATE_LIMIT_MAX` |
@@ -549,7 +554,7 @@ Más casos en el [FAQ](FAQ.md).
 
 ## C.11 El Lab
 
-En **Administración → Lab**. Sirve para comprobar que todo funciona, para enseñar MCLog a alguien o para probar una regla de alerta, sin esperar a que tus aplicaciones fallen. Cada escenario envía **logs reales**, siempre a aplicaciones que empiezan por `lab-`.
+En **Espacio → Lab**. Sirve para comprobar que todo funciona, para enseñar MCLog a alguien o para probar una regla de alerta, sin esperar a que tus aplicaciones fallen. Cada escenario envía **logs reales**, siempre a aplicaciones que empiezan por `lab-`.
 
 1. Elige el **Entorno de destino**. Déjalo en **Desarrollo** salvo que quieras probar algo de producción a propósito: allí los logs cuentan en las métricas y pueden disparar alertas reales, y la pantalla te lo advierte.
 2. Lee el recuadro **Qué verás** del escenario y pulsa **Ejecutar**. La barra de progreso muestra cuántos van; **Detener** lo corta. Puedes ejecutar varios a la vez.

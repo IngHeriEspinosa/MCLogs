@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon, IconName } from "@/components/atoms/Icon";
 import { Skeleton } from "@/components/atoms/Skeleton";
+import { InfoTip } from "@/components/molecules/InfoTip";
 import { Sparkline } from "@/components/molecules/Sparkline";
 
 type Accent = "brand" | "error" | "warn" | "info" | "neutral";
@@ -27,6 +28,8 @@ type StatTileProps = {
   label: string;
   value: React.ReactNode;
   hint?: React.ReactNode;
+  /** Que mide la metrica y como se calcula: se abre al pasar por el icono. */
+  info?: React.ReactNode;
   icon?: IconName;
   accent?: Accent;
   trend?: number[];
@@ -39,6 +42,7 @@ export const StatTile: React.FC<StatTileProps> = ({
   label,
   value,
   hint,
+  info,
   icon,
   accent = "neutral",
   trend,
@@ -48,12 +52,25 @@ export const StatTile: React.FC<StatTileProps> = ({
   <div className="relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-line bg-surface p-4 shadow-card">
     <span aria-hidden className={`absolute inset-x-4 top-0 h-0.5 rounded-b-full ${ACCENT_EDGE[accent]}`} />
     <div className="flex items-center justify-between gap-2">
-      <p className="truncate text-[0.8125rem] font-medium text-ink-2">{label}</p>
-      {icon && (
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-3 ring-1 ring-inset ring-line">
-          <Icon name={icon} className="h-3.5 w-3.5" />
-        </span>
-      )}
+      <p className="flex min-w-0 items-center gap-1.5 text-[0.8125rem] font-medium text-ink-2">
+        <span className="truncate">{label}</span>
+        {info && !icon && <InfoTip label={label}>{info}</InfoTip>}
+      </p>
+      {icon &&
+        (info ? (
+          // El icono es la ayuda: se abre al pasar el raton, con el teclado o al pulsarlo.
+          <InfoTip
+            label={label}
+            trigger={<Icon name={icon} className="h-3.5 w-3.5" />}
+            className="flex h-7 w-7 shrink-0 cursor-help items-center justify-center rounded-lg bg-surface-2 text-ink-3 ring-1 ring-inset ring-line transition-colors hover:text-ink hover:ring-line-strong aria-expanded:text-brand aria-expanded:ring-brand/40"
+          >
+            {info}
+          </InfoTip>
+        ) : (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-3 ring-1 ring-inset ring-line">
+            <Icon name={icon} className="h-3.5 w-3.5" />
+          </span>
+        ))}
     </div>
 
     {loading ? (

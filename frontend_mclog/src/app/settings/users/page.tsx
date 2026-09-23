@@ -7,35 +7,68 @@ import { Input } from "@/components/atoms/Input";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
+import { Segmented } from "@/components/atoms/Segmented";
 import { ConfirmButton } from "@/components/molecules/ConfirmButton";
+import { InviteLinkNotice } from "@/components/molecules/InviteLinkNotice";
 import { Select } from "@/components/molecules/Select";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { useMe } from "@/hooks/useAuth";
 import { ManagedUser, PASSWORD_MIN_LENGTH, UserRole, useCreateUser, useDeleteUser, useUpdateUser, useUsers } from "@/hooks/useUsers";
+import { WorkspaceRole, inviteLink, useWorkspace } from "@/hooks/useWorkspaces";
+import { usePublicSettings } from "@/hooks/useSettings";
 
 const useRoleOptions = () => {
   const { t } = useI18n();
   return (["user", "admin"] as UserRole[]).map((role) => ({ value: role, label: t.nav.roles[role] }));
 };
 
+type Mode = "own" | "join";
+
+/** Resultado del alta: la cuenta y, si el correo no salio, el enlace de activacion para compartir. */
+type Created = { email: string; emailSent: boolean; link?: string };
+
+/**
+ * Alta de cuentas. La contrasena la elige la propia persona con el enlace de
+ * activacion; aqui solo se decide donde entra: un espacio propio o uno de los
+ * que administra quien la crea.
+ */
 const CreateUserForm: React.FC = () => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const roles = useRoleOptions();
+  const { workspaces, current } = useWorkspace();
+  const owned = workspaces.filter((workspace) => workspace.role === "owner");
+
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("user");
-  const [done, setDone] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("own");
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [workspaceId, setWorkspaceId] = useState<string>("");
+  const [workspaceRole, setWorkspaceRole] = useState<WorkspaceRole>("member");
+  const [created, setCreated] = useState<Created | null>(null);
   const create = useCreateUser();
+
+  // Por defecto, el espacio activo si es tuyo; si no, el primero que administras.
+  const joinId = workspaceId || String((owned.find((w) => w.id === current?.id) ?? owned[0])?.id ?? "");
+  const canJoin = owned.length > 0;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setDone(null);
-    await create.mutateAsync({ email: email.trim(), password, role });
-    setDone(email.trim());
+    setCreated(null);
+    const address = email.trim();
+    const result = await create.mutateAsync({
+      email: address,
+      role,
+      mode,
+      locale,
+      ...(mode === "own"
+        ? { workspaceName: workspaceName.trim() || undefined }
+        : { workspaceId: Number(joinId), workspaceRole }),
+    });
+    setCreated({ email: address, emailSent: result.emailSent, link: result.invitePath ? inviteLink(result.invitePath) : undefined });
     setEmail("");
-    setPassword("");
+    setWorkspaceName("");
     setRole("user");
   };
 
@@ -45,31 +78,75 @@ const CreateUserForm: React.FC = () => {
         <Field label={t.users.email} info={t.fieldInfo.users.email}>
           <Input type="email" icon="mail" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" required />
         </Field>
-        <Field label={t.users.password} hint={t.users.passwordHint(PASSWORD_MIN_LENGTH)} info={t.fieldInfo.users.password(PASSWORD_MIN_LENGTH)}>
-          <Input
-            type="password"
-            icon="lock"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            minLength={PASSWORD_MIN_LENGTH}
-            autoComplete="new-password"
-            required
+
+        <Field label={t.users.mode} info={t.fieldInfo.users.mode}>
+          <Segmented
+            label={t.users.mode}
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "own", label: t.users.modeOwn, icon: "layers" },
+              { value: "join", label: t.users.modeJoin, icon: "users" },
+            ]}
           />
         </Field>
+
+        {mode === "own" ? (
+          <Field label={t.users.workspaceName} hint={t.common.optional}>
+            <Input
+              icon="layers"
+              value={workspaceName}
+              onChange={(event) => setWorkspaceName(event.target.value)}
+              placeholder={t.users.workspaceNamePlaceholder(email.trim())}
+              maxLength={120}
+            />
+          </Field>
+        ) : canJoin ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t.users.joinWorkspace}>
+              <Select
+                value={joinId}
+                onChange={setWorkspaceId}
+                options={owned.map((workspace) => ({ value: String(workspace.id), label: workspace.name }))}
+                icon="layers"
+              />
+            </Field>
+            <Field label={t.users.workspaceRole} info={t.workspace.roleHint}>
+              <Select
+                value={workspaceRole}
+                onChange={setWorkspaceRole}
+                options={(["member", "owner"] as WorkspaceRole[]).map((value) => ({ value, label: t.workspace.roles[value] }))}
+                icon="shield"
+              />
+            </Field>
+          </div>
+        ) : (
+          <Alert variant="info">{t.users.noOwnedWorkspaces}</Alert>
+        )}
+
         <Field label={t.users.role} info={t.fieldInfo.users.role}>
           <Select value={role} onChange={setRole} options={roles} icon="shield" />
         </Field>
 
         {create.isError && <Alert variant="error">{errorMessage(create.error, t.common.unknownError)}</Alert>}
-        {done && !create.isError && <Alert variant="success">{t.users.created(done)}</Alert>}
+        {created && !create.isError && <CreatedNotice created={created} />}
 
-        <Button type="submit" variant="primary" icon="plus" loading={create.isPending}>
+        <Button type="submit" variant="primary" icon="plus" loading={create.isPending} disabled={mode === "join" && !canJoin}>
           {t.users.create}
         </Button>
       </form>
     </Card>
   );
 };
+
+const CreatedNotice: React.FC<{ created: Created }> = ({ created }) => {
+  const { t } = useI18n();
+  const { invitationTtlDays } = usePublicSettings();
+  if (created.emailSent) return <Alert variant="success">{t.users.createdSent(created.email)}</Alert>;
+  if (!created.link) return <Alert variant="success">{t.users.created(created.email)}</Alert>;
+  return <InviteLinkNotice message={t.users.createdLink(created.email, invitationTtlDays)} link={created.link} />;
+};
+
 
 const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSelf }) => {
   const { t, fmt } = useI18n();
@@ -102,6 +179,7 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
               <span className="mt-0.5 flex flex-wrap gap-1">
                 {isSelf && <Tag tone="accent">{t.common.you}</Tag>}
                 {user.isRoot && <Tag tone="brand">{t.users.root}</Tag>}
+                {user.activatedAt === null && <Tag tone="warning">{t.users.pending}</Tag>}
                 {user.twoFactorEnabled && <Tag tone="success" icon="shield">{t.users.twoFactor}</Tag>}
               </span>
             </span>
@@ -122,6 +200,7 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
             />
           </div>
         </td>
+        <td className="whitespace-nowrap border-b border-line px-4 py-3 font-mono text-xs text-ink-2">{user.workspaceCount}</td>
         <td className="whitespace-nowrap border-b border-line px-4 py-3 text-xs text-ink-2">{fmt.date(user.createdAt)}</td>
         <td className="border-b border-line py-3 pl-4 pr-5">
           <div className="flex justify-end gap-1">
@@ -147,7 +226,7 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
 
       {(reset || done || update.isError || remove.isError) && (
         <tr>
-          <td colSpan={4} className="border-b border-line bg-surface-2/70 px-5 py-3">
+          <td colSpan={5} className="border-b border-line bg-surface-2/70 px-5 py-3">
             {reset && (
               <form className="flex flex-wrap items-center gap-2" onSubmit={applyPassword}>
                 <Input
@@ -202,7 +281,7 @@ const UsersTable: React.FC<{ currentUserId?: number }> = ({ currentUserId }) => 
             <table className="w-full border-separate border-spacing-0 text-sm">
               <thead>
                 <tr className="bg-surface-2 text-left">
-                  {[t.users.columns.email, t.users.columns.role, t.users.columns.created, ""].map((label, index) => (
+                  {[t.users.columns.email, t.users.columns.role, t.users.columns.workspaces, t.users.columns.created, ""].map((label, index) => (
                     <th
                       key={index}
                       scope="col"

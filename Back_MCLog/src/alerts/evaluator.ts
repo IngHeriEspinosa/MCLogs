@@ -26,6 +26,8 @@ const LEVELS_AT_OR_ABOVE: Record<string, string[]> = {
 };
 
 const ruleWhere = (rule: AlertRule, from: Date): Prisma.LogWhereInput => ({
+  // Una regla solo cuenta los logs de su espacio.
+  workspaceId: rule.workspaceId,
   timestamp: { gte: from },
   level: { in: (LEVELS_AT_OR_ABOVE[rule.level] ?? ["error"]) as never[] },
   ...(rule.application ? { application: rule.application } : {}),
@@ -50,10 +52,13 @@ const toSample = (log: Log): AlertSample => ({
  */
 const dashboardLink = (rule: AlertRule): string | null => {
   if (!config.publicDashboardUrl) return null;
-  const params = new URLSearchParams({ level: rule.level });
+  // `ws` hace que el panel abra el espacio de la regla, aunque quien pulse el
+  // enlace tuviera otro seleccionado.
+  const params = new URLSearchParams({ ws: String(rule.workspaceId), level: rule.level });
   if (rule.application) params.set("application", rule.application);
   if (rule.environment) params.set("environment", rule.environment);
-  return `${config.publicDashboardUrl}/?${params.toString()}`;
+  // Directo a /logs: la portada redirige sin conservar la query.
+  return `${config.publicDashboardUrl}/logs?${params.toString()}`;
 };
 
 /** Evalúa una regla de umbral: N o más coincidencias en la ventana. */
@@ -76,7 +81,10 @@ const evaluateThreshold = async (rule: AlertRule, from: Date) => {
  * fallaba antes", que suele ser la señal más accionable tras un despliegue.
  */
 const evaluateNewErrorGroup = async (rule: AlertRule, from: Date) => {
-  const condiciones: Prisma.Sql[] = [Prisma.sql`"fingerprint" IS NOT NULL`];
+  const condiciones: Prisma.Sql[] = [
+    Prisma.sql`"workspaceId" = ${rule.workspaceId}`,
+    Prisma.sql`"fingerprint" IS NOT NULL`,
+  ];
   if (rule.application) condiciones.push(Prisma.sql`"application" = ${rule.application}`);
   if (rule.service) condiciones.push(Prisma.sql`"service" = ${rule.service}`);
   if (rule.environment) condiciones.push(Prisma.sql`"environment" = ${rule.environment}::"Environment"`);

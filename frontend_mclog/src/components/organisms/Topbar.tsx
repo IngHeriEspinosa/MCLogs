@@ -10,6 +10,7 @@ import { LOCALES } from "@/common/i18n/config";
 import { useTheme } from "@/common/theme/ThemeProvider";
 import { ThemePreference } from "@/common/theme/config";
 import { CurrentUser, useLogout } from "@/hooks/useAuth";
+import type { WorkspaceRole } from "@/hooks/useWorkspaces";
 
 const THEME_ICON = { light: "sun", dark: "moon", system: "monitor" } as const;
 
@@ -103,7 +104,7 @@ export const LanguageMenu: React.FC = () => {
   );
 };
 
-const UserMenu: React.FC<{ me: CurrentUser }> = ({ me }) => {
+const UserMenu: React.FC<{ me: CurrentUser; workspaceRole?: WorkspaceRole }> = ({ me, workspaceRole }) => {
   const { t } = useI18n();
   const router = useRouter();
   const logout = useLogout();
@@ -121,9 +122,10 @@ const UserMenu: React.FC<{ me: CurrentUser }> = ({ me }) => {
       header={
         <div className="mb-1 border-b border-line px-2.5 pb-2.5 pt-1.5">
           <p className="truncate text-sm font-medium text-ink">{me.email}</p>
-          <Tag tone={me.role === "admin" ? "brand" : "neutral"} className="mt-1.5">
-            {t.nav.roles[me.role]}
-          </Tag>
+          <span className="mt-1.5 flex flex-wrap gap-1">
+            {workspaceRole && <Tag tone={workspaceRole === "owner" ? "brand" : "neutral"}>{t.workspace.roles[workspaceRole]}</Tag>}
+            {me.role === "admin" && <Tag tone="accent">{t.nav.roles.admin}</Tag>}
+          </span>
         </div>
       }
       items={[
@@ -140,9 +142,11 @@ type TopbarProps = {
   section?: string;
   onOpenMenu: () => void;
   me?: CurrentUser;
+  /** Rol en el espacio activo, que es el que decide lo que se puede hacer. */
+  workspaceRole?: WorkspaceRole;
 };
 
-export const Topbar: React.FC<TopbarProps> = ({ title, section, onOpenMenu, me }) => {
+export const Topbar: React.FC<TopbarProps> = ({ title, section, onOpenMenu, me, workspaceRole }) => {
   const { t } = useI18n();
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-canvas/80 px-4 backdrop-blur-md sm:px-6 xl:px-8 3xl:px-10">
@@ -161,7 +165,7 @@ export const Topbar: React.FC<TopbarProps> = ({ title, section, onOpenMenu, me }
       <div className="ml-auto flex items-center gap-0.5">
         <LanguageMenu />
         <ThemeMenu />
-        {me && <UserMenu me={me} />}
+        {me && <UserMenu me={me} workspaceRole={workspaceRole} />}
       </div>
     </header>
   );

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
+import { getDefaultWorkspaceId } from "../src/services/workspaceService";
 import { createApiKey, resetApiKeyCaches } from "../src/services/apiKeyService";
 import { config } from "../src/config/env";
 
@@ -11,6 +12,7 @@ process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
 const prisma = createPrismaClient();
+let workspaceId: number;
 
 let adminToken: string;
 let plainUserToken: string;
@@ -31,6 +33,7 @@ const sampleLog = (application: string) => ({
 
 beforeAll(async () => {
   await ensureAdminUser();
+  workspaceId = (await getDefaultWorkspaceId())!;
   await prisma.apiKey.deleteMany();
   await prisma.log.deleteMany();
   resetApiKeyCaches();
@@ -224,6 +227,7 @@ describe("Ciclo de vida de las claves", () => {
 
   it("deja de aceptar una clave caducada", async () => {
     const { key } = await createApiKey({
+      workspaceId,
       name: "caducada",
       scopes: ["ingest"],
       expiresAt: new Date(Date.now() - 1000),

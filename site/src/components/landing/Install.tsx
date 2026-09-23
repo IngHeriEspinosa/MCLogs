@@ -25,7 +25,7 @@ const STEPS = [
   },
   {
     title: "Crea una API key",
-    body: "Desde Administración → API keys del dashboard, con permiso de solo ingesta y acotada a una aplicación. Una clave por emisor.",
+    body: "Desde Espacio → API keys del dashboard, con permiso de solo ingesta y acotada a una aplicación. Una clave por emisor.",
   },
   {
     title: "Manda tu primer log",

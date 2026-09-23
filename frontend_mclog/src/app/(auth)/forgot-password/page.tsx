@@ -43,7 +43,7 @@ export default function ForgotPasswordPage() {
       <AuthLayout title={t.auth.forgot.sentTitle}>
         <div className="flex flex-col gap-5">
           <Alert variant="success">{t.auth.forgot.sent(sentTo)}</Alert>
-          <ButtonLink href="/login" variant="primary" size="lg" icon="arrowLeft" className="w-full">
+          <ButtonLink href="/" variant="primary" size="lg" icon="arrowLeft" className="w-full">
             {t.auth.backToSignIn}
           </ButtonLink>
           <Button
@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
         <Button type="submit" variant="primary" size="lg" loading={pending} iconRight="arrowRight" className="mt-1 w-full">
           {t.auth.forgot.submit}
         </Button>
-        <ButtonLink href="/login" variant="ghost" icon="arrowLeft" className="self-center">
+        <ButtonLink href="/" variant="ghost" icon="arrowLeft" className="self-center">
           {t.auth.backToSignIn}
         </ButtonLink>
       </form>

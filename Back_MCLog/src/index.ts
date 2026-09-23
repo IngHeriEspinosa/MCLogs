@@ -4,6 +4,7 @@ import { prisma } from "./config/prisma";
 import logger from "./config/logger";
 import { ensureAdminUser } from "./services/authService";
 import { startScheduler, stopScheduler } from "./jobs/scheduler";
+import { startSettingsSync, stopSettingsSync } from "./services/settingsService";
 
 const connectWithRetry = async (retries = 10, delayMs = 3000) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -23,6 +24,8 @@ const connectWithRetry = async (retries = 10, delayMs = 3000) => {
     assertProductionConfig();
     await connectWithRetry();
     await ensureAdminUser();
+    // Antes de escuchar: la primera peticion ya debe ver la configuracion guardada.
+    await startSettingsSync();
     startScheduler();
 
     const server = app.listen(config.port, () => {
@@ -32,6 +35,7 @@ const connectWithRetry = async (retries = 10, delayMs = 3000) => {
     const shutdown = async (signal: string) => {
       logger.info(`${signal} recibido, cerrando servidor...`);
       stopScheduler();
+      stopSettingsSync();
       server.close(async () => {
         await prisma.$disconnect();
         process.exit(0);

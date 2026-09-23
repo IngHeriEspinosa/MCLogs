@@ -185,17 +185,19 @@ export default function TracePage() {
 
         {!trace.isError && (
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 3xl:gap-4">
-            <StatTile label={t.trace.records} value={fmt.number(logs.length)} icon="logs" accent="brand" loading={trace.isLoading} />
+            <StatTile label={t.trace.records} info={t.fieldInfo.metrics.traceRecords} value={fmt.number(logs.length)} icon="logs" accent="brand" loading={trace.isLoading} />
             <StatTile
               label={t.trace.apps}
+              info={t.fieldInfo.metrics.traceApps}
               value={fmt.number(applications.length)}
               hint={applications.slice(0, 3).join(", ")}
               icon="box"
               loading={trace.isLoading}
             />
-            <StatTile label={t.trace.duration} value={fmt.duration(duration)} icon="clock" loading={trace.isLoading} />
+            <StatTile label={t.trace.duration} info={t.fieldInfo.metrics.traceDuration} value={fmt.duration(duration)} icon="clock" loading={trace.isLoading} />
             <StatTile
               label={t.trace.errors}
+              info={t.fieldInfo.metrics.traceErrors}
               value={fmt.number(errors)}
               icon="errors"
               accent={errors > 0 ? "error" : "neutral"}

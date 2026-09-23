@@ -45,7 +45,7 @@ Sí. Tiene guardias de configuración que impiden arrancar con secretos por defe
 Ver [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### ¿Cómo lo pruebo sin integrar nada todavía?
-Con el **Lab** (Administración → Lab): escenarios que envían logs de prueba y te llevan a la pantalla donde se ve el resultado. Ver [El Lab](#el-lab).
+Con el **Lab** (Espacio → Lab): escenarios que envían logs de prueba y te llevan a la pantalla donde se ve el resultado. Ver [El Lab](#el-lab).
 
 ---
 
@@ -61,7 +61,7 @@ Cuatro campos:
 El servidor rellena solo `service`, `host`, `traceId` y `timestamp`.
 
 ### ¿Necesito usuario y contraseña para enviar logs?
-No. Enviar solo requiere una **API key con permiso `ingest`** en la cabecera `x-api-key`, creada en **Administración → API keys**. Los usuarios y contraseñas son para entrar al dashboard.
+No. Enviar solo requiere una **API key con permiso `ingest`** en la cabecera `x-api-key`, creada en **Espacio → API keys**. Los usuarios y contraseñas son para entrar al dashboard.
 
 ### ¿Qué pasa si MCLog está caído cuando mi app intenta enviar un log?
 Depende de cómo lo hayas integrado:
@@ -145,7 +145,7 @@ Solo se puede activar en la primera página y con el orden por fecha descendente
 ## Sesiones y usuarios
 
 ### ¿Cómo creo usuarios nuevos?
-Desde el dashboard, en **Administración → Usuarios**, si tu usuario es `admin`. Puedes dar de alta, cambiar el rol, restablecer la contraseña y eliminar. El admin inicial se sigue creando solo al arrancar desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+Desde el dashboard, en **Plataforma → Cuentas**, si tu usuario es `admin`. Puedes dar de alta, cambiar el rol, restablecer la contraseña y eliminar. El admin inicial se sigue creando solo al arrancar desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
 
 Algunas operaciones están bloqueadas a propósito: nadie puede borrarse a sí mismo desde esa pantalla, nadie puede eliminar o degradar la **cuenta root**, y nadie puede eliminar o degradar al último administrador. Sin ellas sería posible dejar el servicio sin quien lo administre.
 
@@ -159,7 +159,7 @@ La del `ADMIN_EMAIL` del backend, que se crea sola al arrancar por primera vez. 
 Sí, en **Mi cuenta → Zona de peligro → Eliminar mi cuenta**. Pide tu contraseña, el código de la verificación en dos pasos si la tienes, y que escribas `ELIMINAR`. No se puede deshacer. Las API keys que creaste siguen funcionando. La cuenta root y la del último administrador no se pueden eliminar.
 
 ### Olvidé la contraseña de un usuario
-Cualquier administrador puede restablecerla desde **Administración → Usuarios**. Si quien la ha perdido es el único administrador, no hay recuperación posible desde la aplicación (bcrypt es de una vía): hay que generar un hash nuevo y actualizar la fila a mano.
+Cualquier administrador puede restablecerla desde **Plataforma → Cuentas**. Si quien la ha perdido es el único administrador, no hay recuperación posible desde la aplicación (bcrypt es de una vía): hay que generar un hash nuevo y actualizar la fila a mano.
 
 ```bash
 node -e "console.log(require('bcryptjs').hashSync('NuevaContraseña', 12))"
@@ -216,14 +216,14 @@ Desactiva la verificación y vuelve a activarla: obtendrás 8 códigos nuevos y 
 No. La verificación en dos pasos protege el inicio de sesión de las personas. Las API keys, incluidas las que usa un asistente de IA por MCP, siguen funcionando igual.
 
 ### ¿Cómo sé quién la tiene activada?
-En **Administración → Usuarios**, esas cuentas llevan la etiqueta **2FA**.
+En **Plataforma → Cuentas**, esas cuentas llevan la etiqueta **2FA**.
 
 ---
 
 ## Errores concretos
 
 ### `401 Invalid or missing API key`
-La cabecera `x-api-key` falta, la clave no existe, está revocada o ha caducado. Compruébala en **Administración → API keys** (columna **Estado**), verifica que no haya espacios sobrantes y que estés apuntando al entorno correcto: la clave de desarrollo no vale en producción.
+La cabecera `x-api-key` falta, la clave no existe, está revocada o ha caducado. Compruébala en **Espacio → API keys** (columna **Estado**), verifica que no haya espacios sobrantes y que estés apuntando al entorno correcto: la clave de desarrollo no vale en producción.
 
 ### `403` al consultar logs teniendo API key
 La clave no tiene el permiso `read`. Es a propósito: **una clave de ingesta no da acceso de lectura**, y es lo que hace que una clave filtrada no exponga los logs. Para leer, crea una clave con permiso **Consultar logs y errores**.
@@ -294,7 +294,7 @@ Detalle en [DEPLOYMENT.md § B.5](DEPLOYMENT.md#b5-dos-dominios-cors-y-cookies).
 ## Alertas
 
 ### ¿Cómo me entero de que algo falla sin estar mirando el dashboard?
-Con una **regla** de alerta y un **canal**, en Administración → Alertas. Las reglas se comprueban cada minuto.
+Con una **regla** de alerta y un **canal**, en Espacio → Alertas. Las reglas se comprueban cada minuto.
 
 ### ¿Qué puede dispararse?
 Dos cosas: que se acumulen N coincidencias en una ventana (**umbral**), o que aparezca un error **que no se había visto nunca**. La segunda es la más útil justo después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".
@@ -309,7 +309,7 @@ Pon un **secreto** al crear el canal: cada aviso viaja firmado con HMAC-SHA256 e
 Para eso está el **silencio tras avisar** de cada regla. Tras dispararse, calla el tiempo que indiques; sin él, un incidente de una hora generaría sesenta avisos idénticos. El silencio arranca aunque el envío falle, a propósito.
 
 ### Un canal ha fallado, ¿me entero?
-Sí. En Administración → Alertas → Historial cada disparo muestra a cuántos canales se entregó y el motivo de los que fallaron. Un canal caído no impide avisar por los demás.
+Sí. En Espacio → Alertas → Historial cada disparo muestra a cuántos canales se entregó y el motivo de los que fallaron. Un canal caído no impide avisar por los demás.
 
 ### ¿Hace falta configurar algo para el correo?
 Solo para ese canal: las variables `SMTP_*` del backend. Webhook y Telegram se configuran enteros desde el dashboard.
@@ -322,7 +322,7 @@ Con el Lab. **Pico de incidente** dispara las reglas de umbral y **Error nuevo**
 ## El Lab
 
 ### ¿Qué es el Lab?
-Una pantalla de **Administración** con escenarios de prueba que envían **logs reales** a MCLog y te llevan a donde se ve el resultado: agrupación de errores, trazas, picos, alertas, enmascarado de datos y el stream en vivo. Sirve para comprobar que todo funciona, para enseñar el producto o para probar una regla de alerta.
+Una pantalla de la sección **Espacio** (solo para su dueño) con escenarios de prueba que envían **logs reales** a MCLog y te llevan a donde se ve el resultado: agrupación de errores, trazas, picos, alertas, enmascarado de datos y el stream en vivo. Sirve para comprobar que todo funciona, para enseñar el producto o para probar una regla de alerta.
 
 ### ¿Ensucia mis datos?
 Poco, y se limpia fácil:
@@ -438,7 +438,7 @@ Depende de sus permisos, que es precisamente por lo que existen:
 - **Una clave `ingest`**: el atacante puede **escribir logs falsos**, pero **no puede leer nada**. Es una molestia, no una fuga de datos.
 - **Una clave `read`**: sí expone los logs de sus aplicaciones.
 
-En los dos casos, **revócala** en **Administración → API keys**; el efecto es inmediato. Crea una nueva y actualiza al emisor.
+En los dos casos, **revócala** en **Espacio → API keys**; el efecto es inmediato. Crea una nueva y actualiza al emisor.
 
 ### ¿Qué pasa si roban un refresh token?
 El daño está acotado por la **rotación**: cada refresh token se invalida al usarse (con un margen de 30 segundos para las peticiones simultáneas del propio dashboard). Si el usuario legítimo lo usa antes que el atacante, el robado queda inservible. Para cortar de raíz, el usuario cambia su contraseña en **Mi cuenta**, que revoca todas sus sesiones; o un admin borra las filas de `RefreshToken` de ese usuario.
@@ -458,7 +458,7 @@ Con `LOG_LEVEL=debug` se registra el body de las peticiones, pero **redactando**
 Cuidado con lo que tú mandas: si pones una contraseña o un token en el `message` o en `metadata` de un log tuyo, se guardará tal cual. MCLog no puede adivinar qué es secreto dentro de tu propio contenido.
 
 ### ¿Se puede restringir qué aplicación envía con cada clave?
-Sí. Al crear una clave en **Administración → API keys** puedes limitarla a una lista de aplicaciones. La restricción vale en los dos sentidos: esa clave no puede escribir logs de otra aplicación (responde `403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log concreto por su id, que responde `404` para no confirmar siquiera que existe.
+Sí. Al crear una clave en **Espacio → API keys** puedes limitarla a una lista de aplicaciones. La restricción vale en los dos sentidos: esa clave no puede escribir logs de otra aplicación (responde `403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log concreto por su id, que responde `404` para no confirmar siquiera que existe.
 
 Cada clave lleva además permisos: `ingest` para escribir, `read` para consultar y `metrics` para Prometheus. Una clave de ingesta filtrada no expone nada de lo ya almacenado.
 

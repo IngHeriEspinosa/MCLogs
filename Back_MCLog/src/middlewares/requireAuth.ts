@@ -7,10 +7,15 @@ import { setAuthCookies } from "./setAuthCookies";
 
 export type AuthenticatedUser = { id: number; email: string; role: string };
 
+/** Espacio de trabajo sobre el que actua la peticion y el rol de quien la hace en el. */
+export type WorkspaceContext = { id: number; role: "owner" | "member" };
+
 export type AuthenticatedRequest = Request & {
   user?: AuthenticatedUser;
   /** Presente cuando la peticion se autentico con API key en lugar de JWT. */
   apiKey?: ApiKeyPrincipal;
+  /** Lo fija requireWorkspace; toda consulta de datos va acotada a el. */
+  workspace?: WorkspaceContext;
 };
 
 export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

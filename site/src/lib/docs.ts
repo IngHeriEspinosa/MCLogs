@@ -103,8 +103,8 @@ export const DOCS: DocMeta[] = [
   {
     slug: "administrar-usuarios-y-claves",
     file: "guias/administrar-usuarios-y-claves.md",
-    title: "Administrar usuarios y claves",
-    description: "Altas, roles, cuenta root, API keys con permisos y rotación sin cortes.",
+    title: "Administrar espacios, usuarios y claves",
+    description: "Espacios de trabajo, invitaciones, roles, cuenta root, API keys con permisos y rotación sin cortes.",
     group: "guias",
   },
   {

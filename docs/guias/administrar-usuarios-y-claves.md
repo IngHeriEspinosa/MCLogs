@@ -1,77 +1,123 @@
-# Administrar usuarios y claves
+# Administrar espacios, usuarios y claves
 
-Da acceso a las personas de tu equipo y a las máquinas que envían o leen logs, con los permisos justos.
+Da acceso a las personas de tu equipo y a las máquinas que envían o leen logs, cada una en su espacio y con los permisos justos.
 
 ## Qué vas a conseguir
 
-- Dar de alta usuarios, cambiar su rol y su contraseña, y darlos de baja.
-- Entender la cuenta **root** y las salvaguardas que impiden quedarse sin administración.
+- Entender los **espacios de trabajo**: qué aíslan y quién ve qué.
+- Invitar a personas a tu espacio, cambiar su rol y quitarlas.
+- Dar de alta cuentas de la plataforma, con espacio propio o dentro de uno tuyo.
 - Crear API keys con permisos y alcance por aplicación, y rotarlas sin cortar el servicio.
 
 ## Antes de empezar
 
-- Un usuario con rol **admin**. Si no ves **Administración** en el menú, no lo tienes.
+- Para la parte de espacio: ser **dueño** del espacio. Si en el menú no ves la sección **Espacio**, en ese espacio eres miembro.
+- Para la parte de plataforma: ser **admin de plataforma**. Si no ves la sección **Plataforma**, no lo eres.
 - Idealmente, tu propia cuenta ya protegida con la verificación en dos pasos ([Proteger tu cuenta](seguridad-cuenta.md)).
 
-## Parte 1 — Usuarios
+## Cómo funcionan los espacios
 
-Todo en **Administración → Usuarios**.
+Un **espacio de trabajo** es un entorno aislado: sus logs, API keys y alertas solo los ven sus miembros. Cada cuenta puede pertenecer a varios espacios y cambia de uno a otro con el **selector** de arriba a la izquierda, que muestra el espacio activo y tu rol en él.
 
-### Roles
-
-| Rol | Puede |
+| Rol en el espacio | Puede |
 |---|---|
-| **Usuario** (`user`) | Consultar logs, registros, errores y trazas; generar reportes y exportar; gestionar su propia cuenta |
-| **Administrador** (`admin`) | Todo lo anterior, más purgar logs y administrar claves, usuarios, alertas y el Lab |
+| **Miembro** | Ver toda la observabilidad del espacio: logs, registros, errores, trazas y reportes, y exportar |
+| **Dueño** | Todo lo anterior, más administrar el espacio: miembros, API keys, alertas y el Lab, y purgar logs |
 
-Da **Usuario** por defecto. Un admin puede borrar datos y crear claves.
+Aparte está el rol de **plataforma**:
 
-### Dar de alta a alguien
-
-1. Pulsa **Nuevo usuario**.
-2. **Correo**: el de la persona.
-3. **Contraseña**: una temporal de al menos 8 caracteres.
-4. **Rol**: normalmente **Usuario**.
-5. Pulsa **Crear usuario**. Verás "Usuario … creado. Ya puede iniciar sesión."
-6. Pasa la contraseña a la persona **por un canal seguro** (no en el mismo mensaje que el correo), y pídele que la cambie y active la verificación en dos pasos ([Proteger tu cuenta](seguridad-cuenta.md)).
-
-### Cambiar el rol o la contraseña de alguien
-
-En la fila del usuario:
-
-- **Rol**: elige el nuevo en el selector. Se aplica de inmediato.
-- **Cambiar contraseña**: escribe la nueva (mín. 8) y confirma. Verás "Contraseña actualizada. Sus sesiones abiertas se han cerrado."
-
-Las dos operaciones **cierran las sesiones abiertas** de esa persona en todos sus dispositivos.
-
-### Dar de baja a alguien
-
-Pulsa **Eliminar** en su fila y confirma con **Sí, eliminar**. Sus sesiones dejan de valer al instante. Las API keys que creó siguen funcionando: revísalas en la parte 2.
-
-### Las etiquetas y las salvaguardas
-
-| Etiqueta | Significa |
+| Rol de plataforma | Puede |
 |---|---|
+| **Usuario** | Nada más: lo que haga depende de su rol en cada espacio |
+| **Admin de plataforma** | Además, dar de alta y de baja cuentas. **No ve los datos de los espacios a los que no pertenece** |
+
+Cualquier cuenta puede crear espacios nuevos desde el selector (**Crear espacio**) y queda como su dueña. Es la forma de separar, por ejemplo, un cliente de otro.
+
+> [!NOTE]
+> Al actualizar a esta versión, todo lo que existía (logs, claves y alertas) pasa al espacio **Principal**. Los admins quedan como dueños y el resto de cuentas como miembros. Si alguien no debía ver esos datos, quítalo desde **Espacio → Miembros**.
+
+## Parte 1 — Miembros de tu espacio
+
+Todo en **Espacio → Miembros**, con el espacio que quieras administrar seleccionado.
+
+### Invitar a alguien
+
+1. En **Invitar a alguien**, escribe su **Correo**.
+2. Elige el **Rol**: normalmente **Miembro**.
+3. Pulsa **Invitar**.
+
+Lo que pasa depende de si la persona ya tiene cuenta:
+
+| Caso | Resultado |
+|---|---|
+| Ya tiene cuenta | Entra al momento: verá el espacio en su selector. Si hay correo configurado, recibe un aviso |
+| No tiene cuenta y hay correo configurado | Recibe un enlace para **elegir su contraseña**. Aparece en la lista con la etiqueta **Pendiente** |
+| No tiene cuenta y **no** hay correo | Verás el enlace en pantalla con **Copiar enlace**. Pásaselo por un canal seguro |
+
+El enlace caduca en **7 días** y solo sirve una vez. Nadie más conoce la contraseña que elija. Mientras esté pendiente, la cuenta no puede iniciar sesión.
+
+### Cambiar el rol o quitar a alguien
+
+En la fila de la persona:
+
+- **Rol**: elige **Miembro** o **Dueño**. Se aplica de inmediato.
+- **Nuevo enlace** (solo pendientes): genera otro enlace de activación e invalida el anterior.
+- **Quitar**: deja de ver el espacio al momento. Si era una invitación pendiente y no está en ningún otro espacio, su cuenta se borra.
+
+En tu propia fila el botón es **Salir**. Un miembro también puede salir desde el selector (**Salir del espacio**).
+
+> [!IMPORTANT]
+> Un espacio necesita siempre **al menos un dueño**: el último no puede salir ni dejar de serlo. Haz dueña a otra persona antes.
+
+### Renombrar o borrar el espacio
+
+- **General → Nombre**: lo ven todos los miembros en el selector.
+- **Zona de peligro → Borrar espacio**: escribe el nombre exacto para confirmar. El espacio desaparece al instante para todos, sus API keys dejan de funcionar y sus logs se purgan en segundo plano. **No se puede deshacer.**
+
+## Parte 2 — Cuentas de la plataforma
+
+Todo en **Plataforma → Cuentas**. Solo lo ve el admin de plataforma.
+
+### Dar de alta una cuenta
+
+1. Pulsa **Nueva cuenta** y escribe el **Correo**.
+2. En **Espacio de trabajo**, elige:
+   - **Espacio propio**: la cuenta estrena un espacio vacío del que es dueña. Puedes darle nombre; si no, se llama "Espacio de …".
+   - **Unirse a mi espacio**: entra a uno de **tus** espacios (solo aparecen aquellos de los que eres dueño), con el rol que elijas.
+3. **Rol en la plataforma**: normalmente **Usuario**.
+4. Pulsa **Crear cuenta**.
+
+La persona recibe el enlace de activación por correo o, si no hay correo configurado, lo ves en pantalla para compartirlo, igual que en una invitación.
+
+### Leer la lista
+
+| Columna / etiqueta | Qué dice |
+|---|---|
+| **Espacios** | En cuántos espacios está. No ves cuáles ni sus datos |
+| **Pendiente** | Aún no ha activado la cuenta con su enlace |
 | **Root** | La cuenta de arranque del servicio (`ADMIN_EMAIL`). Su rol no se puede cambiar y no tiene botón **Eliminar** |
-| **2FA** | Esa persona tiene activada la verificación en dos pasos |
+| **2FA** | Tiene activada la verificación en dos pasos |
 | **tú** | Tu propia cuenta |
+
+**Cambiar contraseña** y **Eliminar** funcionan como antes. Las dos operaciones cierran las sesiones abiertas de esa persona.
+
+### Salvaguardas
 
 El backend rechaza, a propósito:
 
 - **Eliminarte a ti mismo** desde esta pantalla (para eso está **Mi cuenta → Zona de peligro**).
 - **Eliminar o degradar la cuenta root.**
-- **Dejar el servicio sin ningún administrador**: no puedes eliminar ni degradar al último.
+- **Dejar la plataforma sin ningún admin**.
+- **Eliminar una cuenta que es la única dueña de un espacio con más miembros**: antes hay que hacer dueño a otro miembro. Los espacios en los que la cuenta estaba sola se borran con ella.
 
 > [!NOTE]
 > Un admin **no puede quitar la verificación en dos pasos** de otra persona. Si alguien pierde el móvil y sus códigos de recuperación, sigue la [guía de operación del backend](../../Back_MCLog/docs/USER_GUIDE.md#recuperar-una-cuenta-con-2fa).
 
-### Si olvidan la contraseña
+## Parte 3 — API keys
 
-Cámbiasela tú desde **Cambiar contraseña** en su fila. Si quien la olvidó es el único administrador, ver el [FAQ](../FAQ.md#olvidé-la-contraseña-de-un-usuario).
+Todo en **Espacio → API keys**. Las claves autentican a las **máquinas**: aplicaciones que envían logs, asistentes de IA que los leen, Prometheus.
 
-## Parte 2 — API keys
-
-Todo en **Administración → API keys**. Las claves autentican a las **máquinas**: aplicaciones que envían logs, asistentes de IA que los leen, Prometheus.
+**Cada clave pertenece al espacio en el que se crea.** Lo que envía entra en ese espacio y lo que consulta sale de él, diga lo que diga la petición. Para enviar logs a otro espacio, crea la clave desde ese espacio.
 
 ### Qué permiso dar
 
@@ -81,18 +127,19 @@ Todo en **Administración → API keys**. Las claves autentican a las **máquina
 | `read` | **Consultar logs y errores** | Un asistente de IA o un script que lee |
 | `metrics` | **Leer métricas Prometheus** | Tu Prometheus |
 
-**Una clave por emisor, con el permiso mínimo.** Una clave `ingest` filtrada solo puede escribir logs basura, no leer nada. Ninguna clave puede administrar el servicio ni purgar logs.
+**Una clave por emisor, con el permiso mínimo.** Una clave `ingest` filtrada solo puede escribir logs basura en su espacio, no leer nada. Ninguna clave puede administrar un espacio ni purgar logs.
 
 ### Crear una clave
 
-1. Pulsa **Nueva clave**.
-2. **Nombre**: para reconocerla después, por ejemplo `NetSuite producción` o `Claude Code — equipo backend`.
-3. **Permisos**: marca solo el que necesite.
-4. **Aplicaciones** (muy recomendable): los nombres de aplicación que podrá usar, separados por comas. Vacío significa todas. La restricción vale en los dos sentidos: no podrá **escribir** logs de otras aplicaciones (`403`) ni **verlos** al consultar.
-5. **Caducidad** (opcional): una fecha tras la cual deja de valer. Útil para claves temporales o repartidas.
-6. Pulsa **Crear clave**.
-7. **Copia la clave ahora.** En la base de datos solo queda su hash: es la única vez que se muestra.
-8. Pulsa **Ya la he guardado**.
+1. Comprueba en el selector que estás en el espacio correcto.
+2. Pulsa **Nueva clave**.
+3. **Nombre**: para reconocerla después, por ejemplo `NetSuite producción` o `Claude Code — equipo backend`.
+4. **Permisos**: marca solo el que necesite.
+5. **Aplicaciones** (muy recomendable): los nombres de aplicación que podrá usar, separados por comas. Vacío significa todas las del espacio. La restricción vale en los dos sentidos: no podrá **escribir** logs de otras aplicaciones (`403`) ni **verlos** al consultar.
+6. **Caducidad** (opcional): una fecha tras la cual deja de valer.
+7. Pulsa **Crear clave**.
+8. **Copia la clave ahora.** En la base de datos solo queda su hash: es la única vez que se muestra.
+9. Pulsa **Ya la he guardado**.
 
 Entrégala a quien la vaya a usar por un canal seguro, y que la guarde en una variable de entorno o un gestor de secretos, nunca en el código.
 
@@ -107,7 +154,7 @@ Entrégala a quien la vaya a usar por un canal seguro, y que la guarde en una va
 
 ### Rotar una clave sin cortar el servicio
 
-1. Crea una clave **nueva** con los mismos permisos y aplicaciones.
+1. Crea una clave **nueva** con los mismos permisos y aplicaciones, en el mismo espacio.
 2. Actualiza el emisor para que use la nueva, y despliégalo.
 3. Comprueba en la lista que la nueva tiene **Último uso** reciente.
 4. En la vieja, pulsa **Revocar** y confirma con **Sí, revocar**.
@@ -119,21 +166,26 @@ Durante ese rato funcionan las dos. Revocar es **inmediato** y no se puede desha
 
 ### La clave heredada `API_KEY`
 
-La variable `API_KEY` del backend es una clave única, anterior a este sistema, con permisos de ingesta y métricas. Está **deprecada**: no se puede acotar por aplicación ni rotar sin cortar a todos los que la usen. Migra esos emisores a claves creadas aquí.
+La variable `API_KEY` del backend es una clave única, anterior a este sistema, con permisos de ingesta y métricas. Escribe en el espacio de la cuenta root (**Principal**). Está **deprecada**: no se puede acotar por aplicación ni rotar sin cortar a todos los que la usen. Migra esos emisores a claves creadas aquí.
 
 ## Comprueba que funcionó
 
-- La persona nueva puede entrar y ve solo las secciones de su rol.
+- La persona invitada ve el espacio en su selector, con su rol, y como miembro no ve la sección **Espacio**.
+- Una cuenta con espacio propio no ve ningún log tuyo.
 - La aplicación con la clave nueva envía logs (en **Logs**, filtra por su aplicación) y la columna **Último uso** de la clave se actualiza.
 
 ## Si algo falla
 
 | Síntoma | Causa |
 |---|---|
-| No puedo cambiar el rol ni eliminar un usuario | Es la cuenta **root** o el último administrador |
-| La persona nueva dice "Credenciales inválidas" | Contraseña mal copiada; cámbiasela desde su fila |
+| No puedo quitar a alguien o cambiar su rol a Miembro | Es el último dueño del espacio |
+| No puedo eliminar una cuenta desde **Cuentas** | Es la root, el último admin, o la única dueña de un espacio con más miembros |
+| La persona invitada dice "Credenciales inválidas" | Aún no ha activado la cuenta con su enlace; genera uno con **Nuevo enlace** |
+| El enlace dice que no es válido o ha caducado | Pasaron 7 días o ya se usó; genera otro con **Nuevo enlace** |
+| En **Unirse a mi espacio** no aparece ningún espacio | No eres dueño de ninguno: crea uno desde el selector |
+| Los logs de un emisor no aparecen | La clave es de otro espacio: cambia de espacio en el selector |
 | Un emisor recibe `403` con `allowedApplications` | Su `application` no está en las **Aplicaciones** de la clave |
-| Un emisor recibe `401` | Clave revocada, caducada o mal copiada |
+| Un emisor recibe `401` | Clave revocada, caducada, mal copiada, o su espacio se borró |
 | Perdí la clave recién creada | No se puede recuperar: revócala y crea otra |
 
 ## Siguiente paso

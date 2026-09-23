@@ -8,6 +8,7 @@ import {
   verifyApiKey,
 } from "../services/apiKeyService";
 import { AuthenticatedRequest, requireAuth } from "./requireAuth";
+import { getDefaultWorkspaceId } from "../services/workspaceService";
 
 /**
  * Localiza la clave presentada en la peticion. Se acepta tanto la cabecera
@@ -31,11 +32,12 @@ const presentedKey = (req: Request): string | undefined => {
 /**
  * Clave unica heredada de la variable de entorno API_KEY. Se mantiene viva para
  * no romper los emisores ya desplegados (NetSuite, scripts) y solo puede
- * escribir logs y leer metricas: nunca consultar.
+ * escribir logs y leer metricas: nunca consultar. Escribe en el espacio de la
+ * cuenta root, que es donde estaba todo antes de que existieran los espacios.
  *
  * @deprecated Crear claves con scopes desde /api/keys.
  */
-const legacyPrincipal = (raw: string): ApiKeyPrincipal | null => {
+const legacyPrincipal = async (raw: string): Promise<ApiKeyPrincipal | null> => {
   const configured = config.apiKey;
   if (!configured || configured === "change-me") return null;
 
@@ -43,9 +45,13 @@ const legacyPrincipal = (raw: string): ApiKeyPrincipal | null => {
   const received = Buffer.from(raw, "utf8");
   if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
 
+  const workspaceId = await getDefaultWorkspaceId();
+  if (workspaceId === null) return null;
+
   return {
     id: 0,
     name: "API_KEY heredada",
+    workspaceId,
     scopes: ["ingest", "metrics"],
     applications: [],
     legacy: true,
@@ -54,7 +60,7 @@ const legacyPrincipal = (raw: string): ApiKeyPrincipal | null => {
 
 /** Resuelve una clave en claro contra la heredada y contra las de base de datos. */
 export const resolveApiKey = async (raw: string): Promise<ApiKeyPrincipal | null> =>
-  legacyPrincipal(raw) ?? (await verifyApiKey(raw));
+  (await legacyPrincipal(raw)) ?? (await verifyApiKey(raw));
 
 /** Exige una API key valida que incluya el scope indicado. */
 export const requireApiKey =

@@ -49,7 +49,8 @@ export const es = {
     noResults: "Sin resultados",
     useValue: (value: string) => `Usar «${value}»`,
     unknownError: "Ha ocurrido un error",
-    adminOnly: "Esta sección requiere rol de administrador.",
+    adminOnly: "Esta sección requiere ser administrador de la plataforma.",
+    ownerOnly: "Esta sección solo está disponible para el dueño del espacio.",
     you: "tú",
     moreActions: "Más acciones",
     tableView: "Ver como tabla",
@@ -62,7 +63,11 @@ export const es = {
 
   nav: {
     observe: "Observabilidad",
-    admin: "Administración",
+    workspace: "Espacio",
+    platform: "Plataforma",
+    members: "Miembros",
+    accounts: "Cuentas",
+    configuration: "Configuración",
     logs: "Logs",
     records: "Registros",
     errors: "Errores",
@@ -80,7 +85,7 @@ export const es = {
     userMenu: "Menú de usuario",
     mainNav: "Navegación principal",
     lab: "Lab",
-    roles: { admin: "Administrador", user: "Usuario" },
+    roles: { admin: "Admin de plataforma", user: "Usuario" },
   },
 
   prefs: {
@@ -634,7 +639,7 @@ export const es = {
         `Si ${email} corresponde a una cuenta de MCLog, te hemos enviado un enlace para elegir una contraseña nueva. Caduca pronto y solo sirve una vez; si no lo ves, mira en la carpeta de spam.`,
       again: "Enviar a otro correo",
       unavailable:
-        "Este servidor no tiene configurado el envío de correos, así que no puede mandarte el enlace. Pide a un administrador que te restablezca la contraseña desde Usuarios.",
+        "Este servidor no tiene configurado el envío de correos, así que no puede mandarte el enlace. Pide al administrador de la plataforma que te restablezca la contraseña desde Cuentas.",
       tooMany: "Has pedido demasiados enlaces. Espera unos minutos antes de volver a intentarlo.",
     },
     reset: {
@@ -650,10 +655,19 @@ export const es = {
       invalid: "El enlace no es válido o ha caducado. Pide uno nuevo.",
       requestNew: "Pedir un enlace nuevo",
     },
+    invite: {
+      title: "Activa tu cuenta",
+      subtitle: "Te han invitado a MCLog. Elige la contraseña con la que entrarás.",
+      password: "Contraseña",
+      repeat: "Repite la contraseña",
+      submit: "Activar cuenta",
+      done: "Cuenta activada. Ya puedes iniciar sesión con tu correo y la contraseña que acabas de elegir.",
+      invalid: "La invitación no es válida o ha caducado. Pide al dueño del espacio que te envíe un enlace nuevo.",
+    },
   },
 
   apiKeys: {
-    eyebrow: "Administración",
+    eyebrow: "Espacio",
     title: "API keys",
     description:
       "Las claves autentican a las máquinas. Una clave «ingest» solo puede escribir logs: aunque se filtre, no expone lo almacenado. Para que una IA lea errores, crea una «read».",
@@ -702,32 +716,143 @@ export const es = {
   },
 
   users: {
-    eyebrow: "Administración",
-    title: "Usuarios",
-    description: "Quién puede entrar a la consola y con qué rol.",
-    newUser: "Nuevo usuario",
+    eyebrow: "Plataforma",
+    title: "Cuentas",
+    description: "Cuentas de la plataforma. Cada cuenta ve solo los espacios a los que pertenece; tú no ves los datos de los espacios ajenos.",
+    newUser: "Nueva cuenta",
     email: "Correo",
     password: "Contraseña",
-    role: "Rol",
-    create: "Crear usuario",
+    role: "Rol en la plataforma",
+    create: "Crear cuenta",
     passwordHint: (min: number) => `Mínimo ${min} caracteres.`,
-    adminHint: "Un administrador puede además purgar logs y administrar claves, usuarios y alertas.",
-    created: (email: string) => `Usuario ${email} creado. Ya puede iniciar sesión.`,
-    list: "Usuarios",
-    loadError: "No pudimos cargar los usuarios",
-    columns: { email: "Correo", role: "Rol", created: "Alta" },
+    adminHint: "La persona recibirá un enlace para elegir su contraseña. Tú decides si tiene su propio espacio o entra a uno tuyo.",
+    mode: "Espacio de trabajo",
+    modeOwn: "Espacio propio",
+    modeJoin: "Unirse a mi espacio",
+    workspaceName: "Nombre del espacio",
+    workspaceNamePlaceholder: (email: string) => (email ? `Espacio de ${email.split("@")[0]}` : "p. ej. Cliente Acme"),
+    joinWorkspace: "Espacio",
+    workspaceRole: "Rol en el espacio",
+    noOwnedWorkspaces: "No eres dueño de ningún espacio: crea uno desde el selector de espacios o da a la cuenta un espacio propio.",
+    createdSent: (email: string) => `Cuenta ${email} creada. Le hemos enviado por correo el enlace para activarla.`,
+    createdLink: (email: string, days: number) =>
+      `Cuenta ${email} creada. No se pudo enviar el correo: comparte este enlace por un canal seguro. Caduca en ${days} ${days === 1 ? "día" : "días"} y solo sirve una vez.`,
+    created: (email: string) => `Cuenta ${email} creada. Ya puede iniciar sesión.`,
+    list: "Cuentas",
+    loadError: "No pudimos cargar las cuentas",
+    columns: { email: "Correo", role: "Rol", workspaces: "Espacios", created: "Alta" },
     changePassword: "Cambiar contraseña",
     newPassword: (min: number) => `Nueva contraseña (mín. ${min})`,
     closesSessions: "Cerrará sus sesiones abiertas.",
     passwordUpdated: "Contraseña actualizada. Sus sesiones abiertas se han cerrado.",
     guard:
-      "No es posible eliminarse a uno mismo, eliminar o degradar la cuenta root, ni dejar el servicio sin ningún administrador: el backend rechaza estas operaciones.",
+      "No es posible eliminarse a uno mismo, eliminar o degradar la cuenta root, dejar la plataforma sin administrador ni borrar una cuenta que es la única dueña de un espacio con más miembros: el backend rechaza estas operaciones.",
     root: "Root",
     twoFactor: "2FA",
+    pending: "Pendiente",
+  },
+
+  settings: {
+    eyebrow: "Plataforma",
+    title: "Configuración",
+    description:
+      "Cómo se comporta MCLog para todas las cuentas y espacios. Solo la cuenta root ve esta página. Los cambios se aplican al momento, sin reiniciar.",
+    rootOnly: "Esta sección solo la ve la cuenta root del servicio.",
+    loadError: "No pudimos cargar la configuración",
+    categories: {
+      workspaces: { title: "Espacios e invitaciones", description: "Cuánta gente cabe en un espacio, quién puede crearlos y cómo se invita." },
+      logs: { title: "Logs", description: "Retención, exportación, ingesta por lotes y conexiones en vivo." },
+      features: { title: "Funciones", description: "Enciende o apaga partes de la aplicación para todos." },
+      security: { title: "Seguridad", description: "Caducidad de los enlaces que dan acceso a una cuenta." },
+    },
+    keys: {
+      maxWorkspaceMembers: { label: "Miembros por espacio", description: "Máximo de personas en un espacio, contando las invitaciones pendientes. 0 = sin límite.", unit: "miembros" },
+      maxInvitationsPerDay: { label: "Invitaciones por día", description: "Altas de miembros por espacio en 24 horas. Frena el envío masivo de invitaciones. 0 = sin límite.", unit: "al día" },
+      invitationTtlDays: { label: "Validez de una invitación", description: "Días que vale el enlace para activar una cuenta invitada.", unit: "días" },
+      allowWorkspaceCreation: { label: "Cualquier cuenta puede crear espacios", description: "Apagado, solo los admins de plataforma crean espacios; el resto entra por invitación." },
+      maxOwnedWorkspaces: { label: "Espacios por cuenta", description: "Cuántos espacios puede crear y poseer cada cuenta. No aplica a los admins de plataforma. 0 = sin límite.", unit: "espacios" },
+      retentionDays: { label: "Retención de logs", description: "Los logs más antiguos se borran solos cada hora, en todos los espacios. 0 = no se borra nada.", unit: "días" },
+      maxExportRows: { label: "Filas por exportación", description: "Máximo de registros de una descarga CSV o NDJSON.", unit: "filas" },
+      maxBatchSize: { label: "Logs por lote", description: "Máximo de registros en un envío por lotes (POST /api/logs/batch).", unit: "logs" },
+      maxLiveConnections: { label: "Conexiones en vivo", description: "Pestañas con el modo en vivo abierto a la vez, por instancia del backend.", unit: "conexiones" },
+      mcpEnabled: { label: "Acceso para IA (MCP)", description: "El endpoint /mcp con el que los asistentes de IA consultan los logs." },
+      alertsEnabled: { label: "Alertas", description: "Apagado, ninguna regla se evalúa ni envía avisos, en ningún espacio." },
+      labEnabled: { label: "Lab de pruebas", description: "Apagado, desaparece el Lab y los logs solo se pueden enviar con API key." },
+      passwordResetTtlMinutes: { label: "Validez de «olvidé mi contraseña»", description: "Minutos que vale el enlace para elegir una contraseña nueva.", unit: "min" },
+    },
+    defaultValue: (value: string) => `Predeterminado: ${value}`,
+    range: (min: number, max: number) => `Entre ${min} y ${max}`,
+    on: "Activado",
+    off: "Desactivado",
+    unlimited: "Sin límite",
+    modified: "Modificado",
+    unsaved: "Sin guardar",
+    updatedBy: (who: string, when: string) => `Cambiado por ${who} · ${when}`,
+    reset: "Restablecer",
+    save: "Guardar cambios",
+    discard: "Descartar",
+    pending: (count: number) => (count === 1 ? "1 cambio sin guardar" : `${count} cambios sin guardar`),
+    saved: "Configuración guardada.",
+    resetDone: "Valor predeterminado restablecido.",
+    envNote:
+      "Los secretos, CORS, cookies y JWT se siguen configurando con variables de entorno: cambiarlos en caliente cerraría sesiones o abriría accesos.",
+  },
+
+  workspace: {
+    label: "Espacios de trabajo",
+    switcher: (name: string) => `Espacio: ${name}. Cambiar de espacio`,
+    roles: { owner: "Dueño", member: "Miembro" },
+    members: (count: number) => (count === 1 ? "1 miembro" : `${count} miembros`),
+    create: "Crear espacio",
+    createTitle: "Nuevo espacio de trabajo",
+    createDescription: "Un espacio aislado, con sus propios logs, API keys, alertas y miembros. Serás su dueño.",
+    name: "Nombre",
+    namePlaceholder: "p. ej. Cliente Acme",
+    created: (name: string) => `Espacio «${name}» creado.`,
+    switched: (name: string) => `Ahora ves «${name}».`,
+    leave: "Salir del espacio",
+    leaveTitle: (name: string) => `¿Salir de «${name}»?`,
+    leaveDescription: "Dejarás de ver sus logs al momento. Para volver, su dueño tendrá que invitarte otra vez.",
+    left: (name: string) => `Has salido de «${name}».`,
+    noWorkspaceTitle: "Aún no tienes un espacio de trabajo",
+    noWorkspaceBody: "Crea uno para empezar a recibir logs, o pide al dueño de un espacio que te invite.",
+    noWorkspaceInviteOnly: "Pide al dueño de un espacio que te invite, o a un administrador que te cree uno.",
+    memberLimit: (count: number, max: number) => `${count} de ${max}`,
+    eyebrow: "Espacio",
+    title: "Miembros",
+    description: (name: string) => `Quién puede ver «${name}» y con qué rol. Los miembros ven toda la observabilidad del espacio; solo los dueños lo administran.`,
+    general: "General",
+    generalHint: "Todos los miembros ven este nombre en el selector de espacios.",
+    renamed: "Nombre actualizado.",
+    invite: "Invitar a alguien",
+    inviteHint: "Si la persona no tiene cuenta, recibirá un enlace para elegir su contraseña. Si ya la tiene, verá el espacio al momento.",
+    email: "Correo",
+    role: "Rol",
+    inviteSubmit: "Invitar",
+    invitedSent: (email: string) => `Invitación enviada por correo a ${email}.`,
+    addedExisting: (email: string) => `${email} ya tenía cuenta: ya puede ver este espacio.`,
+    shareLink: (email: string, days: number) =>
+      `No se pudo enviar el correo. Comparte este enlace con ${email} por un canal seguro: caduca en ${days} ${days === 1 ? "día" : "días"} y solo sirve una vez.`,
+    copyLink: "Copiar enlace",
+    list: "Miembros",
+    columns: { email: "Correo", role: "Rol", joined: "Desde" },
+    pending: "Pendiente",
+    resend: "Nuevo enlace",
+    remove: "Quitar",
+    leaveSelf: "Salir",
+    guard: "Un espacio necesita siempre al menos un dueño: el último no puede salir ni dejar de serlo.",
+    loadError: "No pudimos cargar los miembros",
+    danger: "Zona de peligro",
+    deleteHint:
+      "Borrar el espacio elimina sus logs, API keys y alertas para todos sus miembros. Las claves dejan de funcionar al instante. No se puede deshacer.",
+    deleteConfirm: (name: string) => `Escribe «${name}» para confirmar`,
+    deleteSubmit: "Borrar espacio",
+    deleted: (name: string) => `Espacio «${name}» borrado.`,
+    roleHint: "• Miembro: ve logs, registros, errores, trazas y reportes.\n• Dueño: además administra miembros, API keys, alertas y el Lab, y puede purgar logs.",
   },
 
   alerts: {
-    eyebrow: "Administración",
+    eyebrow: "Espacio",
     title: "Alertas",
     description:
       "Una regla define cuándo avisar y un canal por dónde. El servicio comprueba las reglas cada minuto y, tras disparar una, la silencia el tiempo que indiques, para que un incidente de una hora no genere sesenta avisos iguales.",
@@ -796,7 +921,8 @@ export const es = {
   },
 
   lab: {
-    eyebrow: "Administración",
+    disabled: "El Lab está desactivado en la configuración de la plataforma.",
+    eyebrow: "Espacio",
     title: "Lab",
     description:
       "Escenarios de prueba que envían logs de verdad a MCLog para ver cómo responde cada pantalla: agrupación, trazas, picos, alertas, enmascarado y el stream en vivo.",
@@ -965,7 +1091,7 @@ export const es = {
    */
   fieldInfo: {
     auth: {
-      email: "El correo con el que un administrador dio de alta tu cuenta en MCLog.",
+      email: "El correo con el que se dio de alta tu cuenta en MCLog.",
       password:
         "Tu contraseña de MCLog. Tras varios intentos fallidos seguidos, el acceso se bloquea unos minutos por seguridad. Si la has olvidado, usa «¿Olvidaste tu contraseña?» para recibir un enlace por correo.",
       twoFactorCode:
@@ -1049,7 +1175,8 @@ export const es = {
       email: "Correo con el que la persona iniciará sesión. Es único: no puede haber dos usuarios con el mismo.",
       password: (min: number) =>
         `Contraseña inicial, de al menos ${min} caracteres. Hazla llegar por un canal seguro y pide que se cambie desde Mi cuenta en el primer acceso.`,
-      role: "• Usuario: consulta logs, errores, trazas y reportes.\n• Administrador: además gestiona API keys, usuarios, alertas y el Lab, y puede purgar logs.",
+      role: "• Usuario: una cuenta normal.\n• Admin de plataforma: además gestiona las cuentas de la plataforma. No ve los datos de los espacios a los que no pertenece.",
+      mode: "• Espacio propio: la cuenta estrena un espacio vacío del que es dueña.\n• Unirse a mi espacio: entra a uno de tus espacios y ve sus logs.",
     },
 
     alerts: {
@@ -1102,7 +1229,7 @@ export const es = {
 
     account: {
       email: "El correo con el que inicias sesión en MCLog.",
-      role: "Tu nivel de acceso. Un usuario consulta logs, errores y reportes; un administrador además gestiona claves, usuarios, alertas y el Lab. Root es la cuenta inicial del servicio: no se puede eliminar ni degradar.",
+      role: "Tu rol en la plataforma. Un admin de plataforma además gestiona las cuentas. Lo que puedes hacer dentro de cada espacio depende de tu rol en él (dueño o miembro). Root es la cuenta inicial del servicio: no se puede eliminar ni degradar.",
       memberSince: "Fecha en que se creó tu cuenta.",
       theme: "Aspecto de la consola. «Sistema» sigue el modo claro u oscuro de tu sistema operativo y cambia con él.",
       language: "Idioma de la interfaz y formato de fechas y números. Los reportes pueden generarse en otro idioma desde su propia opción.",
@@ -1117,6 +1244,36 @@ export const es = {
       deletePassword: "Se pide de nuevo para que nadie pueda borrar tu cuenta desde una sesión que dejaste abierta.",
       typeToConfirm: (word: string) =>
         `Escribe ${word} tal cual, en mayúsculas. Es un seguro contra borrados accidentales: la eliminación no se puede deshacer.`,
+    },
+    /** Metricas y tarjetas de resumen: que miden y como se calculan. */
+    metrics: {
+      records:
+        "Cuántos logs llegaron en el rango elegido, de cualquier nivel, acotados por la aplicación y el entorno si hay filtro. La línea dibuja cómo se reparten en el tiempo.",
+      errors:
+        "Logs de nivel error en el rango. Cuenta cada ocurrencia: el mismo fallo repetido 50 veces suma 50. Debajo, qué parte de todos los registros suponen.",
+      warnings:
+        "Logs de nivel warning en el rango: avisos que aún no rompen nada pero conviene vigilar. Debajo, qué parte de todos los registros suponen.",
+      distinctErrors:
+        "Cuántos fallos diferentes hay entre los errores del rango, no cuántas veces ocurrieron.\nLas repeticiones se agrupan por huella: la misma aplicación, clase de error y mensaje sin sus datos variables (IDs, números, fechas). Así, 500 «Timeout en el pedido 123», «…124»… cuentan como un solo fallo. Se cuentan hasta 100.",
+      apps:
+        "Aplicaciones que han enviado logs a este espacio, en todo el histórico: no depende del rango. Debajo, cuántas registraron algún error en las últimas 24 h.",
+      activity:
+        "Logs por intervalo, apilados por nivel. Arrastra sobre el gráfico para acotar el rango o pulsa una barra para quedarte con ese intervalo.",
+      levelMix:
+        "Reparto de los logs del rango por nivel; pulsa uno para filtrar la tabla.\nDebajo, el reparto por entorno en todo el histórico; pulsa uno para filtrar por él.",
+      topErrors:
+        "Los 5 fallos distintos con más ocurrencias en el rango, agrupados por huella. Pulsa uno para ver en la tabla solo sus ocurrencias.",
+      topApps: "Las aplicaciones que más logs han enviado, en todo el histórico. Pulsa una para filtrar por ella.",
+      groups:
+        "Fallos diferentes con los filtros actuales, no ocurrencias. Las repeticiones de un mismo fallo se agrupan por huella aunque sus mensajes cambien en IDs o fechas. Se muestran hasta 100.",
+      occurrences: "Cuántas veces ocurrieron en total los fallos de la lista: la suma de la columna «Veces».",
+      topApp: "La aplicación que acumula más ocurrencias entre los fallos de la lista. Suele ser el mejor sitio para empezar a investigar.",
+      topShare:
+        "Qué parte de todas las ocurrencias corresponde al fallo más frecuente. Un valor alto indica que un solo problema concentra el ruido: arreglarlo limpia la mayor parte.",
+      traceRecords: "Logs que comparten este trace ID: todos los pasos registrados de la misma operación.",
+      traceApps: "Aplicaciones por las que pasó la operación. Debajo, las primeras.",
+      traceDuration: "Tiempo entre el primer y el último log de la traza.",
+      traceErrors: "Logs de nivel error dentro de la traza. Si hay alguno, la operación falló en algún paso.",
     },
   },
 

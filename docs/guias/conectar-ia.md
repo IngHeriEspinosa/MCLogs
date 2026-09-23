@@ -19,7 +19,7 @@ Preguntarle a tu asistente cosas como «¿qué está fallando en producción hoy
 
 ## Paso 1 — Crea una clave de lectura
 
-1. En el dashboard, **Administración → API keys → Nueva clave**.
+1. En el dashboard, **Espacio → API keys → Nueva clave**.
 2. **Nombre**: quién la usará, por ejemplo `Claude Code — equipo backend`.
 3. **Permisos**: solo **Consultar logs y errores**.
 4. **Aplicaciones**: las que deba ver el asistente. Vacío significa todas.
@@ -110,7 +110,7 @@ Funcionan mejor las preguntas de investigación que las búsquedas literales:
 - «Coge el error más frecuente de facturación, mira su stack y el contexto, y propón un arreglo.»
 
 > [!TIP]
-> ¿Aún no hay logs interesantes? Un admin puede generar unos de prueba en **Administración → Lab** (**Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
+> ¿Aún no hay logs interesantes? Un admin puede generar unos de prueba en **Espacio → Lab** (**Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
 
 Para que lo use solo al depurar, añade al `CLAUDE.md` (o equivalente) de tu proyecto:
 

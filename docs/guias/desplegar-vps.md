@@ -99,9 +99,9 @@ Si la API se reinicia en bucle, mira sus logs: `docker compose -f docker-compose
 
 ## Paso 7 — Prepara el uso diario
 
-1. **Crea usuarios** con su propio correo para el día a día (**Administración → Usuarios**). Deja la cuenta root para emergencias.
-2. **Crea una API key por aplicación** que vaya a enviar logs (**Administración → API keys**). Guía: [Administrar usuarios y claves](administrar-usuarios-y-claves.md).
-3. **Comprueba la cadena completa**: **Administración → Lab → Tráfico normal → Ejecutar**. Si los logs aparecen en **Logs**, todo funciona. Luego **Borrar datos del lab**.
+1. **Crea usuarios** con su propio correo para el día a día (**Plataforma → Cuentas**). Deja la cuenta root para emergencias.
+2. **Crea una API key por aplicación** que vaya a enviar logs (**Espacio → API keys**). Guía: [Administrar espacios, usuarios y claves](administrar-usuarios-y-claves.md).
+3. **Comprueba la cadena completa**: **Espacio → Lab → Tráfico normal → Ejecutar**. Si los logs aparecen en **Logs**, todo funciona. Luego **Borrar datos del lab**.
 
 ## Paso 8 — Saca las copias del servidor
 

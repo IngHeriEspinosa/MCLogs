@@ -3,6 +3,7 @@ import request from "supertest";
 import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
+import { getDefaultWorkspaceId } from "../src/services/workspaceService";
 import { evaluateRules } from "../src/alerts/evaluator";
 import { notifiers, resetNotifiers } from "../src/alerts/notifiers";
 import type { AlertPayload } from "../src/alerts/types";
@@ -13,6 +14,8 @@ process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
 const prisma = createPrismaClient();
 let adminToken: string;
+/** Espacio del admin, donde el panel crea todo por defecto. */
+let workspaceId: number;
 const auth = () => ({ Authorization: `Bearer ${adminToken}` });
 
 /** Avisos entregados por el notificador falso durante un test. */
@@ -22,12 +25,13 @@ let fallarEnvio = false;
 
 const crearCanal = async (name = "canal de prueba") =>
   prisma.alertChannel.create({
-    data: { name, type: "webhook", config: { url: "https://ejemplo.invalid/hook" } },
+    data: { workspaceId, name, type: "webhook", config: { url: "https://ejemplo.invalid/hook" } },
   });
 
 const crearRegla = async (channelId: number, overrides: Record<string, unknown> = {}) =>
   prisma.alertRule.create({
     data: {
+      workspaceId,
       name: "errores de facturacion",
       application: "facturacion",
       level: "error",
@@ -43,6 +47,7 @@ const crearRegla = async (channelId: number, overrides: Record<string, unknown> 
 const insertarErrores = (cuantos: number, overrides: Record<string, unknown> = {}) =>
   prisma.log.createMany({
     data: Array.from({ length: cuantos }, (_, indice) => ({
+      workspaceId,
       application: "facturacion",
       service: "pagos",
       level: "error" as const,
@@ -55,6 +60,7 @@ const insertarErrores = (cuantos: number, overrides: Record<string, unknown> = {
 
 beforeAll(async () => {
   await ensureAdminUser();
+  workspaceId = (await getDefaultWorkspaceId())!;
   const login = await request(app).post("/auth/login").send({
     email: process.env.ADMIN_EMAIL,
     password: process.env.ADMIN_PASSWORD,
@@ -166,7 +172,7 @@ describe("Evaluacion de reglas de umbral", () => {
 
   it("no envia por canales desactivados", async () => {
     const canal = await prisma.alertChannel.create({
-      data: { name: "apagado", type: "webhook", config: { url: "https://x.invalid" }, enabled: false },
+      data: { workspaceId, name: "apagado", type: "webhook", config: { url: "https://x.invalid" }, enabled: false },
     });
     await crearRegla(canal.id, { threshold: 1 });
     await insertarErrores(1);

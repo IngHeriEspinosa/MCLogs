@@ -44,7 +44,8 @@ export const en: Dictionary = {
     noResults: "No results",
     useValue: (value: string) => `Use “${value}”`,
     unknownError: "Something went wrong",
-    adminOnly: "This section requires the administrator role.",
+    adminOnly: "This section requires being a platform administrator.",
+    ownerOnly: "This section is only available to the workspace owner.",
     you: "you",
     moreActions: "More actions",
     tableView: "View as table",
@@ -57,7 +58,11 @@ export const en: Dictionary = {
 
   nav: {
     observe: "Observability",
-    admin: "Administration",
+    workspace: "Workspace",
+    platform: "Platform",
+    members: "Members",
+    accounts: "Accounts",
+    configuration: "Configuration",
     logs: "Logs",
     records: "Records",
     errors: "Errors",
@@ -75,7 +80,7 @@ export const en: Dictionary = {
     userMenu: "User menu",
     mainNav: "Main navigation",
     lab: "Lab",
-    roles: { admin: "Administrator", user: "User" },
+    roles: { admin: "Platform admin", user: "User" },
   },
 
   prefs: {
@@ -623,7 +628,7 @@ export const en: Dictionary = {
         `If ${email} belongs to an MCLog account, we've sent it a link to choose a new password. It expires soon and works only once; if you can't find it, check your spam folder.`,
       again: "Send to another email",
       unavailable:
-        "This server has no email delivery configured, so it can't send you the link. Ask an administrator to reset your password from Users.",
+        "This server has no email delivery configured, so it can't send you the link. Ask the platform administrator to reset your password from Accounts.",
       tooMany: "You've requested too many links. Wait a few minutes before trying again.",
     },
     reset: {
@@ -639,10 +644,19 @@ export const en: Dictionary = {
       invalid: "The link is invalid or has expired. Request a new one.",
       requestNew: "Request a new link",
     },
+    invite: {
+      title: "Activate your account",
+      subtitle: "You've been invited to MCLog. Choose the password you'll sign in with.",
+      password: "Password",
+      repeat: "Repeat the password",
+      submit: "Activate account",
+      done: "Account activated. You can now sign in with your email and the password you just chose.",
+      invalid: "The invitation is invalid or has expired. Ask the workspace owner to send you a new link.",
+    },
   },
 
   apiKeys: {
-    eyebrow: "Administration",
+    eyebrow: "Workspace",
     title: "API keys",
     description:
       "Keys authenticate machines. An “ingest” key can only write logs: even if it leaks, stored data stays private. To let an AI read errors, create a “read” key.",
@@ -689,32 +703,143 @@ export const en: Dictionary = {
   },
 
   users: {
-    eyebrow: "Administration",
-    title: "Users",
-    description: "Who can sign in to the console and with which role.",
-    newUser: "New user",
+    eyebrow: "Platform",
+    title: "Accounts",
+    description: "Platform accounts. Each account only sees the workspaces it belongs to; you don't see other workspaces' data.",
+    newUser: "New account",
     email: "Email",
     password: "Password",
-    role: "Role",
-    create: "Create user",
+    role: "Platform role",
+    create: "Create account",
     passwordHint: (min: number) => `At least ${min} characters.`,
-    adminHint: "An administrator can also purge logs and manage keys, users and alerts.",
-    created: (email: string) => `User ${email} created. They can sign in now.`,
-    list: "Users",
-    loadError: "We couldn't load the users",
-    columns: { email: "Email", role: "Role", created: "Created" },
+    adminHint: "The person will get a link to choose their password. You decide whether they get their own workspace or join one of yours.",
+    mode: "Workspace",
+    modeOwn: "Own workspace",
+    modeJoin: "Join my workspace",
+    workspaceName: "Workspace name",
+    workspaceNamePlaceholder: (email: string) => (email ? `${email.split("@")[0]}'s workspace` : "e.g. Acme client"),
+    joinWorkspace: "Workspace",
+    workspaceRole: "Workspace role",
+    noOwnedWorkspaces: "You don't own any workspace: create one from the workspace switcher or give the account its own workspace.",
+    createdSent: (email: string) => `Account ${email} created. We emailed them the activation link.`,
+    createdLink: (email: string, days: number) =>
+      `Account ${email} created. The email couldn't be sent: share this link over a secure channel. It expires in ${days} ${days === 1 ? "day" : "days"} and works only once.`,
+    created: (email: string) => `Account ${email} created. They can sign in now.`,
+    list: "Accounts",
+    loadError: "We couldn't load the accounts",
+    columns: { email: "Email", role: "Role", workspaces: "Workspaces", created: "Created" },
     changePassword: "Change password",
     newPassword: (min: number) => `New password (min. ${min})`,
     closesSessions: "Their open sessions will be closed.",
     passwordUpdated: "Password updated. Their open sessions were closed.",
     guard:
-      "You can't delete yourself, delete or demote the root account, or leave the service without an administrator: the backend rejects these operations.",
+      "You can't delete yourself, delete or demote the root account, leave the platform without an administrator, or delete an account that is the only owner of a workspace with other members: the backend rejects these operations.",
     root: "Root",
     twoFactor: "2FA",
+    pending: "Pending",
+  },
+
+  settings: {
+    eyebrow: "Platform",
+    title: "Configuration",
+    description:
+      "How MCLog behaves for every account and workspace. Only the root account sees this page. Changes apply immediately, without a restart.",
+    rootOnly: "This section is only visible to the service's root account.",
+    loadError: "We couldn't load the configuration",
+    categories: {
+      workspaces: { title: "Workspaces and invitations", description: "How many people fit in a workspace, who can create them and how people are invited." },
+      logs: { title: "Logs", description: "Retention, exports, batch ingestion and live connections." },
+      features: { title: "Features", description: "Turn parts of the application on or off for everyone." },
+      security: { title: "Security", description: "How long the links that grant access to an account last." },
+    },
+    keys: {
+      maxWorkspaceMembers: { label: "Members per workspace", description: "Maximum people in a workspace, counting pending invitations. 0 = no limit.", unit: "members" },
+      maxInvitationsPerDay: { label: "Invitations per day", description: "New members per workspace in 24 hours. Stops mass invitations. 0 = no limit.", unit: "per day" },
+      invitationTtlDays: { label: "Invitation validity", description: "Days the link to activate an invited account stays valid.", unit: "days" },
+      allowWorkspaceCreation: { label: "Any account can create workspaces", description: "When off, only platform admins create workspaces; everyone else joins by invitation." },
+      maxOwnedWorkspaces: { label: "Workspaces per account", description: "How many workspaces each account can create and own. Doesn't apply to platform admins. 0 = no limit.", unit: "workspaces" },
+      retentionDays: { label: "Log retention", description: "Older logs are deleted automatically every hour, in every workspace. 0 = nothing is deleted.", unit: "days" },
+      maxExportRows: { label: "Rows per export", description: "Maximum records in a CSV or NDJSON download.", unit: "rows" },
+      maxBatchSize: { label: "Logs per batch", description: "Maximum records in a batch submission (POST /api/logs/batch).", unit: "logs" },
+      maxLiveConnections: { label: "Live connections", description: "Tabs with live mode open at the same time, per backend instance.", unit: "connections" },
+      mcpEnabled: { label: "AI access (MCP)", description: "The /mcp endpoint AI assistants use to query logs." },
+      alertsEnabled: { label: "Alerts", description: "When off, no rule is evaluated and no notification is sent, in any workspace." },
+      labEnabled: { label: "Test Lab", description: "When off, the Lab disappears and logs can only be sent with an API key." },
+      passwordResetTtlMinutes: { label: "\"Forgot password\" validity", description: "Minutes the link to choose a new password stays valid.", unit: "min" },
+    },
+    defaultValue: (value: string) => `Default: ${value}`,
+    range: (min: number, max: number) => `Between ${min} and ${max}`,
+    on: "On",
+    off: "Off",
+    unlimited: "No limit",
+    modified: "Modified",
+    unsaved: "Unsaved",
+    updatedBy: (who: string, when: string) => `Changed by ${who} · ${when}`,
+    reset: "Reset",
+    save: "Save changes",
+    discard: "Discard",
+    pending: (count: number) => (count === 1 ? "1 unsaved change" : `${count} unsaved changes`),
+    saved: "Configuration saved.",
+    resetDone: "Default value restored.",
+    envNote:
+      "Secrets, CORS, cookies and JWT are still configured with environment variables: changing them live would end sessions or open access.",
+  },
+
+  workspace: {
+    label: "Workspaces",
+    switcher: (name: string) => `Workspace: ${name}. Switch workspace`,
+    roles: { owner: "Owner", member: "Member" },
+    members: (count: number) => (count === 1 ? "1 member" : `${count} members`),
+    create: "Create workspace",
+    createTitle: "New workspace",
+    createDescription: "An isolated workspace with its own logs, API keys, alerts and members. You'll be its owner.",
+    name: "Name",
+    namePlaceholder: "e.g. Acme client",
+    created: (name: string) => `Workspace "${name}" created.`,
+    switched: (name: string) => `You're now viewing "${name}".`,
+    leave: "Leave workspace",
+    leaveTitle: (name: string) => `Leave "${name}"?`,
+    leaveDescription: "You'll stop seeing its logs right away. To come back, its owner will have to invite you again.",
+    left: (name: string) => `You left "${name}".`,
+    noWorkspaceTitle: "You don't have a workspace yet",
+    noWorkspaceBody: "Create one to start receiving logs, or ask a workspace owner to invite you.",
+    noWorkspaceInviteOnly: "Ask a workspace owner to invite you, or an administrator to create one for you.",
+    memberLimit: (count: number, max: number) => `${count} of ${max}`,
+    eyebrow: "Workspace",
+    title: "Members",
+    description: (name: string) => `Who can see "${name}" and with which role. Members see all of the workspace's observability; only owners manage it.`,
+    general: "General",
+    generalHint: "Every member sees this name in the workspace switcher.",
+    renamed: "Name updated.",
+    invite: "Invite someone",
+    inviteHint: "If the person has no account, they'll get a link to choose their password. If they do, they'll see the workspace right away.",
+    email: "Email",
+    role: "Role",
+    inviteSubmit: "Invite",
+    invitedSent: (email: string) => `Invitation emailed to ${email}.`,
+    addedExisting: (email: string) => `${email} already had an account: they can see this workspace now.`,
+    shareLink: (email: string, days: number) =>
+      `The email couldn't be sent. Share this link with ${email} over a secure channel: it expires in ${days} ${days === 1 ? "day" : "days"} and works only once.`,
+    copyLink: "Copy link",
+    list: "Members",
+    columns: { email: "Email", role: "Role", joined: "Since" },
+    pending: "Pending",
+    resend: "New link",
+    remove: "Remove",
+    leaveSelf: "Leave",
+    guard: "A workspace always needs at least one owner: the last one can't leave or stop being owner.",
+    loadError: "We couldn't load the members",
+    danger: "Danger zone",
+    deleteHint:
+      "Deleting the workspace removes its logs, API keys and alerts for every member. Keys stop working immediately. This can't be undone.",
+    deleteConfirm: (name: string) => `Type "${name}" to confirm`,
+    deleteSubmit: "Delete workspace",
+    deleted: (name: string) => `Workspace "${name}" deleted.`,
+    roleHint: "• Member: sees logs, records, errors, traces and reports.\n• Owner: also manages members, API keys, alerts and the Lab, and can purge logs.",
   },
 
   alerts: {
-    eyebrow: "Administration",
+    eyebrow: "Workspace",
     title: "Alerts",
     description:
       "A rule defines when to notify and a channel defines where. Rules are checked every minute and, after firing, a rule stays quiet for the time you set, so a one-hour incident doesn't send sixty identical alerts.",
@@ -781,7 +906,8 @@ export const en: Dictionary = {
   },
 
   lab: {
-    eyebrow: "Administration",
+    disabled: "The Lab is turned off in the platform configuration.",
+    eyebrow: "Workspace",
     title: "Lab",
     description:
       "Test scenarios that send real logs to MCLog so you can see how each screen responds: grouping, traces, spikes, alerts, masking and the live stream.",
@@ -943,7 +1069,7 @@ export const en: Dictionary = {
 
   fieldInfo: {
     auth: {
-      email: "The email an administrator used to create your MCLog account.",
+      email: "The email your MCLog account was created with.",
       password:
         "Your MCLog password. After several failed attempts in a row, sign-in is blocked for a few minutes for security. If you forgot it, use “Forgot your password?” to get a link by email.",
       twoFactorCode:
@@ -1022,7 +1148,8 @@ export const en: Dictionary = {
       email: "Email the person will sign in with. It's unique: no two users can share it.",
       password: (min: number) =>
         `Initial password, at least ${min} characters. Share it over a secure channel and ask for it to be changed from My account on first sign-in.`,
-      role: "• User: views logs, errors, traces and reports.\n• Administrator: also manages API keys, users, alerts and the Lab, and can purge logs.",
+      role: "• User: a regular account.\n• Platform admin: also manages the platform's accounts. Doesn't see the data of workspaces they don't belong to.",
+      mode: "• Own workspace: the account starts with an empty workspace it owns.\n• Join my workspace: it joins one of your workspaces and sees its logs.",
     },
 
     alerts: {
@@ -1073,7 +1200,7 @@ export const en: Dictionary = {
 
     account: {
       email: "The email you sign in to MCLog with.",
-      role: "Your access level. A user views logs, errors and reports; an administrator also manages keys, users, alerts and the Lab. Root is the service's initial account: it can't be deleted or demoted.",
+      role: "Your platform role. A platform admin also manages the accounts. What you can do inside each workspace depends on your role there (owner or member). Root is the service's initial account: it can't be deleted or demoted.",
       memberSince: "Date your account was created.",
       theme: "Console appearance. “System” follows your operating system's light or dark mode and switches with it.",
       language: "Interface language and date and number formatting. Reports can be generated in another language from their own option.",
@@ -1088,6 +1215,36 @@ export const en: Dictionary = {
       deletePassword: "Asked again so nobody can delete your account from a session you left open.",
       typeToConfirm: (word: string) =>
         `Type ${word} exactly, in capitals. It's a safeguard against accidental deletion: this can't be undone.`,
+    },
+    /** Metrics and summary cards: what they measure and how. */
+    metrics: {
+      records:
+        "How many logs arrived in the selected range, at any level, narrowed by application and environment when filtered. The line shows how they spread over time.",
+      errors:
+        "Error-level logs in the range. Every occurrence counts: the same failure repeated 50 times adds 50. Below, their share of all records.",
+      warnings:
+        "Warning-level logs in the range: signals that don't break anything yet but are worth watching. Below, their share of all records.",
+      distinctErrors:
+        "How many different failures there are among the range's errors, not how many times they happened.\nRepeats are grouped by fingerprint: same application, error class and message without its variable data (IDs, numbers, dates). So 500 \"Timeout on order 123\", \"…124\"… count as a single failure. Counted up to 100.",
+      apps:
+        "Applications that have sent logs to this workspace, across all history: it doesn't depend on the range. Below, how many logged an error in the last 24 h.",
+      activity:
+        "Logs per interval, stacked by level. Drag across the chart to narrow the range or click a bar to keep just that interval.",
+      levelMix:
+        "Breakdown of the range's logs by level; click one to filter the table.\nBelow, the breakdown by environment across all history; click one to filter by it.",
+      topErrors:
+        "The 5 distinct failures with the most occurrences in the range, grouped by fingerprint. Click one to see only its occurrences in the table.",
+      topApps: "The applications that have sent the most logs, across all history. Click one to filter by it.",
+      groups:
+        "Distinct failures with the current filters, not occurrences. Repeats of the same failure are grouped by fingerprint even when their messages differ in IDs or dates. Up to 100 are shown.",
+      occurrences: "How many times the listed failures happened in total: the sum of the \"Count\" column.",
+      topApp: "The application with the most occurrences among the listed failures. Usually the best place to start investigating.",
+      topShare:
+        "The share of all occurrences that belongs to the most frequent failure. A high value means a single problem drives most of the noise: fixing it clears most of it.",
+      traceRecords: "Logs sharing this trace ID: every recorded step of the same operation.",
+      traceApps: "Applications the operation went through. Below, the first few.",
+      traceDuration: "Time between the first and the last log of the trace.",
+      traceErrors: "Error-level logs within the trace. If there are any, the operation failed at some step.",
     },
   },
 

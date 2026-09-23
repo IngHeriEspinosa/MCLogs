@@ -287,11 +287,11 @@ Lo mismo para las dos opciones.
 2. En **Mi cuenta → Cambiar contraseña**, pon una contraseña nueva. Te devolverá al login.
 3. En **Mi cuenta → Verificación en dos pasos**, actívala y guarda los códigos de recuperación fuera del servidor. Ver [USER_GUIDE.md § A.7](USER_GUIDE.md#a7-tu-cuenta-y-su-seguridad).
 
-La cuenta root no se puede borrar ni degradar. Para el día a día, crea usuarios con su propio correo en **Administración → Usuarios**.
+La cuenta root no se puede borrar ni degradar. Para el día a día, crea usuarios con su propio correo en **Plataforma → Cuentas**.
 
 ### Crear las claves de las integraciones
 
-Desde **Administración → API keys → Nueva clave**. El secreto se muestra **una sola vez**: cópialo en ese momento, porque en la base solo queda su hash.
+Desde **Espacio → API keys → Nueva clave**. El secreto se muestra **una sola vez**: cópialo en ese momento, porque en la base solo queda su hash.
 
 | Para qué | Permisos | Aplicaciones |
 |---|---|---|
@@ -303,7 +303,7 @@ Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nad
 
 ### Comprobar que todo funciona
 
-**Administración → Lab → Tráfico normal → Ejecutar** envía 120 logs de prueba (al entorno **Desarrollo**). Si aparecen en **Logs**, la cadena completa funciona. Bórralos después con **Borrar datos del lab**.
+**Espacio → Lab → Tráfico normal → Ejecutar** envía 120 logs de prueba (al entorno **Desarrollo**). Si aparecen en **Logs**, la cadena completa funciona. Bórralos después con **Borrar datos del lab**.
 
 ### Conectar tus aplicaciones
 

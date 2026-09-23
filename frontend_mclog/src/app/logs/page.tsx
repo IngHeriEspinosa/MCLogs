@@ -19,7 +19,7 @@ import { useLogs } from "@/hooks/useAuth";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useLogFilters } from "@/hooks/useLogFilters";
 import { useLogStream } from "@/hooks/useLogStream";
-import { useMediaQuery, usePreference } from "@/hooks/usePreference";
+import { usePreference } from "@/hooks/usePreference";
 
 /** Boton "En vivo" con su indicador de estado de la conexion. */
 const LiveToggle: React.FC<{
@@ -99,7 +99,6 @@ function LogsView() {
   const [density, setDensity] = usePreference<Density>("density", "comfortable");
   const [showOverview, setShowOverview] = usePreference<boolean>("overview", true);
   const [selected, setSelected] = useState<LogRow | null>(null);
-  const wide = useMediaQuery("(min-width: 1920px)");
   const [live, setLive] = useState(false);
 
   const queryFilters = {
@@ -141,6 +140,13 @@ function LogsView() {
   }, [liveOn, queryClient, stream]);
 
   const rows: LogRow[] = liveOn ? [...stream.logs, ...(logs.data?.data ?? [])].slice(0, filters.pageSize) : logs.data?.data ?? [];
+  // El detalle se recorre con las flechas mientras el log siga en la pagina; el
+  // contexto del dialogo puede llevar a uno de fuera, y ahi no hay vecinos.
+  const selectedIndex = selected ? rows.findIndex((row) => rowKey(row) === rowKey(selected)) : -1;
+  const move = (delta: number) => {
+    const next = rows[selectedIndex + delta];
+    if (next) setSelected(next);
+  };
 
   // "/" enfoca la busqueda, como en tantas consolas.
   useEffect(() => {
@@ -183,8 +189,6 @@ function LogsView() {
     setFilters({ fingerprint });
     setSelected(null);
   };
-
-  const inspectorOpen = selected !== null;
 
   return (
     <DashboardLayout
@@ -263,58 +267,54 @@ function LogsView() {
           />
         )}
 
-        <div
-          className={`grid items-start gap-4 ${
-            inspectorOpen && wide ? "3xl:grid-cols-[minmax(0,1fr)_34rem] 4xl:grid-cols-[minmax(0,1fr)_40rem]" : ""
-          }`}
-        >
-          <LogTable
-            rows={rows}
-            loading={logs.isLoading}
-            fetching={logs.isFetching}
-            error={logs.isError ? logs.error : null}
-            total={logs.data?.total ?? 0}
-            page={filters.page}
-            totalPages={logs.data?.totalPages ?? 1}
-            pageSize={filters.pageSize}
-            onPage={(page) => setFilters({ page })}
-            onPageSize={(pageSize) => setFilters({ pageSize })}
-            selectedKey={selected ? rowKey(selected) : null}
-            onSelect={setSelected}
-            density={density}
-            onDensity={setDensity}
-            live={liveOn}
-            sortField={filters.sortField}
-            sortDir={filters.sortDir}
-            onSort={setFilters}
-            titleAction={
-              // Los mismos filtros viajan a Registros: se abre la misma vista, con mas espacio.
-              <ButtonLink
-                href={searchParams.toString() ? `/records?${searchParams.toString()}` : "/records"}
-                aria-label={t.logs.openRecords}
-                title={t.logs.openRecords}
-                variant="ghost"
-                size="xs"
-                icon="externalLink"
-                className="w-7 px-0"
-              />
-            }
-            onWidenRange={
-              isRelative(filters.range) && filters.range.preset !== "7d" && filters.range.preset !== "30d" && filters.range.preset !== "all"
-                ? () => setFilters({ range: { preset: "7d" } })
-                : undefined
-            }
-          />
-          {selected && (
-            <LogInspector
-              log={selected}
-              mode={wide ? "panel" : "drawer"}
-              onClose={closeInspector}
-              onSelect={setSelected}
-              onFilterFingerprint={filterFingerprint}
+        <LogTable
+          rows={rows}
+          loading={logs.isLoading}
+          fetching={logs.isFetching}
+          error={logs.isError ? logs.error : null}
+          total={logs.data?.total ?? 0}
+          page={filters.page}
+          totalPages={logs.data?.totalPages ?? 1}
+          pageSize={filters.pageSize}
+          onPage={(page) => setFilters({ page })}
+          onPageSize={(pageSize) => setFilters({ pageSize })}
+          selectedKey={selected ? rowKey(selected) : null}
+          onSelect={setSelected}
+          density={density}
+          onDensity={setDensity}
+          live={liveOn}
+          sortField={filters.sortField}
+          sortDir={filters.sortDir}
+          onSort={setFilters}
+          titleAction={
+            // Los mismos filtros viajan a Registros: se abre la misma vista, con mas espacio.
+            <ButtonLink
+              href={searchParams.toString() ? `/records?${searchParams.toString()}` : "/records"}
+              aria-label={t.logs.openRecords}
+              title={t.logs.openRecords}
+              variant="ghost"
+              size="xs"
+              icon="externalLink"
+              className="w-7 px-0"
             />
-          )}
-        </div>
+          }
+          onWidenRange={
+            isRelative(filters.range) && filters.range.preset !== "7d" && filters.range.preset !== "30d" && filters.range.preset !== "all"
+              ? () => setFilters({ range: { preset: "7d" } })
+              : undefined
+          }
+        />
+        {selected && (
+          <LogInspector
+            log={selected}
+            onClose={closeInspector}
+            onSelect={setSelected}
+            onFilterFingerprint={filterFingerprint}
+            onPrev={selectedIndex > 0 ? () => move(-1) : undefined}
+            onNext={selectedIndex >= 0 && selectedIndex < rows.length - 1 ? () => move(1) : undefined}
+            position={selectedIndex >= 0 ? { index: selectedIndex + 1, total: rows.length } : undefined}
+          />
+        )}
         {logs.data && (
           <p className="sr-only" aria-live="polite">
             {t.logs.results(fmt.number(logs.data.total))}

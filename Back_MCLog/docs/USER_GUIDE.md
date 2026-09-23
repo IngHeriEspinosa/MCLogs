@@ -51,7 +51,7 @@ En los dos casos, las migraciones se aplican solas al arrancar la API (`entrypoi
 
 ### Rotar claves
 
-Las claves creadas desde el dashboard (**Administración → API keys**) **se rotan sin cortar el servicio**:
+Las claves creadas desde el dashboard (**Espacio → API keys**) **se rotan sin cortar el servicio**:
 
 1. Creas la nueva.
 2. Actualizas al emisor.
@@ -100,7 +100,7 @@ Se puede limitar por aplicación con `&application=nombre`.
 
 ## Alertas y tiempo real
 
-El planificador que ejecuta la retención evalúa también las **reglas de alerta** cada minuto, y avisa por webhook, correo o Telegram. Se configuran desde el dashboard (**Administración → Alertas**); del backend solo dependen las variables `SMTP_*` para el canal de correo.
+El planificador que ejecuta la retención evalúa también las **reglas de alerta** cada minuto, y avisa por webhook, correo o Telegram. Se configuran desde el dashboard (**Espacio → Alertas**); del backend solo dependen las variables `SMTP_*` para el canal de correo.
 
 `GET /api/logs/stream` emite los logs según se ingieren, por Server-Sent Events, con un tope de `SSE_MAX_CONNECTIONS` conexiones simultáneas **por instancia**. El bus de eventos también es por instancia: con varias réplicas, cada cliente ve los logs que entraron por la suya.
 
@@ -126,7 +126,7 @@ El planificador que ejecuta la retención evalúa también las **reglas de alert
 |---|---|---|
 | `429 Too Many Requests` en ingesta | Límite de 2000/min superado | Sube `INGEST_RATE_LIMIT_MAX` o usa `/api/logs/batch` |
 | `429` al iniciar sesión | 10 intentos fallidos en 15 min desde esa IP | Espera a que pase la ventana o ajusta `LOGIN_RATE_LIMIT_*`. Los intentos correctos no cuentan |
-| `401` al ingerir | Clave inexistente, revocada o caducada | Revísala en Administración → API keys |
+| `401` al ingerir | Clave inexistente, revocada o caducada | Revísala en Espacio → API keys |
 | `403` al ingerir | La clave no tiene permiso `ingest`, o el log es de una aplicación fuera de su alcance | La respuesta indica las aplicaciones permitidas |
 | `403` al consultar | La clave no tiene permiso `read` | Las claves de ingesta no leen, por diseño |
 | `400` al ingerir | Falta campo obligatorio o level/environment inválido | La respuesta incluye `errors` con el detalle por campo |
@@ -144,7 +144,7 @@ Si un usuario pierde la app autenticadora, lo normal es que entre con uno de sus
 
 Si también perdió los códigos, no hay forma de recuperarla desde la aplicación. Es a propósito: un admin **no** puede quitar el 2FA de otra cuenta, porque así es como un atacante con una sesión de admin tomaría el control de cualquier usuario. Hay dos salidas:
 
-- **Cuenta normal**: un admin la elimina en **Administración → Usuarios** y la vuelve a crear con el mismo correo.
+- **Cuenta normal**: un admin la elimina en **Plataforma → Cuentas** y la vuelve a crear con el mismo correo.
 - **Cuenta root**, o si prefieres conservar la cuenta: reinicia el 2FA directamente en la base de datos, después de comprobar la identidad de quien lo pide.
 
   ```sql

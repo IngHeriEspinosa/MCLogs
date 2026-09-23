@@ -67,7 +67,7 @@ export const getErrorGroups = async (filters: LogFilters, limit = 50): Promise<E
       "fingerprint", "id", "application", "service", "level"::text AS "level",
       "errorName", "errorCode", "message"
     FROM "Log"
-    WHERE "fingerprint" = ANY(${fingerprints})
+    WHERE "workspaceId" = ${filters.workspaceId} AND "fingerprint" = ANY(${fingerprints})
     ORDER BY "fingerprint", "timestamp" DESC
   `;
 
@@ -99,7 +99,7 @@ export const getErrorGroups = async (filters: LogFilters, limit = 50): Promise<E
  * Todos los logs de una traza, en orden cronologico. Es la forma de seguir una
  * operacion que cruza varios sistemas.
  */
-export const getTrace = async (traceId: string, filters: Pick<LogFilters, "applicationsIn"> = {}) => {
+export const getTrace = async (traceId: string, filters: Pick<LogFilters, "workspaceId" | "applicationsIn">) => {
   return prisma.log.findMany({
     where: { AND: [buildWhere({ ...filters, traceId })] },
     orderBy: { timestamp: "asc" },
@@ -115,11 +115,11 @@ export const getTrace = async (traceId: string, filters: Pick<LogFilters, "appli
 export const getLogContext = async (
   id: number,
   options: { beforeSeconds?: number; afterSeconds?: number; limit?: number } = {},
-  filters: Pick<LogFilters, "applicationsIn"> = {},
+  filters: Pick<LogFilters, "workspaceId" | "applicationsIn">,
 ) => {
   const { beforeSeconds = 60, afterSeconds = 60, limit = 50 } = options;
 
-  const target = await prisma.log.findUnique({ where: { id } });
+  const target = await prisma.log.findFirst({ where: { id, workspaceId: filters.workspaceId } });
   if (!target) return null;
 
   const applications = filters.applicationsIn;
@@ -130,6 +130,7 @@ export const getLogContext = async (
 
   const logs = await prisma.log.findMany({
     where: {
+      workspaceId: target.workspaceId,
       application: target.application,
       // Solo se acota por servicio si el log lo tiene: si no, se veria vacio.
       ...(target.service ? { service: target.service } : {}),
@@ -169,7 +170,11 @@ export const DEFAULT_APPLICATIONS_HOURS = 24 * 7;
  * resultado ya pequeno, por aplicacion. En un solo paso los ARRAY_AGG(DISTINCT)
  * obligaban a ordenar todas las filas, y el orden acababa en disco.
  */
-export const listApplications = async (applicationsIn: string[] | undefined, from: Date): Promise<ApplicationSummary[]> => {
+export const listApplications = async (
+  workspaceId: number,
+  applicationsIn: string[] | undefined,
+  from: Date,
+): Promise<ApplicationSummary[]> => {
   const scope = applicationsIn?.length
     ? Prisma.sql`AND "application" = ANY(${applicationsIn})`
     : Prisma.empty;
@@ -188,7 +193,7 @@ export const listApplications = async (applicationsIn: string[] | undefined, fro
           WHERE "level" = 'error' AND "timestamp" >= NOW() - INTERVAL '24 hours'
         ) AS "errors"
       FROM "Log"
-      WHERE "timestamp" >= ${from} ${scope}
+      WHERE "workspaceId" = ${workspaceId} AND "timestamp" >= ${from} ${scope}
       GROUP BY "application", "service", "environment"
     )
     SELECT
@@ -228,7 +233,11 @@ export const getLevelTimeline = async (
   from: Date,
   to: Date,
 ): Promise<TimelineBucket[]> => {
-  const conditions: Prisma.Sql[] = [Prisma.sql`"timestamp" >= ${from}`, Prisma.sql`"timestamp" <= ${to}`];
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`"workspaceId" = ${filters.workspaceId}`,
+    Prisma.sql`"timestamp" >= ${from}`,
+    Prisma.sql`"timestamp" <= ${to}`,
+  ];
 
   if (filters.application) conditions.push(Prisma.sql`"application" ILIKE ${`%${filters.application}%`}`);
   if (filters.environment) conditions.push(Prisma.sql`"environment" = ${filters.environment}::"Environment"`);

@@ -29,6 +29,7 @@ Referencia técnica **del sistema completo**. Para el detalle interno de cada co
 ```prisma
 model Log {
   id          Int         @id @default(autoincrement())
+  workspaceId Int         → Workspace        // espacio al que pertenece
   timestamp   DateTime    @default(now())
   application String
   service     String?
@@ -45,24 +46,31 @@ model Log {
   errorStack  String?
   fingerprint String?     @db.VarChar(64)     // huella de agrupación
 
-  @@index([timestamp]) @@index([application]) @@index([level])
-  @@index([environment]) @@index([traceId])
-  @@index([application, timestamp]) @@index([level, timestamp])
-  @@index([fingerprint, timestamp]) @@index([environment, level, timestamp])
+  @@index([timestamp])                                   // retencion (todos los espacios)
+  @@index([workspaceId, timestamp]) @@index([workspaceId, application, timestamp])
+  @@index([workspaceId, level, timestamp]) @@index([workspaceId, fingerprint, timestamp])
+  @@index([workspaceId, traceId]) @@index([workspaceId, environment, level, timestamp])
 }
 
+model Workspace       { id, name @db.VarChar(120), createdAt, deletedAt?,   // borrado logico
+                        members[], logs[], apiKeys[], alertChannels[], alertRules[] }
+model WorkspaceMember { workspaceId → Workspace, userId → User (ambos onDelete: Cascade),
+                        role WorkspaceRole @default(member), createdAt   // owner | member
+                        @@id([workspaceId, userId]) @@index([userId]) }
+
 model User         { id, email @unique, passwordHash, role @default("user"), createdAt,
+                     activatedAt?,                                 // null = invitacion pendiente
                      isRoot @default(false),                       // cuenta de arranque (ADMIN_EMAIL)
                      twoFactorEnabled @default(false), twoFactorSecret? @db.VarChar(64),
                      twoFactorLastStep?,                           // último paso TOTP aceptado (anti-replay)
                      recoveryCodes String[],                       // sha256 de los códigos sin usar
-                     refreshTokens[], apiKeys[] }
+                     refreshTokens[], apiKeys[], memberships[] }
 model RefreshToken { id, token @unique, userId → User (onDelete: Cascade), expiresAt, createdAt, revokedAt? }
-model ApiKey       { id, name, prefix @unique, keyHash @unique, scopes[], applications[],
+model ApiKey       { id, workspaceId → Workspace, name, prefix @unique, keyHash @unique, scopes[], applications[],
                      createdById? → User (onDelete: SetNull), createdAt, expiresAt?, lastUsedAt?, revokedAt? }
 
-model AlertChannel { id, name, type (webhook|email|telegram), config Json, enabled, createdAt, rules[] }
-model AlertRule    { id, name, type (threshold|new_error_group), enabled, application?, service?,
+model AlertChannel { id, workspaceId → Workspace, name, type (webhook|email|telegram), config Json, enabled, createdAt, rules[] }
+model AlertRule    { id, workspaceId → Workspace, name, type (threshold|new_error_group), enabled, application?, service?,
                      environment?, level @default(error), threshold, windowMinutes, cooldownMinutes,
                      lastTriggeredAt?, channels[], events[] }
 model AlertEvent   { id, ruleId → AlertRule (onDelete: Cascade), triggeredAt, count, sampleLogIds[], deliveries Json }
@@ -74,7 +82,9 @@ model AlertEvent   { id, ruleId → AlertRule (onDelete: Cascade), triggeredAt, 
 
 **Por qué `twoFactorLastStep`.** Un código TOTP es válido durante su ventana de 30 s (±1 paso de tolerancia). Guardar el último paso aceptado impide reutilizar un código ya usado, por ejemplo uno visto por encima del hombro.
 
-**Por qué esos índices.** Los compuestos `(application, timestamp)` y `(level, timestamp)` cubren los dos patrones dominantes del dashboard —"logs de la app X por fecha" y "errores recientes"— que un índice simple resolvería con un sort posterior. `traceId` está indexado porque es la vía de correlación entre sistemas.
+**Por qué esos índices.** Toda consulta va acotada a un espacio, así que todos empiezan por `workspaceId`: un espacio pequeño no recorre las filas de los grandes. Los compuestos `(…, application, timestamp)` y `(…, level, timestamp)` cubren los dos patrones dominantes del dashboard —"logs de la app X por fecha" y "errores recientes"— que un índice simple resolvería con un sort posterior. `traceId` está indexado porque es la vía de correlación entre sistemas. El de `timestamp` a secas lo usa la retención, que purga todos los espacios a la vez.
+
+**Por qué espacios de trabajo.** Son la unidad de aislamiento: logs, claves y alertas pertenecen a uno y solo lo ven sus miembros (ver [4.1](#41-dos-planos-de-autenticación)). `LogFilters.workspaceId` es obligatorio en el tipo, de modo que una consulta sin acotar no compila. El borrado de un espacio es lógico (`deletedAt`) y el planificador purga sus logs por lotes; un espacio que se queda sin miembros (solo posible borrando cuentas a mano en la base) se trata igual.
 
 **Por qué enums de PostgreSQL** en vez de texto: validación a nivel de motor y menor tamaño en disco e índice.
 
@@ -292,9 +302,13 @@ abiertas al stream en vivo). La ruta se etiqueta por su patrón
 
 | Endpoint | Auth | Qué hace |
 |---|---|---|
-| `GET/POST /api/keys`, `DELETE /api/keys/:id` | JWT **admin** | Listar, crear y revocar API keys. El secreto se devuelve una única vez al crear |
-| `/api/alerts/channels`, `/api/alerts/rules`, `/api/alerts/events` | JWT **admin** | Canales, reglas e historial de avisos. `POST /channels/:id/test` envía un aviso de prueba |
-| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** | Gestión de usuarios (alta con contraseña ≥8; `PATCH` cambia `role` y/o `password` y revoca sus sesiones). No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`) ni dejar el servicio sin admin (`409`). No hay endpoint para quitar el 2FA de otro usuario |
+| `GET/POST /api/keys`, `DELETE /api/keys/:id` | JWT **dueño** del espacio | Listar, crear y revocar las API keys del espacio activo. El secreto se devuelve una única vez al crear |
+| `/api/alerts/channels`, `/api/alerts/rules`, `/api/alerts/events` | JWT **dueño** del espacio | Canales, reglas e historial de avisos del espacio. `POST /channels/:id/test` envía un aviso de prueba. Una regla solo puede enlazar canales de su espacio (`400`) |
+| `GET/POST /api/workspaces` | JWT | Mis espacios con mi rol y nº de miembros; crear uno (quedo como dueño) |
+| `PATCH/DELETE /api/workspaces/:id` | JWT **dueño** | Renombrar; borrar exige `confirmName` igual al nombre (borrado lógico: claves revocadas, reglas desactivadas, logs purgados después) |
+| `GET/POST /api/workspaces/:id/members` | JWT **dueño** | Listar e invitar (`{ email, role }`). Devuelve `{ member, created, emailSent, invitePath? }` |
+| `PATCH/DELETE /api/workspaces/:id/members/:userId`, `POST …/resend` | JWT **dueño** (salir: el propio miembro) | Cambiar rol, quitar, reenviar enlace a un pendiente. Siempre queda un dueño (`409`) |
+| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** de plataforma | Gestión de cuentas. Alta con `mode: "own"` (espacio propio, `workspaceName?`) o `"join"` (`workspaceId` de un espacio del que el admin es dueño, `workspaceRole?`); sin `password` la cuenta nace pendiente y la respuesta trae `emailSent` e `invitePath?`. `PATCH` cambia `role` y/o `password` y revoca sus sesiones. No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`), dejar la plataforma sin admin (`409`) ni borrar a la única dueña de un espacio con más miembros (`409`). No hay endpoint para quitar el 2FA de otro usuario |
 
 La cuenta propia y el 2FA están en [3.3](#33-autenticación).
 
@@ -325,7 +339,9 @@ Auth y resto — `4xx/5xx`: `{ "error": "mensaje" }`.
 | API key `ingest` | Escribir logs | `POST /api/log`, `/api/logs/batch` |
 | API key `read` | Consultar | `GET /api/logs*`, `POST /mcp` |
 | API key `metrics` | Métricas | `GET /metrics` |
-| JWT de usuario | Lectura e ingesta | Además `DELETE /api/logs` y administración si el rol es `admin` |
+| JWT de usuario | Lectura (e ingesta si es dueño) | En los espacios de los que es miembro; `DELETE /api/logs`, claves, alertas y miembros si es dueño; `/auth/users` si su rol de plataforma es `admin` |
+
+**Espacio de cada petición.** Con API key, el de la clave (`X-Workspace-Id` se ignora). Con JWT, la cabecera `X-Workspace-Id` o `?workspace=` (el stream SSE, porque `EventSource` no admite cabeceras); sin ninguna, el espacio por defecto de la cuenta. Si no es miembro, `404` (no `403`, para no confirmar que existe). La membresía se cachea 30 s en memoria y la caché se vacía al cambiar cualquier membresía. Ver [workspaceContext.ts](../Back_MCLog/src/middlewares/workspaceContext.ts).
 
 Una clave lleva los permisos que se le den al crearla, y puede acotarse además a una lista de aplicaciones. La restricción vale en los dos sentidos: no puede escribir logs de otra aplicación (`403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log por id, que responde `404` para no confirmar que existe.
 
@@ -333,9 +349,9 @@ Una clave lleva los permisos que se le den al crearla, y puede acotarse además 
 
 Las claves se aceptan en `x-api-key` y también en `Authorization: Bearer mclog_…`, porque los clientes MCP solo permiten cabeceras estándar. Un `Bearer` que no tenga forma de clave MCLog se trata como JWT.
 
-**Ninguna API key recibe rol `admin`.** Aunque tenga todos los permisos, las operaciones de administración le quedan fuera.
+**Ninguna API key administra nada.** Cuenta siempre como miembro de su espacio: aunque tenga todos los permisos, purgar y administrar le quedan fuera.
 
-La clave única de la variable `API_KEY` sigue funcionando con permisos `ingest` y `metrics`, por compatibilidad con los emisores ya desplegados. Está **deprecada**: no se puede rotar sin cortar el servicio ni acotar por aplicación.
+La clave única de la variable `API_KEY` sigue funcionando con permisos `ingest` y `metrics`, en el espacio de la cuenta root, por compatibilidad con los emisores ya desplegados. Está **deprecada**: no se puede rotar sin cortar el servicio ni acotar por aplicación.
 
 ### 4.2 Ciclo de vida de los tokens
 

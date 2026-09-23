@@ -175,7 +175,6 @@ function RecordsView() {
         <LogInspector
           key="records-inspector"
           log={shown}
-          mode="dialog"
           onClose={close}
           onSelect={(entry) => {
             const inPage = rows.find((row) => rowKey(row) === rowKey(entry));
