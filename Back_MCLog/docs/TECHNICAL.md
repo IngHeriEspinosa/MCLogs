@@ -21,8 +21,10 @@ src/
     swagger.ts          Especificación OpenAPI 3 servida en /docs y /openapi.json
   middlewares/
     authApiKey.ts       requireApiKey (por scope), requireIngest y requireAuthOrReadKey
-    requireAuth.ts      JWT Bearer/cookie con auto-refresh transparente
-    requireRole.ts      Autorización por rol (admin)
+    requireAuth.ts      requireAuth (JWT Bearer/cookie con auto-refresh transparente) y
+                        optionalAuth (identifica si hay sesión, sigue como anónimo si no)
+    requireRole.ts      Autorización por rol de plataforma (admin); requireRoot, solo la cuenta root
+    workspaceContext.ts requireWorkspace / requireWorkspaceOwner: espacio activo (X-Workspace-Id) y rol en él
     rateLimiters.ts     queryLimiter (600/15 min), ingestLimiter (2000/min) y
                         loginLimiter (10 fallos/15 min por IP) — configurables
     validateLog.ts      validateLog y validateLogBatch (metadata libre opcional)
@@ -34,19 +36,24 @@ src/
     setAuthCookies.ts   Cookies httpOnly access_token / refresh_token
     enforceHttps.ts     Rechaza HTTP si FORCE_HTTPS=1 (salvo peticiones desde loopback)
     errorHandler.ts     Handler central de errores
-  routes/               authRoutes (/auth/*), logRoutes (/api/*),
-                        apiKeyRoutes (/api/keys), alertRoutes (/api/alerts)
+    compressJson.ts     Comprime con brotli o gzip las respuestas de res.json de más de 1 KB (sin dependencias: zlib)
+  routes/               authRoutes (/auth/*), logRoutes (/api/*), apiKeyRoutes (/api/keys),
+                        alertRoutes (/api/alerts), workspaceRoutes (/api/workspaces),
+                        settingsRoutes (/api/settings), snapshotRoutes (/api/snapshots y /api/share/:token)
   controllers/          logController (parseo HTTP, formatos json/csv/ndjson),
                         analysisController, streamController (SSE)
   services/             logService (Prisma), authService (tokens, rotación de refresh, login en dos pasos),
                         userService (usuarios, cuenta propia, root), twoFactorService (TOTP y
-                        códigos de recuperación), apiKeyService, analysisService
+                        códigos de recuperación), apiKeyService, analysisService, passwordResetService,
+                        workspaceService (espacios y miembros), settingsService (configuración en caliente),
+                        snapshotService (captura, lectura con control de acceso, caducidad)
   alerts/               evaluator + notificadores (webhook, correo, Telegram)
   events/               logEvents: bus en memoria que alimenta el stream en vivo
-  jobs/                 scheduler: purga por retención (RETENTION_DAYS) y evaluación de alertas
+  jobs/                 scheduler: retención, refresh tokens caducados, alertas, purga de espacios
+                        borrados y de snapshots caducados
   mcp/                  server + router: herramientas MCP para asistentes de IA
   utils/                fingerprint (huella de agrupación de errores), totp (RFC 6238),
-                        qrCode (codificador QR a SVG)
+                        qrCode (codificador QR a SVG), redact (enmascarado de datos sensibles)
 ```
 
 ## Autenticación
@@ -128,15 +135,24 @@ El `mfaToken` es un JWT de **5 minutos**, firmado con un secreto derivado (`${JW
 | GET | `/api/logs/stream` | JWT o API key `read` | Logs en vivo por SSE (`SSE_MAX_CONNECTIONS`). Sin rate limit |
 | GET | `/api/logs/errors/groups` | JWT o API key `read` | Errores agrupados por huella, con recuento y primera/última vez |
 | GET | `/api/logs/trace/:traceId` | JWT o API key `read` | Traza completa de una petición |
-| DELETE | `/api/logs?before=ISO[&application=X]` | JWT rol admin | Purga logs anteriores a la fecha → `{ deleted }` |
-| GET · POST | `/api/keys` | JWT rol admin | Lista y crea API keys con scopes y alcance por aplicación. La clave se muestra una sola vez |
-| DELETE | `/api/keys/:id` | JWT rol admin | Revoca una API key |
-| GET · POST | `/api/alerts/channels` | JWT rol admin | Canales de aviso (webhook, correo, Telegram) |
-| PATCH · DELETE | `/api/alerts/channels/:id` | JWT rol admin | Edita o elimina un canal |
-| POST | `/api/alerts/channels/:id/test` | JWT rol admin | Envía un aviso de prueba |
-| GET · POST | `/api/alerts/rules` | JWT rol admin | Reglas de alerta |
-| PATCH · DELETE | `/api/alerts/rules/:id` | JWT rol admin | Edita o elimina una regla |
-| GET | `/api/alerts/events` | JWT rol admin | Historial de alertas disparadas (`ruleId`, `limit`) |
+| DELETE | `/api/logs?before=ISO[&application=X]` | JWT dueño del espacio | Purga logs anteriores a la fecha → `{ deleted }` |
+| GET · POST | `/api/keys` | JWT dueño del espacio | Lista y crea API keys con scopes y alcance por aplicación. La clave se muestra una sola vez |
+| DELETE | `/api/keys/:id` | JWT dueño del espacio | Revoca una API key |
+| GET · POST | `/api/alerts/channels` | JWT dueño del espacio | Canales de aviso (webhook, correo, Telegram) |
+| PATCH · DELETE | `/api/alerts/channels/:id` | JWT dueño del espacio | Edita o elimina un canal |
+| POST | `/api/alerts/channels/:id/test` | JWT dueño del espacio | Envía un aviso de prueba |
+| GET · POST | `/api/alerts/rules` | JWT dueño del espacio | Reglas de alerta |
+| PATCH · DELETE | `/api/alerts/rules/:id` | JWT dueño del espacio | Edita o elimina una regla |
+| GET | `/api/alerts/events` | JWT dueño del espacio | Historial de alertas disparadas (`ruleId`, `limit`) |
+| GET · POST | `/api/workspaces` | JWT | Mis espacios con mi rol; crear uno (quedo como dueño) |
+| PATCH · DELETE | `/api/workspaces/:id` | JWT dueño | Renombrar; borrar (lógico) con `confirmName` |
+| GET · POST · PATCH · DELETE | `/api/workspaces/:id/members[/:userId]` | JWT dueño (salir: el propio miembro) | Miembros, invitaciones y roles. Siempre queda un dueño |
+| GET · PATCH · DELETE | `/api/settings[/:key]` | JWT **root** | Configuración de la plataforma en caliente |
+| GET | `/api/settings/public` | JWT | Banderas que necesita el panel (Lab, MCP, crear espacios, snapshots…) |
+| GET · POST | `/api/snapshots` | JWT miembro (público: dueño) | Lista (sin datos) y crea snapshots de `kind` `logs`, `errors` o `trace` (este con `filters.traceId`; `404` si no tiene logs). `403` público sin permiso, `409` tope `maxSnapshotsPerWorkspace` |
+| DELETE | `/api/snapshots/:id` | JWT autor o dueño | Borra un snapshot; el enlace deja de funcionar al momento |
+| GET | `/api/share/:token/preview` | — | Título, tipo, fecha y totales para la vista previa del enlace (Open Graph). Solo públicos vigentes; no cuenta visita |
+| GET | `/api/share/:token` | — (miembro si es de equipo) | Lee un snapshot. `401 { requiresAuth }` si es de equipo sin sesión; `404` si no existe, caducó o no hay acceso |
 | POST | `/auth/login` | — | Primer paso del login: tokens, o `mfaRequired` si hay 2FA |
 | POST | `/auth/login/2fa` | — | Segundo paso: `{ mfaToken, code }` |
 | POST | `/auth/refresh` · `/auth/logout` | — | Rotación y cierre de sesión |
@@ -226,7 +242,10 @@ Ver `prisma/schema.prisma`.
   - Índices compuestos `(application, timestamp)` y `(level, timestamp)` (migración `0004`).
   - Índices compuestos `(fingerprint, timestamp)` y `(environment, level, timestamp)` (migración `0006`).
 - **User**: `email`, `passwordHash`, `role` (`admin`|`user`), `isRoot`, `twoFactorEnabled`, `twoFactorSecret` (VARCHAR 64), `twoFactorLastStep`, `recoveryCodes` (sha256 hex de los códigos sin usar).
-- **RefreshToken** (borrado en cascada con el usuario), **ApiKey**, **AlertChannel**, **AlertRule**, **AlertEvent**.
+- **RefreshToken** (borrado en cascada con el usuario), **PasswordResetToken** (solo el hash), **ApiKey**, **AlertChannel**, **AlertRule**, **AlertEvent**.
+- **Workspace** (borrado lógico con `deletedAt`) y **WorkspaceMember** (`owner`|`member`). Logs, claves, alertas y snapshots cuelgan de un espacio y toda consulta va acotada por él.
+- **AppSetting**: una fila por ajuste de la plataforma cambiado, con quién y cuándo.
+- **Snapshot**: copia congelada de una vista (`filters`, `summary` y `logs` en JSONB) con `token` único (32 bytes aleatorios), `visibility` (`workspace`|`public`), `redacted`, `expiresAt?` y `viewCount`. Se borra en cascada con su espacio; el autor pasa a `null` si se borra su cuenta.
 
 **Migraciones** (`prisma/migrations/`), en orden:
 
@@ -238,6 +257,11 @@ Ver `prisma/schema.prisma`.
 6. `0006_error_fields` (errorName/errorCode/errorStack/fingerprint)
 7. `0007_alerts` (canales, reglas y eventos)
 8. `0008_account_security` (root y 2FA)
+9. `0009_password_reset` (enlaces de "olvidé mi contraseña")
+10. `0010_workspaces` (espacios y miembros; `workspaceId` en logs, claves y alertas)
+11. `0011_app_settings` (configuración de la plataforma)
+12. `0012_snapshots` (snapshots compartibles)
+13. `0013_snapshot_kinds` (columna `kind`: snapshots de Errores y de Traza)
 
 Se aplican con `npx prisma migrate deploy`; la imagen Docker lo hace sola en `entrypoint.sh` al arrancar. Los ficheros **deben guardarse en UTF-8**: UTF-16 rompe el motor de migraciones con "string contains embedded null".
 
@@ -248,7 +272,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 | Variable | Default | Notas |
 |---|---|---|
 | `LOG_LEVEL` | `info` | En `debug` registra bodies redactados |
-| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | 15 min / 600 | Consultas, `/auth/*`, `/api/keys`, `/api/alerts` y `/mcp` (no el stream) |
+| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | 15 min / 600 | Consultas, `/auth/*`, `/api/keys`, `/api/alerts`, `/api/snapshots`, `/api/share` y `/mcp` (no el stream) |
 | `INGEST_RATE_LIMIT_WINDOW_MS` / `INGEST_RATE_LIMIT_MAX` | 60 s / 2000 | Solo ingesta; se cuenta por clave |
 | `LOGIN_RATE_LIMIT_WINDOW_MS` / `LOGIN_RATE_LIMIT_MAX` | 15 min / 10 | Solo intentos **fallidos**, por IP, en login, `/login/2fa`, `DELETE /auth/me` y alta/baja del 2FA |
 | `MAX_BATCH_SIZE` | 500 | Tope de logs por petición batch |
@@ -286,12 +310,13 @@ Se reconocen las dos familias de marcadores: los valores de desarrollo de `.env.
 - **Cuentas protegidas:** el root no se borra ni se degrada; tampoco el último admin. Nadie se borra a sí mismo desde la administración de usuarios.
 - **Consultas:** Prisma parametriza todas (sin SQL injection); validación estricta en el borde con express-validator.
 - **Logs propios:** redactan `password`, `token`, `authorization`, etc.
+- **Snapshots públicos:** se enmascaran en el servidor al crearlos (`utils/redact.ts`: correos, IPs, JWT, `Bearer`, pares `password=…`, claves con nombre de secreto y cadenas largas tipo clave), sin el nombre del espacio, con `Cache-Control: no-store` y `X-Robots-Tag: noindex`. La lectura comprueba el acceso antes de cargar los datos, y todo "no" es un `404`. Apagar `publicSnapshotsEnabled` deja de servir los ya creados.
 
 ## Tests
 
 `npm test` (vitest + supertest, DB real en `localhost:5435` — `docker compose up -d db`).
 
-**175 tests** en `tests/`, repartidos en catorce suites:
+**238 tests** en `tests/`, repartidos en diecinueve suites:
 
 | Suite | Qué cubre |
 |---|---|
@@ -309,6 +334,11 @@ Se reconocen las dos familias de marcadores: los valores de desarrollo de `.env.
 | `alerts` | Alertas |
 | `stream` | Stream en vivo |
 | `config` | Guardia de configuración de producción |
+| `passwordReset` | Enlaces de "olvidé mi contraseña" |
+| `workspaces` | Espacios, miembros, aislamiento de datos entre espacios |
+| `settings` | Configuración de la plataforma y banderas públicas |
+| `snapshots` | Crear de los tres tipos, leer con y sin sesión, vista previa, enmascarado, topes, caducidad, interruptor de públicos, borrado |
+| `compression` | Brotli o gzip según `Accept-Encoding`, `q=0`, umbral de 1 KB |
 
 Corren en serie (`--fileParallelism=false --maxWorkers=1`) porque comparten la misma base de datos.
 

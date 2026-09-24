@@ -299,9 +299,9 @@ export const swaggerSpec = swaggerJSDoc({
         },
         post: {
           tags: ["snapshots"],
-          summary: "Crear un snapshot: copia congelada de la vista de logs",
+          summary: "Crear un snapshot: copia congelada de Logs, Errores o una Traza",
           description:
-            "Guarda el resumen (rango, aplicación y entorno) y hasta `maxSnapshotRows` logs que cumplen todos los filtros. Los públicos solo los crea el dueño del espacio, requieren `publicSnapshotsEnabled` y se enmascaran siempre.",
+            "`kind: logs` guarda el resumen (rango, aplicación y entorno) y hasta `maxSnapshotRows` logs que cumplen todos los filtros. `kind: errors` guarda los grupos de fallo (hasta 100) y un ejemplo de cada uno. `kind: trace` guarda los logs de `filters.traceId` en orden y los totales de la operación. Los públicos solo los crea el dueño del espacio, requieren `publicSnapshotsEnabled` y se enmascaran siempre.",
           security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
@@ -312,6 +312,7 @@ export const swaggerSpec = swaggerJSDoc({
                   required: ["title", "visibility"],
                   properties: {
                     title: { type: "string", maxLength: 160 },
+                    kind: { type: "string", enum: ["logs", "errors", "trace"], default: "logs" },
                     visibility: { type: "string", enum: ["workspace", "public"] },
                     expiresInDays: { type: "integer", enum: [1, 7, 30], nullable: true, description: "null = no caduca" },
                     filters: {
@@ -326,7 +327,9 @@ export const swaggerSpec = swaggerJSDoc({
           },
           responses: {
             201: { description: "Creado; `token` identifica el enlace" },
+            404: { description: "kind trace con un traceId sin logs" },
             403: { description: "Público sin ser dueño, o públicos desactivados" },
+            409: { description: "El espacio alcanzó maxSnapshotsPerWorkspace" },
           },
         },
       },
@@ -339,7 +342,7 @@ export const swaggerSpec = swaggerJSDoc({
           responses: { 204: { description: "Borrado" }, 403: { description: "Ni autor ni dueño" }, 404: { description: "No existe" } },
         },
       },
-      "/snapshots/{token}": {
+      "/api/share/{token}": {
         get: {
           tags: ["snapshots"],
           summary: "Leer un snapshot por su enlace",
@@ -350,6 +353,16 @@ export const swaggerSpec = swaggerJSDoc({
             401: { description: "De equipo y sin sesión (`requiresAuth: true`)" },
             404: { description: "No existe, caducó o no eres miembro" },
           },
+        },
+      },
+      "/api/share/{token}/preview": {
+        get: {
+          tags: ["snapshots"],
+          summary: "Vista previa de un enlace (Open Graph)",
+          description:
+            "Título, tipo, fecha, si va enmascarado y unos totales (`stats`), sin logs ni resumen. Solo de los públicos vigentes y sin contar visita: la pide el servidor del dashboard para las vistas previas de Slack, WhatsApp o Teams.",
+          parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "OK" }, 404: { description: "No existe, caducó, es de equipo o los públicos están apagados" } },
         },
       },
       "/auth/me": {

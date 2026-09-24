@@ -75,6 +75,9 @@ model AlertRule    { id, workspaceId → Workspace, name, type (threshold|new_er
                      lastTriggeredAt?, channels[], events[] }
 model AlertEvent   { id, ruleId → AlertRule (onDelete: Cascade), triggeredAt, count, sampleLogIds[], deliveries Json }
 model AppSetting   { key @id @db.VarChar(64), value Json, updatedAt, updatedById? → User (onDelete: SetNull) }
+model Snapshot     { id, workspaceId → Workspace (onDelete: Cascade), token @unique @db.VarChar(64), title, kind (logs|errors|trace),
+                     visibility (workspace|public), redacted, filters Json, summary Json, logs Json, totalMatched,
+                     createdById? → User (onDelete: SetNull), createdAt, expiresAt?, viewCount, lastViewedAt? }
 ```
 
 **Por qué una huella.** Dos ocurrencias del mismo fallo casi nunca tienen el mismo mensaje: llevan dentro el id del pedido, un UUID o una hora. `fingerprint` es un sha256 recortado de la parte estable del error (aplicación, servicio, clase, código, primer marco del stack sin números de línea y mensaje normalizado), y es lo que permite responder "qué está fallando" en lugar de solo "qué ha pasado". La calcula el servidor para los niveles `error` y `warn`; un emisor puede enviar la suya para agrupar con otro criterio. Ver [fingerprint.ts](../Back_MCLog/src/utils/fingerprint.ts).
@@ -86,6 +89,8 @@ model AppSetting   { key @id @db.VarChar(64), value Json, updatedAt, updatedById
 **Por qué esos índices.** Toda consulta va acotada a un espacio, así que todos empiezan por `workspaceId`: un espacio pequeño no recorre las filas de los grandes. Los compuestos `(…, application, timestamp)` y `(…, level, timestamp)` cubren los dos patrones dominantes del dashboard —"logs de la app X por fecha" y "errores recientes"— que un índice simple resolvería con un sort posterior. `traceId` está indexado porque es la vía de correlación entre sistemas. El de `timestamp` a secas lo usa la retención, que purga todos los espacios a la vez.
 
 **Por qué espacios de trabajo.** Son la unidad de aislamiento: logs, claves y alertas pertenecen a uno y solo lo ven sus miembros (ver [4.1](#41-dos-planos-de-autenticación)). `LogFilters.workspaceId` es obligatorio en el tipo, de modo que una consulta sin acotar no compila. El borrado de un espacio es lógico (`deletedAt`) y el planificador purga sus logs por lotes; un espacio que se queda sin miembros (solo posible borrando cuentas a mano en la base) se trata igual.
+
+**Por qué un snapshot copia los datos.** Guardar solo la consulta sería más ligero, pero lo que se ve cambiaría con cada log nuevo y desaparecería con la retención, y el enlace público tendría que consultar la tabla de logs en vivo. La copia (`logs` y `summary` en JSONB, que PostgreSQL comprime) congela la vista, se enmascara una sola vez al crearla y aísla el enlace público de los datos del espacio. Los topes `maxSnapshotRows` y `maxSnapshotsPerWorkspace` acotan lo que ocupa. El `token` es el único identificador que sale: 32 bytes aleatorios, imposible de adivinar.
 
 **Por qué enums de PostgreSQL** en vez de texto: validación a nivel de motor y menor tamaño en disco e índice.
 
@@ -103,6 +108,11 @@ model AppSetting   { key @id @db.VarChar(64), value Json, updatedAt, updatedById
 6. `0006_error_fields`
 7. `0007_alerts` (canales, reglas, eventos)
 8. `0008_account_security` (cuenta root y 2FA)
+9. `0009_password_reset` (enlaces de "olvidé mi contraseña")
+10. `0010_workspaces` (espacios, miembros y `workspaceId` en logs, claves y alertas)
+11. `0011_app_settings` (configuración de la plataforma)
+12. `0012_snapshots` (snapshots compartibles)
+13. `0013_snapshot_kinds` (snapshots de Errores y de Traza: columna `kind`)
 
 ```bash
 npx prisma migrate deploy    # aplica las pendientes
@@ -310,7 +320,10 @@ abiertas al stream en vivo). La ruta se etiqueta por su patrón
 | `GET/POST /api/workspaces/:id/members` | JWT **dueño** | Listar e invitar (`{ email, role }`). Devuelve `{ member, created, emailSent, invitePath? }` |
 | `PATCH/DELETE /api/workspaces/:id/members/:userId`, `POST …/resend` | JWT **dueño** (salir: el propio miembro) | Cambiar rol, quitar, reenviar enlace a un pendiente. Siempre queda un dueño (`409`) |
 | `GET/PATCH /api/settings`, `DELETE /api/settings/:key` | JWT **root** | Configuración de la plataforma. `PATCH` recibe `{ values: { clave: valor } }` y es atómico (`400` con `errors` por clave). `DELETE` vuelve al predeterminado. Catálogo en [FEATURES.md](FEATURES.md#22-configuración-de-la-plataforma) |
-| `GET /api/settings/public` | JWT | Banderas que necesita el panel: `labEnabled`, `mcpEnabled`, `canCreateWorkspace`, `maxWorkspaceMembers`, `invitationTtlDays` |
+| `GET /api/settings/public` | JWT | Banderas que necesita el panel: `labEnabled`, `mcpEnabled`, `canCreateWorkspace`, `maxWorkspaceMembers`, `invitationTtlDays`, `publicSnapshotsEnabled`, `maxSnapshotRows`, `maxSnapshotsPerWorkspace` |
+| `GET/POST /api/snapshots`, `DELETE /api/snapshots/:id` | JWT miembro (público: **dueño**) | Listar (sin datos), crear y borrar snapshots del espacio activo. `POST` recibe `{ title, kind (logs/errors/trace), visibility, expiresInDays (1/7/30/null), filters }` (para `trace`, `filters.traceId`) y captura en el momento: `403` si es público sin ser dueño o con `publicSnapshotsEnabled` apagado, `409` si el espacio llegó a `maxSnapshotsPerWorkspace`. Borra su autor o el dueño (`403`) |
+| `GET /api/share/:token/preview` | — | Vista previa para Open Graph: título, tipo, fecha, si va enmascarado y `stats`. Solo de los públicos vigentes (`404` para el resto) y sin contar visita |
+| `GET /api/share/:token` | — (miembro con sesión si es de equipo) | El snapshot, con `Cache-Control: no-store` y `X-Robots-Tag: noindex`. De equipo sin sesión: `401 { requiresAuth: true }`. Inexistente, caducado, de otro espacio o público con los públicos apagados: `404`. Los públicos llegan enmascarados y sin el nombre del espacio |
 | `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** de plataforma | Gestión de cuentas. Alta con `mode: "own"` (espacio propio, `workspaceName?`) o `"join"` (`workspaceId` de un espacio del que el admin es dueño, `workspaceRole?`); sin `password` la cuenta nace pendiente y la respuesta trae `emailSent` e `invitePath?`. `PATCH` cambia `role` y/o `password` y revoca sus sesiones. No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`), dejar la plataforma sin admin (`409`) ni borrar a la única dueña de un espacio con más miembros (`409`). No hay endpoint para quitar el 2FA de otro usuario |
 
 La cuenta propia y el 2FA están en [3.3](#33-autenticación).
@@ -388,7 +401,7 @@ El **margen de 30 segundos** existe porque, al abrir el dashboard con el access 
 | `helmet` | Defaults |
 | CORS | Lista blanca `CORS_ORIGINS`, `credentials: true`. Sin `Origin` → permitido (curl, health checks) |
 | Body limit | `BODY_LIMIT` (3 MB) |
-| Rate limit consulta | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` (600 / 15 min). Aplica a `/auth/*`, `/api/logs*` (salvo el stream), `/api/keys`, `/api/alerts` y `/mcp`. Cuenta por clave si la hay, si no por IP |
+| Rate limit consulta | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` (600 / 15 min). Aplica a `/auth/*`, `/api/logs*` (salvo el stream), `/api/keys`, `/api/alerts`, `/api/snapshots`, `/api/share` y `/mcp`. Cuenta por clave si la hay, si no por IP |
 | Rate limit ingesta | `INGEST_RATE_LIMIT_MAX` / `..._WINDOW_MS` (2000 / 60 s), independiente del anterior. Cuenta por clave: una integración ruidosa no gasta la cuota de las demás |
 | Rate limit login | `LOGIN_RATE_LIMIT_MAX` / `..._WINDOW_MS` (10 / 15 min), por IP (IPv6 por `/64`). Solo cuenta los **fallos**. Cubre `POST /auth/login`, `/auth/login/2fa`, `DELETE /auth/me` y `/auth/me/2fa/enable` y `/disable` |
 | API key | Solo se guarda su sha256; la clave heredada se compara con `crypto.timingSafeEqual` (tiempo constante) |
@@ -453,6 +466,7 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 |---|---|
 | `NEXT_PUBLIC_API_URL` | URL pública de la API (`http://localhost:3000` en local). Se incrusta **al compilar**. Vacía = mismo origen (detrás de Caddy) |
 | `PORT` | Puerto del servidor standalone en la imagen Docker (default 3001; Railway lo inyecta) |
+| `API_INTERNAL_URL` | Solo del servidor de Next, al arrancar: dónde llama a la API para la vista previa de los enlaces de snapshots. Si falta, usa `NEXT_PUBLIC_API_URL`. En Compose es `http://api:3000` (ya en `docker-compose.prod.yml`) |
 
 > `CORS_ORIGINS` del backend debe incluir **exactamente** el origen del dashboard, y en producción `COOKIE_SECURE=1`. Con dashboard y API en dominios distintos, ver [DEPLOYMENT.md](DEPLOYMENT.md#opción-b--caprover--railway).
 
@@ -486,8 +500,9 @@ Detalle completo en [frontend_mclog/docs/TECHNICAL.md](../frontend_mclog/docs/TE
 ### Estructura
 ```
 src/
-  app/                      Rutas: portada (/), logs, records, errors, reports, trace/[traceId],
-                            lab, settings/* (api-keys, users, alerts, password = Mi cuenta), login
+  app/                      Rutas: acceso (/, alias /login), logs, records, errors, reports, trace/[traceId],
+                            snapshots, s/[token] (visor de snapshots), lab,
+                            settings/* (api-keys, users, alerts, workspace, platform, password = Mi cuenta)
     lab/                    Escenarios de prueba del Lab y su envío
   common/
     api/                    axios withCredentials (401 → /auth/refresh → retry), export, errores
@@ -495,12 +510,15 @@ src/
     theme/                  Claro/oscuro/sistema con cookie y script anti-destello
     time/                   Rangos relativos/absolutos en la URL, serie horaria
     reports/                Recogida de datos, generadores (Markdown, brief IA, JSON), enmascarado
+    snapshots/              Orden y paginación del visor, filtros de la vista para crear uno, vista previa (Open Graph)
+    errors/                 Totales de los errores agrupados (ocurrencias, app más afectada, concentración)
   hooks/                    Datos (React Query), filtros en la URL, paneles flotantes, preferencias
   components/
     atoms/                  Button, Input, Field, Checkbox, Switch, Segmented, Icon, LevelBadge…
     molecules/              Select, Menu, Dialog, DateRangePicker, ActivityChart, StatTile, MarkdownView…
-    organisms/              Sidebar, Topbar, LogFilterBar, LogOverview, LogTable, LogInspector,
-                            AdvancedLogSearch, LabScenarioCard, LabComposer, TwoFactorCard, DeleteAccountCard
+    organisms/              Sidebar, Topbar, SignIn, LogFilterBar, LogOverview, LogTable, LogInspector,
+                            AdvancedLogSearch, ShareSnapshotDialog, SnapshotOverview, ErrorGroups, TraceTimeline,
+                            LabScenarioCard, LabComposer, TwoFactorCard, DeleteAccountCard
     templates/              DashboardLayout, AuthLayout
   config/api.ts             API_BASE desde NEXT_PUBLIC_API_URL
 ```
@@ -509,17 +527,19 @@ src/
 
 ### Decisiones
 
-- **El front nunca toca tokens.** Viven en cookies httpOnly gestionadas por el backend; axios va con `withCredentials`. No hay middleware de rutas: la fuente de verdad de la sesión es el backend. Los guards son el interceptor de 401 y `DashboardLayout`, que manda a `/login?next=<ruta>` si `/auth/me` falla. El `mfaToken` del login en dos pasos solo vive en memoria del formulario.
-- **Registros y búsqueda avanzada**: la misma tabla que Logs, sin resumen, con seis filtros por campo (`message`, `service`, `host`, `traceId`, `errorName`, `errorCode`) en la URL y el detalle del log como modal a pantalla completa con navegación ←/→.
+- **El front nunca toca tokens.** Viven en cookies httpOnly gestionadas por el backend; axios va con `withCredentials`. No hay middleware de rutas: la fuente de verdad de la sesión es el backend. Los guards son el interceptor de 401 y `DashboardLayout`, que manda al acceso (`/?next=<ruta>`) si `/auth/me` falla. `/` es el acceso: con sesión abierta lleva a Logs. El `mfaToken` del login en dos pasos solo vive en memoria del formulario.
+- **Registros y búsqueda avanzada**: la misma tabla que Logs, sin resumen, con seis filtros por campo (`message`, `service`, `host`, `traceId`, `errorName`, `errorCode`) en la URL. En las dos vistas el detalle del log es un modal casi a pantalla completa con navegación ←/→.
+- **Snapshots**: **Compartir** captura la vista en el backend y da un enlace `/s/<token>`, que se abre fuera del panel (sin sesión si es público). El visor ordena y pagina en el navegador y muestra el detalle en solo lectura.
+- **Ayuda en las métricas**: el icono de cada tarjeta de métrica y el ⓘ de las tarjetas de gráfico explican qué mide cada cifra.
 - **Lab** (admin): escenarios que envían logs reales a aplicaciones `lab-*` con la sesión del usuario, en lotes de 100 o de uno en uno para el stream, con un `AbortController` por escenario y purga de todo lo `lab-*`.
 - **Sin librerías de UI ni de gráficos**: componentes, iconos y gráficos SVG propios, accesibles por teclado.
 - **Tokens de color en variables CSS** con un valor por tema; Tailwind los expone por rol (`surface`, `ink`, `brand`…). Paleta de niveles validada para daltonismo sobre cada superficie.
 - **Español e inglés** con diccionarios tipados (una traducción que falta no compila) e idioma y tema en cookies que el servidor lee, para que la primera pintura ya salga bien.
-- **Hasta 4K**: el tamaño raíz crece con el ancho y las vistas de datos usan hasta 3840 px; el detalle del log pasa a columna lateral desde 1920 px.
+- **Hasta 4K**: el tamaño raíz crece con el ancho y las vistas de datos usan hasta 3840 px.
 - **React Query v5** con `placeholderData: keepPreviousData`: al paginar o refiltrar, lo anterior se mantiene atenuado en vez de parpadear a vacío.
 - **Filtros en la URL**, incluido el rango (`range=24h` o `from`/`to`), omitiendo los valores por defecto. Copiar el enlace reproduce la vista.
 - **Reportes en el navegador**: Markdown para personas y briefs para agentes de IA con los datos de los logs aislados en `<mclog_data>` y enmascarado de datos sensibles.
-- **Todo client-side** salvo el layout raíz, que lee las cookies de idioma y tema: los datos son privados y dinámicos, el SSR no aportaría nada.
+- **Todo client-side** salvo el layout raíz, que lee las cookies de idioma y tema, y los layouts que fijan metadatos (`noindex` y `no-referrer` en los enlaces con token): los datos son privados y dinámicos, el SSR no aportaría nada.
 
 ---
 
@@ -551,8 +571,8 @@ npm pack           # tarball de publicación
 
 | Suite | Comando | Cobertura |
 |---|---|---|
-| Backend | `cd Back_MCLog && npm test` | **175 tests en 14 suites** (vitest + supertest contra PostgreSQL real) |
-| Dashboard | `cd frontend_mclog && npm test` | **33 tests en 10 suites** (generación de reportes, enmascarado, Markdown y preferencias; runner nativo de Node 24, sin dependencias) |
+| Backend | `cd Back_MCLog && npm test` | **238 tests en 19 suites** (vitest + supertest contra PostgreSQL real) |
+| Dashboard | `cd frontend_mclog && npm test` | **46 tests en 15 suites** (generación de reportes, enmascarado, Markdown, preferencias, totales de errores y orden, paginación, filtros y vista previa de los snapshots; runner nativo de Node 24, sin dependencias) |
 | Librería | `cd packages/mclog && npm test` | **95 tests** (cliente con fetch inyectado + middleware con supertest) |
 | Cliente NetSuite | `node integrations/netsuite/test_mclog_client.js` | **40 comprobaciones** (arnés que simula `define()` y los módulos `N/`, sin dependencias) |
 

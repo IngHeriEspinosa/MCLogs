@@ -9,6 +9,7 @@ const FEATURES = [
   ["Estadísticas en vivo", "Serie por hora y nivel para ver cuándo empezó un incidente."],
   ["Logs en vivo", "El dashboard recibe los logs según llegan, por Server-Sent Events."],
   ["Exportación", "CSV y NDJSON respetando los filtros activos."],
+  ["Snapshots compartibles", "Una copia congelada de Logs, Errores o una Traza con su enlace, pública o de equipo, con vista previa en los chats."],
   ["API keys con permisos", "Permisos ingest, read o metrics, acotables por aplicación, caducables y revocables."],
   ["Usuarios y roles", "Administrables desde el dashboard, con cambio de contraseña y cierre de sesiones."],
   ["Alertas", "Webhook firmado, correo y Telegram, con reglas de umbral o de error nuevo."],

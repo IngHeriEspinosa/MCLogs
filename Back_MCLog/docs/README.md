@@ -6,6 +6,9 @@ API REST de captura y consulta centralizada de logs.
 - **Consulta** por JWT o API key con permiso `read`: filtros, búsqueda libre y avanzada por campo, orden, paginación, export CSV/NDJSON, estadísticas, errores agrupados, trazas y purga por fecha (admin).
 - **Seguridad**: JWT con refresh rotativo en cookies httpOnly, verificación en dos pasos (TOTP + códigos de recuperación), cuenta root protegida, borrado de la propia cuenta, helmet, CORS con lista blanca, rate limits separados para ingesta, consulta y login, validación estricta, HTTPS forzable.
 - **Operación**: alertas (webhook, correo, Telegram), retención automática, stream en vivo (SSE) y servidor MCP para asistentes de IA.
+- **Espacios de trabajo** con dueños y miembros, y **configuración de la plataforma** en caliente (solo root).
+- **Snapshots**: copias congeladas de Logs, Errores o una Traza con enlace propio, de equipo o públicas (enmascaradas en el servidor), con vista previa para chats.
+- **Compresión** brotli/gzip de las respuestas JSON, sin dependencias.
 - **Observabilidad**: `/health`, `/metrics` (Prometheus), Swagger en `/docs`, logging estructurado con requestId/traceId y duración.
 
 ## Arranque rápido
@@ -41,5 +44,5 @@ Swagger UI interactivo: `http://localhost:3000/docs`.
 
 ```bash
 docker compose up -d db
-npm test    # 175 tests en 14 suites (vitest + supertest contra DB real)
+npm test    # 238 tests en 19 suites (vitest + supertest contra DB real)
 ```

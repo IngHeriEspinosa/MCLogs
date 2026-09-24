@@ -35,6 +35,9 @@ docker compose -f docker-compose.prod.yml exec db psql -U mclog -d mclog -c "\dt
 
 **Borrar algo concreto** (por ejemplo, todo lo de una aplicación de pruebas): ver [el borrado manual](../../Back_MCLog/docs/USER_GUIDE.md#borrado-manual). Los datos del Lab se borran desde **Espacio → Lab → Borrar datos del lab**.
 
+> [!NOTE]
+> La retención y el borrado manual **no tocan los snapshots**: son copias con su propia caducidad. Uno creado con caducidad **Nunca** conserva sus logs hasta que alguien lo borre desde **Snapshots**. Los caducados se borran solos cada hora. Ver [Compartir un snapshot](compartir-snapshots.md).
+
 ## Parte 2 — Copias de seguridad
 
 ### En un VPS con Docker Compose

@@ -28,7 +28,7 @@ Cada guía recorre un proceso de principio a fin: qué vas a conseguir, qué nec
 | [Integrar NetSuite](guias/integrar-netsuite.md) | Subir el cliente SuiteScript y registrar logs desde User Events y Map/Reduce |
 | [Investigar un incidente](guias/investigar-incidente.md) | Ir del aviso a la causa: Errores, ocurrencias, traza, contexto y brief para IA |
 | [Buscar registros](guias/buscar-registros.md) | Filtros, búsqueda avanzada por campo, compartir y exportar |
-| [Compartir un snapshot](guias/compartir-snapshots.md) | Enlace a una copia congelada de la vista de logs, para tu equipo o público con los datos enmascarados |
+| [Compartir un snapshot](guias/compartir-snapshots.md) | Enlace a una copia congelada de Logs, Errores o una Traza, para tu equipo o público con los datos enmascarados |
 | [Proteger tu cuenta](guias/seguridad-cuenta.md) | Contraseña, verificación en dos pasos, códigos de recuperación y eliminar la cuenta |
 | [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md) | Espacios de trabajo, invitaciones, roles, cuenta root, API keys con permisos y rotación |
 | [Configurar alertas](guias/configurar-alertas.md) | Canales (webhook, correo, Telegram), reglas y cómo probarlas |

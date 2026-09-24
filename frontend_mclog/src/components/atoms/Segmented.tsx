@@ -8,6 +8,8 @@ export type SegmentedOption<V extends string> = {
   icon?: IconName;
   /** Nombre accesible cuando la opcion solo muestra un icono. */
   title?: string;
+  /** Visible pero no elegible: ni con el raton ni con las flechas. */
+  disabled?: boolean;
 };
 
 type SegmentedProps<V extends string> = {
@@ -38,13 +40,23 @@ export function Segmented<V extends string>({
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const isTabs = semantics === "tabs";
 
+  // Las flechas saltan las opciones desactivadas, como en un grupo de radios nativo.
+  const step = (from: number, delta: number) => {
+    for (let i = 1; i <= options.length; i += 1) {
+      const candidate = (((from + delta * i) % options.length) + options.length) % options.length;
+      if (!options[candidate].disabled) return candidate;
+    }
+    return -1;
+  };
+  const enabled = options.map((option, index) => (option.disabled ? -1 : index)).filter((index) => index >= 0);
+
   const onKeyDown = (event: React.KeyboardEvent) => {
     const index = options.findIndex((option) => option.value === value);
     let next = -1;
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % options.length;
-    if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index - 1 + options.length) % options.length;
-    if (event.key === "Home") next = 0;
-    if (event.key === "End") next = options.length - 1;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") next = step(index, 1);
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = step(index, -1);
+    if (event.key === "Home") next = enabled[0] ?? -1;
+    if (event.key === "End") next = enabled[enabled.length - 1] ?? -1;
     if (next < 0) return;
     event.preventDefault();
     onChange(options[next].value);
@@ -75,8 +87,9 @@ export function Segmented<V extends string>({
             aria-label={option.title}
             title={option.title}
             tabIndex={selected ? 0 : -1}
+            disabled={option.disabled}
             onClick={() => onChange(option.value)}
-            className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-medium transition-colors ${height} ${
+            className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${height} ${
               selected
                 ? "bg-surface text-ink shadow-[0_1px_2px_rgb(var(--ink)/0.08)] ring-1 ring-line"
                 : "text-ink-3 hover:text-ink"

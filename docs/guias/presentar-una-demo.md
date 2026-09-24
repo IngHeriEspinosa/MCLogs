@@ -42,7 +42,7 @@ Hazlo todo con la misma cuenta y el mismo navegador que usarás en la demo.
 6. **Crea una API key** llamada `demo-netsuite` con permiso **Enviar logs** y **Aplicaciones**: `SuiteApp-Facturacion`. La enseñarás en el paso 9; no hace falta usarla.
 7. Si vas a enseñar la IA: comprueba que el asistente responde a «¿Qué aplicaciones envían logs a MCLog?».
 8. **Prepara el navegador**: tema claro, idioma español, zoom al 125 %, y estas pestañas abiertas en este orden:
-   1. La portada de MCLog (sin sesión, para enseñar el login).
+   1. MCLog sin sesión (la primera pantalla es el acceso).
    2. El canal de Telegram/Slack donde llegan los avisos.
    3. Opcional: la terminal con Claude Code, o el editor con `mclog_client.js`.
 9. **Plan B**: si la instancia de producción no está disponible el día de la demo, ten MCLog levantado en tu equipo ([Primeros pasos](primeros-pasos.md)) con los mismos pasos 2 a 6 hechos.
@@ -55,7 +55,7 @@ Hazlo todo con la misma cuenta y el mismo navegador que usarás en la demo.
 | Min | Paso | Pantalla |
 |---|---|---|
 | 0–2 | 1. El problema | Ninguna |
-| 2–4 | 2. Entrar | Portada, login, 2FA |
+| 2–4 | 2. Entrar | Acceso, 2FA |
 | 4–6 | 3. Los logs llegan | Lab → Logs |
 | 6–9 | 4. Qué está roto | Errores, detalle del log |
 | 9–12 | 5. Dónde se rompió | Traza |
@@ -77,7 +77,7 @@ No enseñes nada todavía: la pantalla vacía obliga a escuchar.
 
 ### Paso 2 — Entrar (2 min)
 
-1. Abre la portada y pulsa **Iniciar sesión**.
+1. Abre MCLog: la primera pantalla es el acceso.
 2. Escribe tu correo y contraseña y pulsa **Entrar**.
 3. Aparece **Verificación en dos pasos**: escribe el código del móvil y pulsa **Verificar**.
 
@@ -88,8 +88,9 @@ No enseñes nada todavía: la pantalla vacía obliga a escuchar.
 1. **Espacio → Lab**. Explica en una frase: «El Lab envía logs de prueba reales, como los mandaría una aplicación.»
 2. En **Tráfico normal**, pulsa **Ejecutar**. Mientras corre: «120 registros de tres servicios en la última hora.»
 3. Pulsa **Ver en Logs**.
-4. Recorre despacio: las **tarjetas** (registros, errores, warnings), el gráfico de **Actividad** («arrastro sobre el gráfico y acoto el rango»), la **tabla**.
+4. Recorre despacio: las **tarjetas** (registros, errores, warnings; pasa el ratón por el icono de una: «cada cifra explica qué mide»), el gráfico de **Actividad** («arrastro sobre el gráfico y acoto el rango»), la **tabla**.
 5. Cambia un filtro (**Nivel: Error**) y señala la URL: «Los filtros van en la dirección: copio el enlace, lo pego en el chat y el otro ve exactamente esto.»
+6. Pulsa **Compartir**: «Y si quien lo tiene que ver no tiene cuenta, esto crea una copia con su propio enlace, con los datos sensibles tapados.» No hace falta crearlo.
 
 ### Paso 4 — Qué está roto (3 min)
 

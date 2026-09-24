@@ -320,7 +320,7 @@ function LogsView() {
             position={selectedIndex >= 0 ? { index: selectedIndex + 1, total: rows.length } : undefined}
           />
         )}
-        <ShareSnapshotDialog open={sharing} onClose={() => setSharing(false)} filters={filters} total={logs.data?.total ?? null} />
+        <ShareSnapshotDialog open={sharing} onClose={() => setSharing(false)} source={{ kind: "logs", filters }} total={logs.data?.total ?? null} />
         {logs.data && (
           <p className="sr-only" aria-live="polite">
             {t.logs.results(fmt.number(logs.data.total))}

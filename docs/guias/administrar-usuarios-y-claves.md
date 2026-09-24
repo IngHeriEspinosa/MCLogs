@@ -21,8 +21,8 @@ Un **espacio de trabajo** es un entorno aislado: sus logs, API keys y alertas so
 
 | Rol en el espacio | Puede |
 |---|---|
-| **Miembro** | Ver toda la observabilidad del espacio: logs, registros, errores, trazas y reportes, y exportar |
-| **Dueño** | Todo lo anterior, más administrar el espacio: miembros, API keys, alertas y el Lab, y purgar logs |
+| **Miembro** | Ver toda la observabilidad del espacio: logs, registros, errores, trazas y reportes, exportar y crear [snapshots](compartir-snapshots.md) de equipo (y borrar los suyos) |
+| **Dueño** | Todo lo anterior, más administrar el espacio: miembros, API keys, alertas y el Lab, purgar logs, crear snapshots públicos y borrar cualquier snapshot |
 
 Aparte está el rol de **plataforma**:
 
@@ -180,7 +180,7 @@ En **Plataforma → Configuración**. Solo la ve la cuenta root. Aquí se fijan 
 | **Cualquier cuenta puede crear espacios** | Apagado, solo los admins de plataforma crean espacios y el botón **Crear espacio** desaparece para el resto |
 | **Espacios por cuenta** | Cuántos espacios puede poseer cada cuenta (los admins no tienen límite) |
 
-En la misma página están la retención de logs, los tamaños de exportación y de lote, las conexiones en vivo, la validez de "olvidé mi contraseña", y los interruptores de MCP, alertas y Lab. En todos, 0 significa **sin límite** donde se indica. Los cambios se aplican al momento; **Restablecer** vuelve al valor predeterminado.
+En la misma página están la retención de logs, los tamaños de exportación y de lote, las conexiones en vivo, los topes de los snapshots (**Logs por snapshot** y **Snapshots por espacio**), la validez de "olvidé mi contraseña", y los interruptores de MCP, alertas, Lab y **Snapshots públicos** (apagarlo impide crearlos y deja de servir los ya creados). En todos, 0 significa **sin límite** donde se indica. Los cambios se aplican al momento; **Restablecer** vuelve al valor predeterminado.
 
 ## Comprueba que funcionó
 

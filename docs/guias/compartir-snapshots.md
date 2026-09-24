@@ -1,10 +1,14 @@
 # Compartir un snapshot
 
-Enseña a otra persona lo que estás viendo en Logs o Registros con un enlace: a tu equipo o a alguien de fuera que no tiene cuenta.
+Enseña a otra persona lo que estás viendo en Logs, Registros, Errores o una Traza con un enlace: a tu equipo o a alguien de fuera que no tiene cuenta.
 
 ## Qué vas a conseguir
 
-- Un enlace que abre una **copia congelada** de la vista: el resumen (métricas, actividad, niveles, entornos, fallos principales) y la tabla de logs, con su detalle.
+- Un enlace que abre una **copia congelada** de la pantalla:
+  - **Logs** o **Registros**: el resumen (métricas, actividad, niveles, entornos, fallos principales) y la tabla de logs, con su detalle.
+  - **Errores**: las tarjetas y la tabla de fallos agrupados, con el ejemplo más reciente de cada fallo (**Ver ejemplo**).
+  - **Traza**: los totales de la operación y su línea temporal, paso a paso.
+- Una vista previa con el título y las cifras cuando pegas el enlace en Slack, WhatsApp o Teams.
 - Elegir **quién** puede verlo: solo tu equipo, o cualquiera con el enlace.
 - Decidir **cuánto** dura, y borrarlo cuando quieras.
 
@@ -18,9 +22,9 @@ Enseña a otra persona lo que estás viendo en Logs o Registros con un enlace: a
 
 ## Paso 1 — Deja la vista como quieres enseñarla
 
-1. Abre **Logs** o **Registros**.
-2. Elige el rango de tiempo y los filtros. En Registros también cuenta la búsqueda avanzada.
-3. El orden de la tabla también se guarda.
+1. Abre **Logs**, **Registros**, **Errores** o la **Traza** que quieres enseñar.
+2. Elige el rango de tiempo y los filtros. En Registros también cuenta la búsqueda avanzada; en Errores, el nivel (errores o warnings).
+3. En Logs y Registros también se guarda el orden de la tabla.
 
 Un rango relativo, como **Últimas 24 horas**, se fija al crear el snapshot: pasan a ser las 24 horas hasta ese momento.
 
@@ -38,11 +42,15 @@ Un rango relativo, como **Últimas 24 horas**, se fija al crear el snapshot: pas
 4. En **Caduca** elige 1 día, 7 días, 30 días o **Nunca**.
 5. Pulsa **Crear enlace**.
 
-El diálogo te avisa si los logs no caben todos: se guardan como mucho 500 (lo ajusta la cuenta root en **Logs por snapshot**), los primeros en el orden de la tabla. El resumen, en cambio, cuenta todos.
+El diálogo te dice qué se guardará. En Logs y Registros, como mucho 500 logs (lo ajusta la cuenta root en **Logs por snapshot**), los primeros en el orden de la tabla; el resumen, en cambio, cuenta todos. En Errores, los fallos distintos que ves (hasta 100) con un ejemplo de cada uno. En una Traza, sus registros (con el mismo tope); los totales cuentan la operación entera.
+
+Cada espacio puede tener a la vez hasta 100 snapshots vigentes (**Snapshots por espacio**; los caducados no cuentan). Al llegar al tope, el diálogo lo dice: borra alguno que ya no haga falta.
 
 ## Paso 3 — Envía el enlace
 
 Pulsa **Copiar enlace** y pégalo donde quieras, o **Abrir** para ver lo que verá la otra persona.
+
+Al pegarlo en Slack, WhatsApp o Teams, un snapshot **público** muestra una tarjeta con el título, el tipo y las cifras principales. Uno **de equipo** sale como tarjeta genérica, sin título: quien pide la vista previa no tiene sesión, y de un snapshot privado no debe salir nada.
 
 Quien lo abre ve:
 
@@ -70,7 +78,9 @@ Los caducados dejan de abrirse en cuanto vence la fecha y se borran solos en men
 
 | Síntoma | Causa |
 |---|---|
-| La opción **Público** tiene un candado | No eres el dueño del espacio, o los públicos están desactivados en la plataforma |
+| La opción **Público** tiene un candado y no se puede elegir | No eres el dueño del espacio, o los públicos están desactivados en la plataforma. El texto bajo la opción dice cuál de las dos |
+| "El espacio ya tiene … snapshots vigentes" | Se llegó al tope de **Snapshots por espacio**. Borra los que no hagan falta desde **Snapshots** |
 | El enlace dice "no existe o ha caducado" | Lo borraron, caducó, el enlace está incompleto o no eres miembro de su espacio |
 | Faltan logs en la tabla | Se superó el tope de **Logs por snapshot**; el aviso de la página dice cuántos se guardaron |
 | Veo `[REDACTED:…]` | Es un snapshot público: los datos sensibles se enmascaran siempre |
+| El enlace de un público sale en el chat como tarjeta genérica | El servidor del dashboard no llega a la API para la vista previa (ver `API_INTERNAL_URL` en [DEPLOYMENT.md](../DEPLOYMENT.md)), o el chat guardó una vista previa anterior |

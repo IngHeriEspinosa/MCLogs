@@ -84,6 +84,10 @@ Antes de poner MCLog en producción:
   zips, copias de seguridad y capturas de pantalla.
 - Mantén las copias de seguridad diarias activas y comprueba de vez en cuando que se restauran.
 - Ajusta la retención al mínimo que te sirva. Un log que ya no existe no se puede filtrar.
+- Los **snapshots** son copias que la retención no borra. Pide caducidad a los que no la necesiten
+  indefinida, y si no vas a compartir fuera del equipo apaga **Snapshots públicos** en
+  **Plataforma → Configuración**: deja de servir también los ya creados. Los públicos se enmascaran
+  siempre, pero el enmascarado reduce lo que sale, no sustituye a no loguear secretos.
 
 Detalle completo en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) y en la sección de seguridad de
 [docs/TECHNICAL.md](docs/TECHNICAL.md).

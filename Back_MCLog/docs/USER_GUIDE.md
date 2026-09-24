@@ -65,6 +65,9 @@ Pon `RETENTION_DAYS` en el `.env` y el propio servicio purga cada hora, en lotes
 
 Con varias instancias, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 
+> [!NOTE]
+> La retención y el borrado manual **no tocan los snapshots**: son copias guardadas aparte, con su propia caducidad. Un snapshot con caducidad "Nunca" conserva sus logs hasta que alguien lo borre (página **Snapshots**) o se borre su espacio. El planificador borra cada hora los que caducaron.
+
 ### Borrado manual
 
 Para una limpieza puntual (por ejemplo, vaciar una aplicación concreta) sigue existiendo el borrado manual. Requiere una **sesión de usuario admin**: una API key no puede purgar, por muchos permisos que tenga.

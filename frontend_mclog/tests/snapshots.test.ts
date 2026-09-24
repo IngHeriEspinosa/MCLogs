@@ -2,6 +2,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { paginate, sortLogs, toSnapshotFilters } from "@/common/snapshots/view";
 import type { LogEntry } from "@/hooks/useAuth";
+import { es } from "@/common/i18n/dictionaries/es";
+import { createFormatter } from "@/common/i18n/format";
+import { describePreview, describePreviewStats } from "@/common/snapshots/preview";
 
 const log = (id: number, extra: Partial<LogEntry>): LogEntry => ({
   id,
@@ -88,5 +91,33 @@ describe("toSnapshotFilters", () => {
   it("solo Registros manda la busqueda por campo", () => {
     assert.equal(toSnapshotFilters(filters, resolved, true).message, "timeout");
     assert.equal(toSnapshotFilters(filters, resolved, false).message, undefined);
+  });
+});
+
+describe("describePreview", () => {
+  const t = es;
+  const fmt = createFormatter("es");
+  const base = { title: "Caída", redacted: true, createdAt: "2026-09-23T10:00:00.000Z", expiresAt: null };
+
+  it("logs: registros, errores y warnings, cuándo y si va enmascarado", () => {
+    const text = describePreview({ ...base, kind: "logs", stats: { records: 12345, errors: 6, warnings: 7 } }, t, fmt);
+    assert.match(text, /^12\.345 logs · 6 errores · 7 warnings · capturado el .+ · datos sensibles enmascarados$/);
+  });
+
+  it("errores: fallos distintos y ocurrencias", () => {
+    assert.equal(
+      describePreviewStats({ ...base, kind: "errors", stats: { groups: 3, occurrences: 25 } }, t, fmt),
+      "3 fallos distintos · 25 ocurrencias",
+    );
+  });
+
+  it("traza: registros, aplicaciones, duración y errores; sin enmascarar no lo dice", () => {
+    const text = describePreview(
+      { ...base, redacted: false, kind: "trace", stats: { records: 7, applications: 3, durationMs: 1500, errors: 1 } },
+      t,
+      fmt,
+    );
+    assert.match(text, /^7 registros en 3 aplicaciones · .+ · 1 errores · capturado el /);
+    assert.doesNotMatch(text, /enmascarados/);
   });
 });

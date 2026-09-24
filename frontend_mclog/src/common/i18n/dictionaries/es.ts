@@ -743,12 +743,22 @@ export const es = {
       "Correos, IPs, tokens, contraseñas y claves se enmascaran antes de guardarse. Los IDs de log, las trazas y las huellas se conservan.",
     create: "Crear enlace",
     createError: "No pudimos crear el snapshot",
+    limitReached: (max: string) =>
+      `El espacio ya tiene ${max} snapshots vigentes, el máximo. Borra alguno que ya no haga falta desde la página Snapshots.`,
     created: "Snapshot creado",
     createdHint: "Comparte este enlace. Puedes borrar el snapshot cuando quieras desde la página Snapshots.",
     copyLink: "Copiar enlace",
     open: "Abrir",
     done: "Listo",
     defaultTitle: (range: string, application?: string) => `Logs · ${range}${application ? ` · ${application}` : ""}`,
+    defaultTitleErrors: (level: string, range: string, application?: string) =>
+      `${level} · ${range}${application ? ` · ${application}` : ""}`,
+    defaultTitleTrace: (traceId: string) => `Traza · ${traceId}`,
+    rowsErrors: (count: string) => `Se guardarán los ${count} fallos distintos que ves, con un ejemplo de cada uno.`,
+    rowsTrace: (count: string) => `Se guardarán los ${count} registros de la traza.`,
+    rowsTraceCapped: (saved: string, total: string) =>
+      `Se guardarán los primeros ${saved} de los ${total} registros de la traza. Los totales cuentan todos.`,
+    kinds: { logs: "Logs", errors: "Errores", trace: "Traza" },
     loadError: "No pudimos cargar los snapshots",
     list: "Snapshots del espacio",
     empty: "Todavía no hay snapshots",
@@ -803,6 +813,11 @@ export const es = {
       signInAction: "Iniciar sesión",
       loadError: "No pudimos cargar el snapshot",
       openConsole: "Ir a MCLog",
+      viewSample: "Ver ejemplo",
+      viewSampleHint: "El log más reciente de este fallo, tal como estaba al capturarlo",
+      errorsLevel: (level: string) => `Nivel: ${level}`,
+      traceTruncated: (saved: string, total: string) =>
+        `Se guardaron los primeros ${saved} de los ${total} registros de la traza; los totales de arriba cuentan todos.`,
       appsHint: (count: number) =>
         count === 0 ? "ninguna con errores" : count === 1 ? "1 con errores" : `${count} con errores`,
       info: {
@@ -813,6 +828,19 @@ export const es = {
         topApps: "Las aplicaciones que más logs enviaron en el rango.",
       },
     },
+  },
+
+  /** Etiquetas Open Graph de un enlace de snapshot (Slack, WhatsApp, Teams…). */
+  sharePreview: {
+    siteName: "MCLog",
+    genericTitle: "Snapshot de MCLog",
+    genericDescription: "Una vista compartida de MCLog. Si es de tu equipo, inicia sesión para verla.",
+    logs: (records: string, errors: string, warnings: string) => `${records} logs · ${errors} errores · ${warnings} warnings`,
+    errors: (groups: string, occurrences: string) => `${groups} fallos distintos · ${occurrences} ocurrencias`,
+    trace: (records: string, applications: string, duration: string, errors: string) =>
+      `${records} registros en ${applications} aplicaciones · ${duration} · ${errors} errores`,
+    captured: (when: string) => `capturado el ${when}`,
+    redacted: "datos sensibles enmascarados",
   },
 
   users: {
@@ -861,7 +889,7 @@ export const es = {
     loadError: "No pudimos cargar la configuración",
     categories: {
       workspaces: { title: "Espacios e invitaciones", description: "Cuánta gente cabe en un espacio, quién puede crearlos y cómo se invita." },
-      logs: { title: "Logs", description: "Retención, exportación, ingesta por lotes y conexiones en vivo." },
+      logs: { title: "Logs", description: "Retención, exportación, ingesta por lotes, conexiones en vivo y snapshots." },
       features: { title: "Funciones", description: "Enciende o apaga partes de la aplicación para todos." },
       security: { title: "Seguridad", description: "Caducidad de los enlaces que dan acceso a una cuenta." },
     },
@@ -875,6 +903,7 @@ export const es = {
       maxExportRows: { label: "Filas por exportación", description: "Máximo de registros de una descarga CSV o NDJSON.", unit: "filas" },
       maxBatchSize: { label: "Logs por lote", description: "Máximo de registros en un envío por lotes (POST /api/logs/batch).", unit: "logs" },
       maxLiveConnections: { label: "Conexiones en vivo", description: "Pestañas con el modo en vivo abierto a la vez, por instancia del backend.", unit: "conexiones" },
+      maxSnapshotsPerWorkspace: { label: "Snapshots por espacio", description: "Snapshots vigentes a la vez en cada espacio; los caducados no cuentan. 0 = sin límite.", unit: "snapshots" },
       maxSnapshotRows: { label: "Logs por snapshot", description: "Máximo de registros que guarda un snapshot. Cada uno es una copia: pesa en la base de datos.", unit: "logs" },
       mcpEnabled: { label: "Acceso para IA (MCP)", description: "El endpoint /mcp con el que los asistentes de IA consultan los logs." },
       alertsEnabled: { label: "Alertas", description: "Apagado, ninguna regla se evalúa ni envía avisos, en ningún espacio." },

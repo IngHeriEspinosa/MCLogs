@@ -23,6 +23,7 @@ import { requestContext } from "./middlewares/requestContext";
 import authRoutes from "./routes/authRoutes";
 import { enforceHttps } from "./middlewares/enforceHttps";
 import { queryLimiter } from "./middlewares/rateLimiters";
+import { compressJson } from "./middlewares/compressJson";
 
 export const createApp = () => {
   const app = express();
@@ -45,6 +46,7 @@ export const createApp = () => {
   app.use(corsMiddleware);
   app.use(cookieParser());
   app.use(express.json({ limit: config.bodyLimit }));
+  app.use(compressJson);
   app.use(requestContext);
   app.use(requestLogger);
   app.use(enforceHttps);
@@ -100,10 +102,11 @@ export const createApp = () => {
   // Alertas del espacio activo (canales, reglas e historial): solo su dueño.
   app.use("/api/alerts", alertRoutes);
 
-  // Snapshots: se gestionan en el espacio activo y se leen por su enlace, que
-  // va fuera de /api porque puede abrirse sin sesion.
+  // Snapshots: se gestionan en el espacio activo y se leen por su enlace. La
+  // lectura va en /api/share, sin espacio activo (el enlace ya dice cual es) y
+  // bajo /api para que el proxy la mande a la API en cualquier topologia.
   app.use("/api/snapshots", snapshotRouter);
-  app.use("/snapshots", snapshotViewRouter);
+  app.use("/api/share", snapshotViewRouter);
 
   // Auth y rate limiting se aplican por ruta dentro de logRoutes
   // (la ingesta usa API key + límite alto; las consultas usan JWT + límite estándar)

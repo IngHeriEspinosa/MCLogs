@@ -10,7 +10,9 @@ const client = axios.create({
 // Datos de un espacio: logs, claves, alertas... La gestion de espacios lleva
 // el id en la ruta y la configuracion es de toda la plataforma: ninguna de las
 // dos necesita cabecera ni esperar a saber el espacio.
-const WORKSPACE_SCOPED = /^\/(api\/(?!(workspaces|settings)(\/|$))|mcp(\/|$))/;
+// /api/share (los enlaces de los snapshots) tampoco: el enlace ya dice de que
+// espacio es, y quien lo abre puede no tener ninguno.
+const WORKSPACE_SCOPED = /^\/(api\/(?!(workspaces|settings|share)(\/|$))|mcp(\/|$))/;
 
 // Las peticiones de datos esperan a saber el espacio activo y lo mandan en
 // X-Workspace-Id. Asi el panel nunca pide datos de un espacio equivocado.
@@ -33,12 +35,12 @@ const redirectToLogin = () => {
 // refresh no tiene sentido. /auth/me si se reintenta: es lo que decide si el
 // panel manda al login. Un snapshot tampoco: el servidor ya renueva la sesion
 // si puede, y su 401 significa "de equipo y sin sesion".
-const NO_REFRESH = /\/auth\/(login|refresh|logout)(\/|$)|^\/snapshots\//;
+const NO_REFRESH = /\/auth\/(login|refresh|logout)(\/|$)|^\/api\/share\//;
 
 // /auth/me sin sesion no manda al login por su cuenta: la portada lo consulta
 // solo para saber si hay sesion, y el panel ya redirige con ?next= al fallar.
 // Un snapshot de equipo tampoco: su pagina ofrece entrar sin perder el enlace.
-const NO_REDIRECT = /\/auth\/me$|^\/snapshots\//;
+const NO_REDIRECT = /\/auth\/me$|^\/api\/share\//;
 
 // Un unico refresh en vuelo: si varias peticiones caducan a la vez, todas
 // esperan al mismo en lugar de rotar el token cada una por su cuenta.

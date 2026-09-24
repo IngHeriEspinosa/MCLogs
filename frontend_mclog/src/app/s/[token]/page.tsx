@@ -3,17 +3,19 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Alert } from "@/components/atoms/Alert";
-import { ButtonLink } from "@/components/atoms/Button";
+import { Button, ButtonLink } from "@/components/atoms/Button";
 import { EmptyState } from "@/components/atoms/EmptyState";
 import { Icon, Logo } from "@/components/atoms/Icon";
 import { Spinner } from "@/components/atoms/Spinner";
 import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
 import { InfoTip } from "@/components/molecules/InfoTip";
+import { ErrorGroupsTable, ErrorKpis } from "@/components/organisms/ErrorGroups";
 import { LogInspector } from "@/components/organisms/LogInspector";
 import { Density, LogTable, rowKey } from "@/components/organisms/LogTable";
 import { SnapshotOverview } from "@/components/organisms/SnapshotOverview";
 import { LanguageMenu, ThemeMenu } from "@/components/organisms/Topbar";
+import { TraceKpis, TraceTimeline } from "@/components/organisms/TraceTimeline";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { paginate, sortLogs } from "@/common/snapshots/view";
 import type { LogEntry } from "@/hooks/useAuth";
@@ -67,7 +69,7 @@ const FILTER_KEYS = [
 ] as const;
 
 /** Los filtros con los que se capturo, como etiquetas: se lee que se esta viendo. */
-const FilterChips: React.FC<{ filters: SnapshotFilters }> = ({ filters }) => {
+const FilterChips: React.FC<{ filters: SnapshotFilters; withRange: boolean }> = ({ filters, withRange }) => {
   const { t, fmt } = useI18n();
   const labels = t.snapshots.viewer.filterLabels;
   const valueOf = (key: (typeof FILTER_KEYS)[number], value: string) => {
@@ -82,9 +84,11 @@ const FilterChips: React.FC<{ filters: SnapshotFilters }> = ({ filters }) => {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Tag icon="calendar">
-        <span className="text-ink-3">{t.snapshots.viewer.range}:</span> {range}
-      </Tag>
+      {withRange && (
+        <Tag icon="calendar">
+          <span className="text-ink-3">{t.snapshots.viewer.range}:</span> {range}
+        </Tag>
+      )}
       {FILTER_KEYS.filter((key) => filters[key]).map((key) => (
         <Tag key={key} mono={key !== "level" && key !== "environment"} title={String(filters[key])}>
           <span className="font-sans text-ink-3">{labels[key]}:</span> {valueOf(key, String(filters[key]))}
@@ -94,56 +98,41 @@ const FilterChips: React.FC<{ filters: SnapshotFilters }> = ({ filters }) => {
   );
 };
 
-const SnapshotContent: React.FC<{ snapshot: Snapshot }> = ({ snapshot }) => {
+/** El detalle de un log guardado: solo lectura, y con ←/→ si viene de una lista. */
+const useInspector = (rows: LogEntry[]) => {
+  const [selected, setSelected] = useState<LogEntry | null>(null);
+  const index = selected ? rows.findIndex((row) => row.id === selected.id) : -1;
+  const inspector = selected && (
+    <LogInspector
+      log={selected}
+      readOnly
+      onClose={() => setSelected(null)}
+      onSelect={setSelected}
+      onFilterFingerprint={() => undefined}
+      onPrev={index > 0 ? () => setSelected(rows[index - 1]) : undefined}
+      onNext={index >= 0 && index < rows.length - 1 ? () => setSelected(rows[index + 1]) : undefined}
+      position={index >= 0 ? { index: index + 1, total: rows.length } : undefined}
+    />
+  );
+  return { selected, setSelected, inspector };
+};
+
+/** Logs o Registros: el resumen y la tabla, ordenable y paginada en el navegador. */
+const LogsBody: React.FC<{ snapshot: Extract<Snapshot, { kind: "logs" }> }> = ({ snapshot }) => {
   const { t, fmt } = useI18n();
   const [sortField, setSortField] = useState<SortField>(snapshot.filters.sortField ?? "timestamp");
   const [sortDir, setSortDir] = useState<"asc" | "desc">(snapshot.filters.sortDir ?? "desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [density, setDensity] = usePreference<Density>("density", "comfortable");
-  const [selected, setSelected] = useState<LogEntry | null>(null);
-
-  useEffect(() => {
-    document.title = `${snapshot.title} · MCLog`;
-  }, [snapshot.title]);
 
   const sorted = useMemo(() => sortLogs(snapshot.logs, sortField, sortDir), [snapshot.logs, sortField, sortDir]);
   const current = paginate(sorted, page, pageSize);
-  const selectedIndex = selected ? current.rows.findIndex((row) => row.id === selected.id) : -1;
+  const { selected, setSelected, inspector } = useInspector(current.rows);
   const saved = snapshot.logs.length;
 
   return (
-    <div className="flex flex-col gap-4 3xl:gap-5">
-      <div className="flex flex-col gap-3">
-        <p className="eyebrow flex items-center gap-2">
-          <Icon name="camera" className="h-3.5 w-3.5 text-accent-500" />
-          {t.snapshots.viewer.badge}
-        </p>
-        <h1 className="font-heading text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]">{snapshot.title}</h1>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-3">
-          <span>{t.snapshots.viewer.captured(fmt.dateTime(snapshot.createdAt))}</span>
-          {snapshot.expiresAt && <span>· {t.snapshots.viewer.expires(fmt.relative(snapshot.expiresAt))}</span>}
-          {snapshot.workspaceName && (
-            <span className="flex items-center gap-1.5">
-              · <Icon name="layers" className="h-3.5 w-3.5" /> {snapshot.workspaceName}
-            </span>
-          )}
-          <Tag tone={snapshot.visibility === "public" ? "info" : "brand"} icon={snapshot.visibility === "public" ? "globe" : "users"}>
-            {snapshot.visibility === "public" ? t.snapshots.visibilityPublic : t.snapshots.visibilityWorkspace}
-          </Tag>
-          {snapshot.redacted && (
-            <span className="flex items-center gap-1">
-              <Tag tone="warning" icon="shield">
-                {t.snapshots.viewer.redacted}
-              </Tag>
-              <InfoTip label={t.snapshots.viewer.redacted}>{t.snapshots.viewer.redactedHint}</InfoTip>
-            </span>
-          )}
-        </div>
-        <FilterChips filters={snapshot.filters} />
-        <p className="text-xs text-ink-3">{t.snapshots.viewer.frozen}</p>
-      </div>
-
+    <>
       <SnapshotOverview summary={snapshot.summary} to={snapshot.filters.to ?? snapshot.createdAt} />
 
       {snapshot.totalMatched > saved && <Alert variant="info">{t.snapshots.viewer.rowsNote(fmt.number(saved), fmt.number(snapshot.totalMatched))}</Alert>}
@@ -175,18 +164,101 @@ const SnapshotContent: React.FC<{ snapshot: Snapshot }> = ({ snapshot }) => {
           setPage(1);
         }}
       />
+      {inspector}
+    </>
+  );
+};
 
-      {selected && (
-        <LogInspector
-          log={selected}
-          readOnly
-          onClose={() => setSelected(null)}
-          onSelect={setSelected}
-          onFilterFingerprint={() => undefined}
-          onPrev={selectedIndex > 0 ? () => setSelected(current.rows[selectedIndex - 1]) : undefined}
-          onNext={selectedIndex >= 0 && selectedIndex < current.rows.length - 1 ? () => setSelected(current.rows[selectedIndex + 1]) : undefined}
-          position={selectedIndex >= 0 ? { index: selectedIndex + 1, total: current.rows.length } : undefined}
-        />
+/** Errores: las mismas tarjetas y tabla que la pantalla, y el ejemplo guardado de cada fallo. */
+const ErrorsBody: React.FC<{ snapshot: Extract<Snapshot, { kind: "errors" }> }> = ({ snapshot }) => {
+  const { t } = useI18n();
+  const samples = useMemo(() => new Map(snapshot.logs.map((log) => [log.id, log])), [snapshot.logs]);
+  // El orden de los ejemplos sigue al de los grupos, para que ←/→ recorran la tabla.
+  const ordered = useMemo(
+    () => snapshot.summary.groups.map((group) => samples.get(group.lastLogId)).filter((log): log is LogEntry => Boolean(log)),
+    [snapshot.summary.groups, samples],
+  );
+  const { setSelected, inspector } = useInspector(ordered);
+
+  return (
+    <>
+      <ErrorKpis groups={snapshot.summary.groups} level={snapshot.summary.level} />
+      <ErrorGroupsTable
+        groups={snapshot.summary.groups}
+        actions={(group) => {
+          const sample = samples.get(group.lastLogId);
+          return sample ? (
+            <Button size="sm" icon="eye" title={t.snapshots.viewer.viewSampleHint} onClick={() => setSelected(sample)}>
+              {t.snapshots.viewer.viewSample}
+            </Button>
+          ) : null;
+        }}
+      />
+      {inspector}
+    </>
+  );
+};
+
+/** Traza: los totales de la operacion entera y su linea temporal. */
+const TraceBody: React.FC<{ snapshot: Extract<Snapshot, { kind: "trace" }> }> = ({ snapshot }) => {
+  const { t, fmt } = useI18n();
+  const { summary, logs } = snapshot;
+  return (
+    <>
+      <TraceKpis stats={{ records: summary.total, applications: summary.applications, durationMs: summary.durationMs, errors: summary.errors }} />
+      {summary.total > logs.length && (
+        <Alert variant="info">{t.snapshots.viewer.traceTruncated(fmt.number(logs.length), fmt.number(summary.total))}</Alert>
+      )}
+      <TraceTimeline logs={logs} />
+    </>
+  );
+};
+
+const SnapshotContent: React.FC<{ snapshot: Snapshot }> = ({ snapshot }) => {
+  const { t, fmt } = useI18n();
+
+  useEffect(() => {
+    document.title = `${snapshot.title} · MCLog`;
+  }, [snapshot.title]);
+
+  return (
+    <div className="flex flex-col gap-4 3xl:gap-5">
+      <div className="flex flex-col gap-3">
+        <p className="eyebrow flex items-center gap-2">
+          <Icon name="camera" className="h-3.5 w-3.5 text-accent-500" />
+          {t.snapshots.viewer.badge} · {t.snapshots.kinds[snapshot.kind]}
+        </p>
+        <h1 className="font-heading text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]">{snapshot.title}</h1>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-3">
+          <span>{t.snapshots.viewer.captured(fmt.dateTime(snapshot.createdAt))}</span>
+          {snapshot.expiresAt && <span>· {t.snapshots.viewer.expires(fmt.relative(snapshot.expiresAt))}</span>}
+          {snapshot.workspaceName && (
+            <span className="flex items-center gap-1.5">
+              · <Icon name="layers" className="h-3.5 w-3.5" /> {snapshot.workspaceName}
+            </span>
+          )}
+          <Tag tone={snapshot.visibility === "public" ? "info" : "brand"} icon={snapshot.visibility === "public" ? "globe" : "users"}>
+            {snapshot.visibility === "public" ? t.snapshots.visibilityPublic : t.snapshots.visibilityWorkspace}
+          </Tag>
+          {snapshot.redacted && (
+            <span className="flex items-center gap-1">
+              <Tag tone="warning" icon="shield">
+                {t.snapshots.viewer.redacted}
+              </Tag>
+              <InfoTip label={t.snapshots.viewer.redacted}>{t.snapshots.viewer.redactedHint}</InfoTip>
+            </span>
+          )}
+        </div>
+        <FilterChips filters={snapshot.filters} withRange={snapshot.kind !== "trace"} />
+        <p className="text-xs text-ink-3">{t.snapshots.viewer.frozen}</p>
+      </div>
+
+      {snapshot.kind === "errors" ? (
+        <ErrorsBody snapshot={snapshot} />
+      ) : snapshot.kind === "trace" ? (
+        <TraceBody snapshot={snapshot} />
+      ) : (
+        <LogsBody snapshot={snapshot} />
       )}
     </div>
   );

@@ -191,14 +191,18 @@ model Snapshot {
   /// Identificador del enlace: 32 bytes aleatorios en base64url, imposible de adivinar.
   token        String             @unique @db.VarChar(64)
   title        String             @db.VarChar(160)
+  /// Que vista se capturo: define la forma de `summary` y `logs`.
+  kind         SnapshotKind       @default(logs)
   visibility   SnapshotVisibility @default(workspace)
   /// Si los datos se enmascararon al crearlo. Los publicos lo estan siempre.
   redacted     Boolean            @default(false)
   /// Filtros con los que se capturo, con el rango ya resuelto a fechas absolutas.
   filters      Json
-  /// Resumen: metricas, serie por hora, repartos y fallos principales.
+  /// logs: metricas, serie por hora, repartos y fallos principales.
+  /// errors: los grupos de fallo. trace: totales de la operacion.
   summary      Json
-  /// Los logs capturados, hasta el tope de la configuracion (`maxSnapshotRows`).
+  /// logs: los que cumplen los filtros. errors: un ejemplo por grupo.
+  /// trace: los de la traza. Siempre hasta `maxSnapshotRows`.
   logs         Json
   /// Cuantos logs cumplian los filtros, aunque se guardaran menos.
   totalMatched Int
@@ -212,6 +216,13 @@ model Snapshot {
 
   @@index([workspaceId, createdAt])
   @@index([expiresAt])
+}
+
+/// La pantalla de la que sale el snapshot.
+enum SnapshotKind {
+  logs
+  errors
+  trace
 }
 
 /// workspace: solo los miembros del espacio; public: cualquiera con el enlace.

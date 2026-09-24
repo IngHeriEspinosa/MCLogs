@@ -45,8 +45,14 @@ const secondFactorMessage = (error: unknown, t: Dictionary): string => {
 /** Destino tras entrar. Solo se acepta una ruta interna: un destino absoluto seria una redireccion abierta. */
 const destination = () => {
   // El guard del panel manda aqui con ?next= para devolver a la pagina que se pidio.
-  const next = new URLSearchParams(window.location.search).get("next");
-  return next?.startsWith("/") && !next.startsWith("//") ? next : "/logs";
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next");
+  if (next?.startsWith("/") && !next.startsWith("//")) return next;
+  // Antes "/" era la vista de logs: sus enlaces con filtros (?level=error,
+  // ?fingerprint=…) siguen llevando a Logs con esos filtros.
+  params.delete("next");
+  const legacy = params.toString();
+  return legacy ? `/logs?${legacy}` : "/logs";
 };
 
 const redirectAfterLogin = () => {

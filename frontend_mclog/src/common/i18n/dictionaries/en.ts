@@ -730,12 +730,22 @@ export const en: Dictionary = {
       "Emails, IPs, tokens, passwords and keys are masked before saving. Log IDs, traces and fingerprints are kept.",
     create: "Create link",
     createError: "We couldn't create the snapshot",
+    limitReached: (max: string) =>
+      `This workspace already has ${max} active snapshots, the maximum. Delete one you no longer need from the Snapshots page.`,
     created: "Snapshot created",
     createdHint: "Share this link. You can delete the snapshot anytime from the Snapshots page.",
     copyLink: "Copy link",
     open: "Open",
     done: "Done",
     defaultTitle: (range: string, application?: string) => `Logs · ${range}${application ? ` · ${application}` : ""}`,
+    defaultTitleErrors: (level: string, range: string, application?: string) =>
+      `${level} · ${range}${application ? ` · ${application}` : ""}`,
+    defaultTitleTrace: (traceId: string) => `Trace · ${traceId}`,
+    rowsErrors: (count: string) => `The ${count} distinct failures you see will be saved, with one sample of each.`,
+    rowsTrace: (count: string) => `The ${count} records of the trace will be saved.`,
+    rowsTraceCapped: (saved: string, total: string) =>
+      `The first ${saved} of the ${total} trace records will be saved. The totals count them all.`,
+    kinds: { logs: "Logs", errors: "Errors", trace: "Trace" },
     loadError: "We couldn't load the snapshots",
     list: "Workspace snapshots",
     empty: "No snapshots yet",
@@ -790,6 +800,11 @@ export const en: Dictionary = {
       signInAction: "Sign in",
       loadError: "We couldn't load the snapshot",
       openConsole: "Go to MCLog",
+      viewSample: "View sample",
+      viewSampleHint: "The most recent log of this failure, as it was when captured",
+      errorsLevel: (level: string) => `Level: ${level}`,
+      traceTruncated: (saved: string, total: string) =>
+        `The first ${saved} of the ${total} trace records were saved; the totals above count them all.`,
       appsHint: (count: number) => (count === 0 ? "none with errors" : count === 1 ? "1 with errors" : `${count} with errors`),
       info: {
         apps: "Applications that sent logs in the range. Below, how many logged an error in that same range.",
@@ -799,6 +814,19 @@ export const en: Dictionary = {
         topApps: "The applications that sent the most logs in the range.",
       },
     },
+  },
+
+  /** Open Graph tags of a snapshot link (Slack, WhatsApp, Teams…). */
+  sharePreview: {
+    siteName: "MCLog",
+    genericTitle: "MCLog snapshot",
+    genericDescription: "A view shared from MCLog. If it belongs to your team, sign in to see it.",
+    logs: (records: string, errors: string, warnings: string) => `${records} logs · ${errors} errors · ${warnings} warnings`,
+    errors: (groups: string, occurrences: string) => `${groups} distinct failures · ${occurrences} occurrences`,
+    trace: (records: string, applications: string, duration: string, errors: string) =>
+      `${records} records across ${applications} applications · ${duration} · ${errors} errors`,
+    captured: (when: string) => `captured on ${when}`,
+    redacted: "sensitive data masked",
   },
 
   users: {
@@ -847,7 +875,7 @@ export const en: Dictionary = {
     loadError: "We couldn't load the configuration",
     categories: {
       workspaces: { title: "Workspaces and invitations", description: "How many people fit in a workspace, who can create them and how people are invited." },
-      logs: { title: "Logs", description: "Retention, exports, batch ingestion and live connections." },
+      logs: { title: "Logs", description: "Retention, exports, batch ingestion, live connections and snapshots." },
       features: { title: "Features", description: "Turn parts of the application on or off for everyone." },
       security: { title: "Security", description: "How long the links that grant access to an account last." },
     },
@@ -861,6 +889,7 @@ export const en: Dictionary = {
       maxExportRows: { label: "Rows per export", description: "Maximum records in a CSV or NDJSON download.", unit: "rows" },
       maxBatchSize: { label: "Logs per batch", description: "Maximum records in a batch submission (POST /api/logs/batch).", unit: "logs" },
       maxLiveConnections: { label: "Live connections", description: "Tabs with live mode open at the same time, per backend instance.", unit: "connections" },
+      maxSnapshotsPerWorkspace: { label: "Snapshots per workspace", description: "Active snapshots at a time in each workspace; expired ones don't count. 0 = unlimited.", unit: "snapshots" },
       maxSnapshotRows: { label: "Logs per snapshot", description: "Maximum records a snapshot keeps. Each one is a copy: it takes space in the database.", unit: "logs" },
       mcpEnabled: { label: "AI access (MCP)", description: "The /mcp endpoint AI assistants use to query logs." },
       alertsEnabled: { label: "Alerts", description: "When off, no rule is evaluated and no notification is sent, in any workspace." },

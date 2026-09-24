@@ -94,7 +94,10 @@ export default function SnapshotsPage() {
                             {snapshot.title}
                           </Link>
                           <p className="text-xs text-ink-3">
-                            {t.snapshots.rows(fmt.number(snapshot.totalMatched))}
+                            {t.snapshots.kinds[snapshot.kind]} ·{" "}
+                            {snapshot.kind === "errors"
+                              ? t.errors.occurrencesCount(fmt.number(snapshot.totalMatched))
+                              : t.snapshots.rows(fmt.number(snapshot.totalMatched))}
                             {snapshot.redacted && ` · ${t.snapshots.viewer.redacted}`}
                           </p>
                         </td>

@@ -73,6 +73,9 @@ Formato de exportación tabular, separado por comas. Se abre directo en Excel. *
 ### Debounce
 Espera de 350 ms antes de lanzar la búsqueda mientras escribes en el dashboard. Sin ella se dispararía una consulta por cada tecla pulsada.
 
+### Enmascarado
+Sustitución de datos sensibles por marcas como `[REDACTED:email]` antes de que salgan de MCLog: correos, IPs, JWT, cabeceras `Bearer`, pares `password=…`, claves con nombre de secreto y cadenas largas tipo clave. Se aplica en los briefs para IA, opcionalmente en los reportes y **siempre** en los [snapshots](#snapshot) públicos (estos, en el servidor). Los identificadores que sirven para seguir investigando (huella, traceId, id del log) se conservan. Reduce lo que sale; no sustituye a no loguear secretos.
+
 ### Entorno (`environment`)
 Contexto de ejecución del que procede el log: `development`, `staging` o `production`. Es un [enum](#enum) cerrado. Permite separar el ruido de desarrollo de los incidentes reales.
 
@@ -221,6 +224,9 @@ Práctica de invalidar el [refresh token](#refresh-token) anterior cada vez que 
 
 ### Servicio (`service`)
 Subcomponente dentro de una [aplicación](#aplicación-application): un worker, un script concreto, un módulo. Si no se envía, el servidor copia el valor de `application`. Máximo 120 caracteres.
+
+### Snapshot
+Copia congelada de Logs, Registros, Errores o una Traza con un enlace propio `/s/<token>`: el resumen y hasta 500 logs, los fallos agrupados con un ejemplo de cada uno, o la operación completa. Puede ser **de equipo** (solo miembros del espacio, con sesión) o **pública** (cualquiera con el enlace, con los datos sensibles [enmascarados](#enmascarado)). No cambia con los logs nuevos ni lo borra la [retención](#retención): tiene su propia caducidad. → [Compartir un snapshot](guias/compartir-snapshots.md)
 
 ### SpanId
 Identificador de una **operación concreta** dentro de una traza. Se usa junto al [traceId](#traceid): el trace es el viaje completo, el span es un tramo. Máximo 128 caracteres.

@@ -130,7 +130,7 @@ Si por algún motivo los dominios no comparten dominio raíz, cambia a `COOKIE_S
 
 ## Paso 6 — Entra y protege la cuenta root
 
-1. Abre `https://mclog.tu-dominio.com`. Verás la portada; pulsa **Iniciar sesión**.
+1. Abre `https://mclog.tu-dominio.com`. Verás la pantalla de acceso.
 2. Entra con `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 3. **Mi cuenta → Cambiar contraseña**, y después **Verificación en dos pasos**. Guía: [Proteger tu cuenta](seguridad-cuenta.md).
 4. Comprueba la cadena completa con **Espacio → Lab → Tráfico normal → Ejecutar**, mira que los logs aparecen en **Logs**, y luego **Borrar datos del lab**.
@@ -149,7 +149,7 @@ Llévalas fuera del servidor (S3, Spaces, otro host) y prueba a restaurar una de
 ## Comprueba que funcionó
 
 - [ ] `https://api-mclog.tu-dominio.com/health` → `status: ok`.
-- [ ] `https://mclog.tu-dominio.com` carga la portada con certificado válido.
+- [ ] `https://mclog.tu-dominio.com` carga la pantalla de acceso con certificado válido.
 - [ ] Puedes entrar, navegar entre pantallas y recargar sin que la sesión se caiga.
 - [ ] El escenario **Tráfico normal** del Lab aparece en **Logs**.
 - [ ] Hay una copia de la base programada fuera de CapRover.

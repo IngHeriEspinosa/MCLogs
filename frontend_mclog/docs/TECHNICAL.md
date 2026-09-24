@@ -14,9 +14,13 @@ src/
     layout.tsx                 Server component: fuentes, script de tema, idioma desde cookie
     providers.tsx              QueryClient + ThemeProvider + I18nProvider + ToastProvider
     icon.svg                   Favicon (el mismo isotipo que el sitio público)
-    page.tsx                   Portada pública; con sesión abierta redirige a /logs
-    logs/page.tsx              Logs: filtros, resumen, tabla, inspector y modo en vivo
-    records/page.tsx           Registros: solo tabla, búsqueda avanzada por campo e inspector a pantalla completa
+    page.tsx                   Acceso (SignIn); con sesión abierta redirige a /logs o a ?next=
+    logs/page.tsx              Logs: filtros, resumen, tabla, inspector (diálogo), modo en vivo y Compartir
+    records/page.tsx           Registros: solo tabla, búsqueda avanzada por campo, inspector y Compartir
+    snapshots/page.tsx         Snapshots del espacio: enlace, visibilidad, caducidad, vistas y borrado
+    s/[token]/page.tsx         Visor de un snapshot (Logs, Errores o Traza), fuera del panel: sin sesión si es público
+    s/[token]/layout.tsx       Etiquetas Open Graph de la vista previa del enlace (servidor)
+    s/[token]/opengraph-image  Imagen de la vista previa (next/og, runtime edge)
     errors/page.tsx            Errores agrupados por huella
     reports/page.tsx           Generador de reportes (Markdown, brief para IA, JSON)
     trace/[traceId]/page.tsx   Una operación completa, con línea temporal en cascada
@@ -25,13 +29,16 @@ src/
     settings/users/page.tsx    Usuarios y roles (admin)
     settings/alerts/page.tsx   Canales, reglas e historial de avisos (admin)
     settings/password/page.tsx Mi cuenta: sesión, preferencias, contraseña, 2FA y zona de peligro
-    (auth)/login/page.tsx      Login en uno o dos pasos (contraseña + código TOTP)
+    (auth)/login/page.tsx      Alias de "/" para enlaces antiguos: monta el mismo SignIn
   common/
     api/                       client (axios + refresh), download, errorMessage, logout
     i18n/                      config, format (Intl), I18nProvider, dictionaries/{es,en}
     theme/                     config (cookie + script anti-destello), ThemeProvider
     time/                      range (rangos relativos/absolutos ↔ URL), timeline (serie horaria)
     reports/                   collect, build, markdown, redact
+    snapshots/view.ts          Orden y paginación del visor, y filtros de la vista → cuerpo del POST
+    snapshots/preview.ts       Vista previa del enlace: petición al backend (servidor) y textos
+    errors/summary.ts          Totales de los errores agrupados (ocurrencias, app más afectada, concentración)
     lab/                       scenarios (los 7 escenarios y el prefijo lab-), run (envío y purga)
     clipboard.ts               Copiar con respaldo para contextos sin HTTPS
   hooks/
@@ -43,6 +50,8 @@ src/
     useFloating.ts             Posicionamiento de paneles flotantes y cierre al pulsar fuera
     useElementSize.ts          Tamaño real de un elemento (gráficos)
     usePreference.ts           Preferencias en localStorage y media queries
+    useSnapshots.ts            Crear, listar, borrar y abrir snapshots (401 = pedir sesión, 404/400 = no existe)
+    useSettings.ts             Configuración de la plataforma y banderas públicas (Lab, MCP, snapshots…)
     useApiKeys / useUsers / useAlerts / useLogStream / useDebounce
   components/
     atoms/                     Button, Input, Field, Checkbox, Switch, Segmented, Icon,
@@ -50,9 +59,10 @@ src/
     molecules/                 Card, Select, Menu, Dialog, Toast, Calendar, DateRangePicker,
                                DatePicker, StatTile, Sparkline, ActivityChart, Distribution,
                                CodeBlock, MarkdownView, CopyButton, ConfirmButton, Portal, InfoTip
-    organisms/                 Sidebar, Topbar, LogFilterBar, LogOverview, LogTable, LogInspector,
-                               AdvancedLogSearch, LabScenarioCard, LabComposer,
-                               TwoFactorCard, DeleteAccountCard
+    organisms/                 Sidebar, Topbar, SignIn, LogFilterBar, LogOverview, LogTable, LogInspector,
+                               AdvancedLogSearch, ShareSnapshotDialog, SnapshotOverview,
+                               ErrorGroups (tarjetas y tabla de Errores), TraceTimeline (métricas y cascada de una traza),
+                               LabScenarioCard, LabComposer, TwoFactorCard, DeleteAccountCard
     templates/                 DashboardLayout, AuthLayout
   config/api.ts                API_BASE desde NEXT_PUBLIC_API_URL
 ```
@@ -68,7 +78,7 @@ src/
 
 - Breakpoints extra: `3xl` 1920 px, `4xl` 2560 px, `5xl` 3200 px.
 - **El tamaño raíz crece** (16 → 17 → 19 px). Como Tailwind trabaja en `rem`, toda la interfaz escala en proporción y un 4K sin escalado del sistema sigue siendo legible. El gráfico de actividad lee el tamaño raíz en un efecto de layout (no al renderizar, para no romper la hidratación) y escala alto, ejes y etiquetas con él.
-- Las vistas de datos usan todo el ancho hasta 3840 px: el resumen pasa a una sola fila, la tabla gana columnas (host a partir de `2xl`, traza a partir de `4xl`) y **el detalle del log se abre como columna fija junto a la tabla desde 1920 px**, en lugar de como cajón superpuesto. Los formularios se quedan en una columna legible (`width="narrow"`).
+- Las vistas de datos usan todo el ancho hasta 3840 px: el resumen pasa a una sola fila, la tabla gana columnas (host a partir de `2xl`, traza a partir de `4xl`) y el detalle del log, un diálogo al 90 % de la pantalla, aprovecha el espacio a dos columnas. Los formularios se quedan en una columna legible (`width="narrow"`).
 
 ## Idiomas (es / en)
 
@@ -85,8 +95,9 @@ src/
 ## Datos y estado
 
 - **Sesión**: tokens en cookies httpOnly del backend. Hay dos guardas, y la fuente de verdad es siempre el backend:
-  - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/login` si falla. Hay **un único refresh en vuelo**: si varias peticiones caducan a la vez, todas esperan al mismo en lugar de rotar el token cada una por su cuenta. Los 401 de `/auth/login`, `/auth/refresh` y `/auth/logout` no se reintentan; `/auth/me` sí, porque es lo que decide si el panel manda al login. Si el refresh de `/auth/me` falla, el interceptor **no** redirige: la portada (`/`) lo consulta solo para saber si hay sesión y debe seguir visible para quien no la tiene; el panel ya redirige desde `DashboardLayout`.
-  - `DashboardLayout` pide `/auth/me` y, si falla, manda a `/login?next=<ruta>`. Tras entrar, el login vuelve a esa ruta (solo rutas internas: empieza por `/` y no por `//`); si no hay `next`, va a `/logs`. Se conserva la ruta, no los parámetros de la URL.
+  - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/` (el acceso) si falla. Hay **un único refresh en vuelo**: si varias peticiones caducan a la vez, todas esperan al mismo en lugar de rotar el token cada una por su cuenta. Los 401 de `/auth/login`, `/auth/refresh` y `/auth/logout` no se reintentan; `/auth/me` sí, porque es lo que decide si el panel manda al login. Si el refresh de `/auth/me` falla, el interceptor **no** redirige: la pantalla de acceso (`/`) lo consulta solo para saber si hay sesión; el panel ya redirige desde `DashboardLayout`. `GET /api/share/:token` tampoco se reintenta ni redirige: su 401 significa "snapshot de equipo sin sesión" y el visor ofrece entrar sin perder el enlace.
+  - `DashboardLayout` pide `/auth/me` y, si falla, manda a `/?next=<ruta>`. Tras entrar, el acceso vuelve a esa ruta (solo rutas internas: empieza por `/` y no por `//`); si no hay `next`, va a `/logs`. Se conserva la ruta con su query.
+  - **`/` es el acceso.** `SignIn` pide `/auth/me`: mientras responde muestra un spinner (para no enseñar el formulario un instante a quien ya ha entrado), con sesión redirige a `next` o a `/logs`, y sin ella pinta el login. `/login` monta el mismo componente para no romper enlaces antiguos. Cerrar sesión, borrar la cuenta o cambiar la contraseña vuelven a `/`.
 - **Autorización visual, nunca como control**: el menú oculta la administración a quien no es admin, pero cada página comprueba el rol y el backend lo exige igualmente.
 - **Filtros en la URL** (`useLogFilters`):
   - Rango (`range=24h` o `from`/`to` en ISO), nivel, entorno, aplicación, búsqueda, huella, orden y página.
@@ -107,12 +118,10 @@ src/
   - `Esc` se captura y se cancela, para cerrar solo la ayuda y no el diálogo o el detalle del log que la contiene.
   - El texto va también oculto junto al botón como `aria-describedby`: el lector de pantalla lo lee al llegar al icono, sin abrir el panel.
   - Solo el ratón dispara el hover (`pointerType === "mouse"`): en táctil el hover llega con el toque y lo abriría y cerraría a la vez.
-- **Inspector del log**, en tres modos:
-  - `drawer` (cajón superpuesto): atrapa el foco y lo devuelve al cerrar.
-  - `panel` (columna fija junto a la tabla desde 1920 px).
-  - `dialog` (Registros): modal al 90 % de la pantalla, con el detalle a dos columnas (mensaje, acciones, stack y metadata a la izquierda; propiedades y contexto a la derecha). Lleva botones anterior/siguiente, la posición "N de M en esta página", y responde a `←`/`→`. Un clic en el fondo lo cierra. Abrir desde el contexto un log que no está en la página lo muestra sin navegación.
-
-  `Esc` cierra el inspector en todos los modos. Con el inspector abierto, las flechas recorren la tabla y van cambiando el detalle.
+- **Inspector del log**: el mismo diálogo en Logs, Registros y el visor de snapshots. `<dialog>` modal al 90 % de la pantalla, con el detalle a dos columnas (mensaje, acciones, stack y metadata a la izquierda; propiedades y contexto a la derecha). Lleva botones anterior/siguiente, la posición "N de M en esta página", y responde a `←`/`→`. Un clic en el fondo o `Esc` lo cierran, y el foco vuelve a la fila. Abrir desde el contexto un log que no está en la página lo muestra sin navegación.
+  - `readOnly` (snapshots): sin contexto (no se pide `/api/logs/:id/context`), sin "Ver traza" y sin "Similares", que llevarían a datos en vivo a los que quien mira puede no tener acceso. Copiar JSON y Copiar para IA se mantienen.
+- **Ayuda en las métricas**: el icono de cada `StatTile` es el disparador de un `InfoTip` (prop `trigger`) con qué mide la cifra y cómo se calcula; las tarjetas de gráfico (`Card`, prop `info`) llevan el icono ⓘ junto al título. Los textos están en `fieldInfo.metrics` (y `snapshots.viewer.info` para el visor, donde todo va acotado al rango y nada es interactivo).
+- **`Segmented`** admite opciones `disabled`: se ven, no se eligen y las flechas las saltan (la opción **Público** del diálogo de compartir, cuando no se puede).
 - **Búsqueda avanzada** (`AdvancedLogSearch`): seis campos con debounce de 350 ms. Los valores se recortan antes de pasar a la URL, así que una búsqueda se puede compartir con el enlace. La tarjeta se pliega, y el estado queda en la preferencia `records-advanced`. **Limpiar filtros** no toca estos campos: tienen su propio botón.
 
 ## Gráficos
@@ -121,7 +130,7 @@ Todos en SVG propio, con la paleta de niveles **validada para cada superficie** 
 
 - **Actividad**: columnas apiladas de 24 px como máximo, extremo superior redondeado y base recta, 2 px de hueco entre segmentos, rejilla fina y sólida. Los errores van abajo, pegados a la línea base. Solo se rotula el pico. El número de columnas depende del ancho real (en 4K se ve más detalle) y las horas se agrupan en intervalos "redondos" (1, 2, 3, 4, 6, 8, 12, 24 h…). **Arrastrar acota el rango** y un clic aísla una columna; el tooltip muestra todos los niveles del intervalo. Hay vista de tabla para quien no puede o no quiere leer el gráfico.
 - Las **horas vacías se rellenan** alineadas en UTC, igual que el `DATE_TRUNC('hour')` del backend.
-- **Tarjetas de métrica**: filo superior de 2 px con el color de la serie y sparkline; el número y la etiqueta van en tinta y el número nunca se recorta.
+- **Tarjetas de métrica**: filo superior de 2 px con el color de la serie y sparkline; el número y la etiqueta van en tinta y el número nunca se recorta. El icono abre la explicación de la métrica.
 
 ## Reportes
 
@@ -144,6 +153,22 @@ Todo se construye en el navegador (`common/reports`): nada sale de él hasta que
 
 `npm test` usa el runner nativo de Node 24, que ya ejecuta TypeScript quitando los tipos: no hay dependencias nuevas. `tests/alias-loader.mjs` resuelve los alias `@/` y los imports sin extensión. Por eso, en los módulos que cargan los tests, los imports de solo tipos llevan `type` (`import { es, type Dictionary }`): Node no puede saber que un nombre es un tipo y fallaría al buscarlo.
 
+## Snapshots
+
+Copias congeladas de Logs, Registros, Errores o una Traza con un enlace propio. El backend captura y guarda los datos; el frontend solo pide, muestra y enlaza.
+
+- **Origen**: `ShareSnapshotDialog` recibe un `source` (`logs` con sus filtros, `errors` con rango, nivel, aplicación y entorno, o `trace` con su `traceId`) y lo convierte en `kind` y `filters`. Errores y Traza usan los mismos organismos que el visor (`ErrorGroups`, `TraceTimeline`), así que la copia se ve igual que la pantalla.
+- **Crear** (`ShareSnapshotDialog`): título (propuesto con el rango y la aplicación, o el `traceId`), visibilidad (**Equipo** / **Público**) y caducidad (1, 7, 30 días o nunca). `toSnapshotFilters` convierte los filtros de la vista al cuerpo del `POST /api/snapshots`: rango resuelto a fechas con `Date.now()` al pulsar (así "últimas 24 h" son las 24 h hasta ese momento), sin vacíos ni paginación, y la búsqueda por campo solo desde Registros, que es la única vista que la aplica. El diálogo avisa si los logs superan `maxSnapshotRows` y traduce los rechazos previsibles (`403` público no permitido, `409` tope del espacio) en vez de enseñar el mensaje en inglés del backend.
+- **Público**: se desactiva en el diálogo si no eres dueño del espacio o si `publicSnapshotsEnabled` está apagado (banderas de `/api/settings/public`). El backend lo exige igualmente.
+- **Ver** (`/s/[token]`): página fuera de `DashboardLayout`, con su propia cabecera (idioma y tema). `usePublicSnapshot` distingue tres estados: `ok`, `signIn` (401: snapshot de equipo sin sesión; ofrece `/?next=/s/<token>`) y `notFound` (404, o 400 si el enlace llegó cortado). `layout.tsx` fija `referrer: no-referrer` y `robots: noindex`.
+  - `SnapshotOverview` reproduce la disposición del resumen de Logs con los datos guardados, sin interacción.
+  - La tabla es `LogTable` con orden y paginación locales (`sortLogs`, `paginate`): los logs ya vienen todos con el snapshot. El orden de niveles es el del enum de PostgreSQL y el id desempata, como en el servidor.
+  - El detalle es `LogInspector` en modo `readOnly`.
+  - Errores: `ErrorKpis` y `ErrorGroupsTable` con los grupos guardados; **Ver ejemplo** abre el log de ejemplo de cada fallo (←/→ siguen el orden de la tabla).
+  - Traza: `TraceKpis` con los totales guardados (de la operación entera, aunque no se guardaran todos los logs) y `TraceTimeline`.
+- **Vista previa** (Slack, WhatsApp, Teams): el robot no ejecuta JavaScript, así que `s/[token]/layout.tsx` (`generateMetadata`, en el servidor) pide `GET /api/share/:token/preview` y rellena título, descripción y etiquetas Open Graph/Twitter; `opengraph-image.tsx` dibuja una imagen de 1200×630 con `next/og` (runtime **edge**: en Node, `next/og` resuelve mal la ruta de su fuente en Windows). La llamada usa `API_INTERNAL_URL` o, si falta, `NEXT_PUBLIC_API_URL`, con 3 s de tope. De un snapshot de equipo o desconocido sale una tarjeta genérica.
+- **Gestionar** (`/snapshots`, en Observabilidad para cualquier miembro): lista con visibilidad, autor, creación, caducidad y vistas; copiar enlace y borrar (autor o dueño).
+
 ## Stream en vivo
 
 `useLogStream` abre un `EventSource` contra `GET /api/logs/stream`.
@@ -156,7 +181,7 @@ Todo se construye en el navegador (`common/reports`): nada sale de él hasta que
 
 ## Login en dos pasos
 
-`(auth)/login/page.tsx` es una pequeña máquina de estados:
+`SignIn` (`components/organisms/SignIn.tsx`, montado en `/` y en `/login`) es una pequeña máquina de estados:
 
 1. **Contraseña**: `useLogin` llama a `POST /auth/login`. Si la respuesta trae `mfaRequired`, se guarda el `mfaToken` en memoria (nunca en storage) y se pasa al paso 2; si no, la sesión ya está abierta.
 2. **Código**: `useLoginSecondFactor` envía `{ mfaToken, code }` a `POST /auth/login/2fa`. El campo acepta el código de 6 dígitos o un código de recuperación. **Volver** descarta el token y limpia la contraseña.
@@ -181,7 +206,7 @@ Mapeo de errores:
 - **`DeleteAccountCard`**:
   - Para la cuenta root muestra un aviso en lugar del botón.
   - El diálogo exige contraseña, el código (solo si el 2FA está activo) y escribir la palabra de confirmación del diccionario (`ELIMINAR` / `DELETE`).
-  - Al terminar, `useDeleteAccount` limpia la caché y redirige a `/login`.
+  - Al terminar, `useDeleteAccount` limpia la caché y redirige a `/`.
 - `CurrentUser` (de `/auth/me`) incluye `isRoot` y `twoFactorEnabled`. Usuarios (admin) los muestra como etiquetas **Root** y **2FA**, y deshabilita el cambio de rol y el borrado del root.
 
 ## Lab
@@ -222,7 +247,10 @@ Escenarios que envían **logs reales** a la API con la sesión del admin: la ing
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3000
+# API_INTERNAL_URL=http://api:3000
 ```
+
+`API_INTERNAL_URL` solo la usa el servidor de Next (vista previa de los enlaces de snapshots) y se lee al arrancar. Hace falta cuando `NEXT_PUBLIC_API_URL` va vacía (detrás de Caddy); en Compose ya está puesta.
 
 Es una variable **de compilación**: Next la incrusta en el bundle, así que cambiarla exige reconstruir la imagen.
 

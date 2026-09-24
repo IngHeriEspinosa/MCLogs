@@ -24,6 +24,7 @@ Desglose completo en [docs/FEATURES.md](docs/FEATURES.md). En resumen:
 - **Traza y contexto**: una operación completa por `traceId` y lo ocurrido alrededor de cualquier log.
 - **Estadísticas** en vivo, con serie por hora y nivel para ver cuándo empezó un incidente.
 - **Exportación** CSV y NDJSON respetando los filtros activos.
+- **Snapshots compartibles**: una copia congelada de Logs, Registros, Errores o una Traza con su enlace, para el equipo o pública (sin cuenta y con los datos sensibles enmascarados), con caducidad y recuento de visitas. Al pegar el enlace en Slack, WhatsApp o Teams sale una vista previa con el título y las cifras.
 - **API keys con permisos** (`ingest` / `read` / `metrics`), acotables por aplicación, caducables y revocables.
 - **Usuarios y roles** administrables desde el dashboard, con cuenta root protegida, cambio de contraseña y cierre de sesiones.
 - **Verificación en dos pasos** (TOTP con códigos de recuperación) y borrado de la propia cuenta.
@@ -56,7 +57,7 @@ npm install
 npm run dev
 ```
 
-Abre **http://localhost:3001**, pulsa **Iniciar sesión** y entra con el usuario admin definido en `Back_MCLog/.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`, por defecto `admin@example.com` / `ChangeMe123!`). Es la cuenta root: no se puede borrar ni degradar.
+Abre **http://localhost:3001**: la primera pantalla es el acceso. Entra con el usuario admin definido en `Back_MCLog/.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`, por defecto `admin@example.com` / `ChangeMe123!`). Es la cuenta root: no se puede borrar ni degradar.
 
 > **Paso a paso:** la guía [Primeros pasos](docs/guias/primeros-pasos.md) recorre esta instalación con comprobaciones en cada paso, hasta ver tu primer log en el dashboard.
 
@@ -118,12 +119,12 @@ La ingesta se autentica con el header **`x-api-key`** y una clave con permiso `i
 ## Tests
 
 ```bash
-# Backend — 175 tests en 14 suites (auth, 2FA, claves, usuarios, ingesta, huellas, errores, MCP, alertas, tiempo real)
+# Backend — 238 tests en 19 suites (auth, 2FA, claves, usuarios, espacios, configuración, snapshots, compresión, ingesta, huellas, errores, MCP, alertas, tiempo real)
 cd Back_MCLog
 docker compose up -d db       # requiere la DB en localhost:5435
 npm test
 
-# Dashboard — 33 tests (reportes, enmascarado, Markdown y preferencias; runner nativo de Node 24)
+# Dashboard — 46 tests (reportes, enmascarado, Markdown, preferencias, errores agrupados y snapshots; runner nativo de Node 24)
 cd frontend_mclog
 npm test
 

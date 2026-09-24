@@ -108,7 +108,7 @@ En el mensaje, la aplicación, el servicio y el host (coincidencia parcial, sin 
 Usa **Registros → Búsqueda avanzada**. Tiene seis campos independientes (**Mensaje contiene**, **Servicio**, **Host**, **Trace ID exacto**, **Nombre del error** y **Código de error**) que se combinan entre sí con Y. Por ejemplo, `Servicio = checkout` + `Código de error = ECONNRESET` devuelve solo los ECONNRESET de checkout, cosa que el buscador general no puede distinguir. Todos admiten texto parcial salvo el Trace ID, que es exacto.
 
 ### ¿Qué diferencia hay entre Logs y Registros?
-Muestran la misma tabla. **Logs** añade el resumen, el gráfico de actividad y el modo en vivo: es para vigilar. **Registros** quita todo eso, añade la búsqueda avanzada y abre cada log a pantalla completa con <kbd>←</kbd> <kbd>→</kbd> para recorrer la página: es para buscar y leer.
+Muestran la misma tabla y el mismo detalle (una ventana casi a pantalla completa, con <kbd>←</kbd> <kbd>→</kbd> para recorrer la página). **Logs** añade el resumen, el gráfico de actividad y el modo en vivo: es para vigilar. **Registros** quita todo eso y añade la búsqueda avanzada: es para buscar y leer.
 
 ### ¿Cómo sigo una operación que pasa por varios sistemas?
 Con el **traceId**. Abre cualquier log de la operación, copia su traceId y pégalo en el buscador: aparece la traza completa, en orden, de todos los sistemas implicados. Para que funcione entre sistemas, tu código debe propagar el mismo traceId a los que llame.
@@ -139,6 +139,18 @@ También vale la sesión de un usuario (JWT), pero caduca a los 15 minutos y, si
 Las **tarjetas de resumen** se refrescan cada 60 segundos. La **tabla** tiene un botón **En vivo**: al activarlo, los logs nuevos aparecen arriba resaltados según llegan, sin recargar.
 
 Solo se puede activar en la primera página y con el orden por fecha descendente. En cualquier otra vista, anteponer filas nuevas mentiría sobre lo que estás mirando.
+
+### ¿Cómo le enseño lo que veo a alguien que no tiene cuenta?
+Con un **snapshot**: en Logs, Registros, Errores o Traza pulsa **Compartir**, elige **Público** y copia el enlace. Quien lo abra ve el resumen y la tabla tal como estaban, sin entrar. Los correos, IPs, tokens y contraseñas se enmascaran siempre, y el nombre de tu espacio no aparece. Solo el dueño del espacio puede crear públicos; para tu equipo basta **Equipo**. Paso a paso: [Compartir un snapshot](guias/compartir-snapshots.md).
+
+### ¿Por qué el snapshot no muestra los logs nuevos?
+Porque es una copia: guarda los datos del momento en que se creó, para que lo que se discute no cambie ni desaparezca con la retención. Si quieres la vista con datos actuales, comparte la URL de la página (solo sirve a miembros del espacio). Un snapshot guarda como mucho 500 logs (lo ajusta la cuenta root); si había más, lo avisa.
+
+### Al pegar el enlace en Slack o WhatsApp sale una tarjeta genérica
+Es lo esperado con un snapshot **de equipo**: la vista previa la pide un robot sin sesión, y de un snapshot privado no debe salir ni el título. Los **públicos** muestran título, tipo y cifras. Si uno público también sale genérico, el servidor del dashboard no llega a la API: revisa `API_INTERNAL_URL` (Compose) o `NEXT_PUBLIC_API_URL` (dominios separados). Algunas apps guardan la vista previa un tiempo: tras corregirlo, prueba con un enlace nuevo.
+
+### ¿Los snapshots cuentan para la retención?
+No. Son copias aparte, con su propia caducidad (1, 7 o 30 días, o nunca). Si necesitas que un dato desaparezca del todo, borra también los snapshots que lo contengan desde la página **Snapshots**.
 
 ---
 
@@ -239,6 +251,12 @@ Validación. La respuesta indica el campo exacto:
 ```
 
 Causas habituales: falta un obligatorio, `level`/`environment` con un valor fuera del enum, `metadata` enviada como array en vez de objeto, o `timestamp` que no es ISO-8601.
+
+### `409` al crear un snapshot
+El espacio llegó al tope de snapshots vigentes (**Snapshots por espacio** en la configuración de la plataforma, 100 por defecto). Borra los que ya no hagan falta en la página **Snapshots**; los caducados no cuentan aunque todavía aparezcan en la lista.
+
+### Un enlace de snapshot dice "no existe o ha caducado"
+Lo borraron, caducó, el enlace llegó cortado, no eres miembro de su espacio, o es público y la cuenta root apagó los **Snapshots públicos**. MCLog responde lo mismo en todos los casos a propósito: así un enlace no confirma nada a quien no debe verlo.
 
 ### `403 Requires role: admin`
 Estás autenticado pero tu usuario es `user` y la operación (purga, claves, usuarios, alertas) requiere `admin`.
@@ -473,7 +491,8 @@ La clave única de la variable `API_KEY` sigue funcionando por compatibilidad co
 
 ### ¿Cómo ejecuto los tests?
 ```bash
-cd Back_MCLog && docker compose up -d db && npm test    # 175 tests en 14 suites
+cd Back_MCLog && docker compose up -d db && npm test    # 238 tests en 19 suites
+cd frontend_mclog && npm test                           # 46 tests
 cd packages/mclog && npm test               # 95 tests
 node integrations/netsuite/test_mclog_client.js         # 40 comprobaciones
 ```

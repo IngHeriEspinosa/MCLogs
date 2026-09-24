@@ -4,7 +4,7 @@
 
 ## Acceso
 
-1. Abre el dashboard (en desarrollo: http://localhost:3001). Verás la portada; pulsa **Iniciar sesión**. Si ya tienes una sesión abierta, entras directo a Logs.
+1. Abre el dashboard (en desarrollo: http://localhost:3001). La primera pantalla es el acceso; si ya tienes una sesión abierta, entras directo a Logs.
 2. Escribe tu **Correo** y **Contraseña** y pulsa **Entrar**. El administrador crea las cuentas; la inicial es el `ADMIN_EMAIL` configurado en el backend (la cuenta root).
 3. Si tu cuenta tiene la **verificación en dos pasos** activa, aparece una segunda pantalla:
    - Escribe el **Código de verificación** de 6 dígitos que muestra tu app autenticadora y pulsa **Verificar**.
@@ -17,7 +17,7 @@
 
 A la izquierda está el menú:
 
-- **Observabilidad**: **Logs**, **Registros**, **Errores** y **Reportes**.
+- **Observabilidad**: **Logs**, **Registros**, **Errores**, **Reportes** y **Snapshots**.
 - **Selector de espacio** (arriba): el espacio de trabajo activo y tu rol en él; desde aquí cambias de espacio, creas uno o sales del actual.
 - **Espacio** (solo si eres dueño del espacio activo): **Miembros**, **Alertas**, **API keys** y **Lab**.
 - **Plataforma** (solo admin de plataforma): **Cuentas**.
@@ -28,6 +28,8 @@ En el móvil, el menú se abre con el botón ☰ de arriba a la izquierda.
 ## Ayuda en cada campo
 
 Junto al nombre de casi todos los campos (en el login, los filtros de Registros, las propiedades del detalle de un log, Reportes, Alertas, API keys, Usuarios, el Lab y Mi cuenta) hay un icono de información. Pasa el ratón por encima, o púlsalo en el móvil, y verás una explicación de qué significa ese campo y cómo se usa. <kbd>Esc</kbd> lo cierra.
+
+Lo mismo con las cifras: el icono de cada tarjeta de métrica (en Logs, Errores y Traza) y el ⓘ junto al título de cada gráfico explican qué mide y cómo se calcula.
 
 ## Idioma y tema
 
@@ -68,11 +70,11 @@ Una sola fila encima de todo, y todo lo de debajo responde a ella:
 - **Nivel**, **Entorno** y **Aplicación**. El de aplicación tiene buscador y admite escribir un nombre que no esté en la lista.
 - **Limpiar filtros** quita todo salvo el rango.
 
-> La URL refleja los filtros activos: copia el enlace del navegador para compartir exactamente lo que estás viendo.
+> La URL refleja los filtros activos: copia el enlace del navegador para compartir exactamente lo que estás viendo con alguien de tu espacio. Para alguien sin cuenta, o para una foto fija que no cambie, usa **Compartir** ([Snapshots](#compartir-un-snapshot)).
 
 ### Resumen
 
-- **Tarjetas**: registros, errores y warnings del rango (con su tendencia), fallos distintos y aplicaciones activas.
+- **Tarjetas**: registros, errores y warnings del rango (con su tendencia), fallos distintos y aplicaciones activas. El icono de cada una explica qué mide.
 - **Actividad**: volumen por intervalo, apilado por nivel. Responde a **¿desde cuándo pasa esto?**: si la franja roja aparece de golpe, ahí empezó el incidente. Pasa el ratón para ver el desglose, **arrastra sobre el gráfico para acotar el rango** a esa franja, o haz clic en una barra para aislarla. **Ver como tabla** muestra las mismas cifras en filas.
 - **Por nivel** y **por entorno**, **fallos principales** y **aplicaciones más activas**. Un clic en cualquiera de ellos lo convierte en filtro.
 
@@ -90,7 +92,7 @@ Cada fila lleva a la izquierda una barra del color de su nivel (rojo error, ámb
 
 En la cabecera de la tabla eliges el **orden**, la **densidad** (cómoda o compacta) y el **tamaño de página**.
 
-**Haz clic en una fila** (o muévete con las flechas y pulsa Intro) para abrir su detalle. En pantallas de 1920 px o más se abre como una columna junto a la tabla, y puedes seguir bajando con las flechas viendo cada detalle; en pantallas más pequeñas se abre por encima y se cierra con <kbd>Esc</kbd>.
+**Haz clic en una fila** (o muévete con las flechas y pulsa Intro) para abrir su detalle, en una ventana casi a pantalla completa: a la izquierda el mensaje, las acciones, el stack y la metadata; a la derecha las propiedades y el contexto. <kbd>←</kbd> <kbd>→</kbd> (o los botones de arriba) pasan al registro anterior o siguiente sin cerrarla; <kbd>Esc</kbd> o un clic fuera la cierran.
 
 | En el detalle | Qué hace |
 |---|---|
@@ -110,9 +112,26 @@ El botón **Exportar** ofrece:
 
 Junto al número de registros de la tabla hay un icono que abre la misma vista en **Registros**, con los filtros que tengas puestos.
 
+## Compartir un snapshot
+
+**Compartir**, arriba a la derecha en Logs, Registros, Errores y Traza, guarda una **copia congelada** de lo que ves y te da un enlace: en Logs y Registros, el resumen y hasta 500 logs de la tabla; en Errores, los fallos agrupados con un ejemplo de cada uno (**Ver ejemplo**); en una Traza, la operación completa.
+
+1. Revisa el **Título**: se propone uno con el rango y la aplicación.
+2. Elige **Quién puede verlo**:
+   - **Equipo**: solo los miembros de este espacio, con su sesión.
+   - **Público**: cualquiera con el enlace, sin cuenta. Solo lo puede crear el dueño del espacio (si no puedes, la opción aparece con un candado y el motivo debajo). Correos, IPs, tokens y contraseñas se enmascaran siempre, y no se muestra el nombre del espacio.
+3. Elige cuándo **Caduca**: 1, 7 o 30 días, o nunca.
+4. Pulsa **Crear enlace**, y después **Copiar enlace** o **Abrir**.
+
+Quien lo abre ve el título, cuándo se capturó, los filtros, el resumen y la tabla, que puede ordenar y paginar; el detalle de cada log se abre como aquí, pero sin traza, contexto ni "fallos iguales", que llevarían a datos en vivo.
+
+Al pegar el enlace de uno público en Slack, WhatsApp o Teams sale una tarjeta con el título y las cifras; uno de equipo sale como tarjeta genérica, sin título.
+
+En **Observabilidad → Snapshots** están todos los del espacio, con su autor, caducidad y número de visitas. **Borrar** lo quita al momento, para todos: puede hacerlo quien lo creó o el dueño del espacio. Guía completa: [Compartir un snapshot](../../docs/guias/compartir-snapshots.md).
+
 ## Registros: la tabla completa y la búsqueda avanzada
 
-**Registros** es la tabla de logs sin nada más alrededor: sin resumen ni modo en vivo, pensada para buscar un registro concreto y leerlo a pantalla completa.
+**Registros** es la tabla de logs sin nada más alrededor: sin resumen ni modo en vivo, pensada para buscar un registro concreto y leerlo.
 
 Arriba tienes la misma barra de filtros que en Logs (rango, buscar, nivel, entorno, aplicación y **Limpiar filtros**). Debajo, la tarjeta **Búsqueda avanzada**, con seis campos que buscan **cada uno en su propio campo del log**:
 
@@ -178,7 +197,7 @@ Arriba: **Descargar .md** guarda la traza como documento, y **Copiar para IA** c
 
 ## Secciones de administración
 
-Solo visibles con rol `admin`. El procedimiento completo está en [docs/USER_GUIDE.md § Parte C](../../docs/USER_GUIDE.md#parte-c--administrar-el-servicio).
+**Alertas**, **API keys** y **Lab** solo los ve el dueño del espacio activo; **Usuarios** (Cuentas), los admins de plataforma. El procedimiento completo está en [docs/USER_GUIDE.md § Parte C](../../docs/USER_GUIDE.md#parte-c--administrar-el-servicio).
 
 | Sección | Para qué |
 |---|---|

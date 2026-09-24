@@ -263,20 +263,22 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 
 | Funcionalidad | Detalle |
 |---|---|
-| **Portada** | Página pública en `/` con acceso al login; con sesión abierta lleva directo a Logs |
+| **Acceso** | `/` es el login; con sesión abierta lleva directo a Logs, o a la página que se pidió. `/login` sigue funcionando para los enlaces antiguos |
 | **Login** | Formulario email/contraseña y, si la cuenta tiene 2FA, un segundo paso con el código de la app o de recuperación. Tras entrar, vuelve a la página que se pidió. El front nunca manipula tokens (viven en cookies httpOnly) |
 | **Español / inglés** | Toda la interfaz traducida; el cambio es inmediato y se recuerda |
 | **Ayuda en cada campo** | Un icono de información junto al nombre de cada campo explica qué es y cómo se usa; funciona con ratón, teclado y táctil, y lo lee el lector de pantalla |
+| **Ayuda en las métricas** | El icono de cada tarjeta de métrica (Logs, Errores, Traza) y el ⓘ de cada gráfico del resumen explican qué mide la cifra y cómo se calcula (por ejemplo, que **Fallos distintos** cuenta fallos agrupados por huella, no ocurrencias) |
 | **Tema claro / oscuro / sistema** | Sin destello al cargar; con "sistema" sigue al sistema operativo |
-| **Hasta 4K** | La interfaz escala y aprovecha el ancho hasta 3840 px; el detalle del log pasa a columna lateral desde 1920 px |
+| **Hasta 4K** | La interfaz escala y aprovecha el ancho hasta 3840 px |
 | **Resumen** | Registros, errores, warnings, fallos distintos y aplicaciones del rango, con tendencia; por nivel, por entorno, fallos principales y apps más activas |
 | **Gráfico de actividad** | Columnas apiladas por nivel; arrastrar acota el rango, clic aísla un intervalo, vista de tabla alternativa |
 | **Filtros combinables** | Rango de tiempo (rápidos o calendario con horas), nivel, entorno, aplicación con buscador y búsqueda libre |
 | **Búsqueda con debounce** | 350 ms de espera: no lanza una consulta por cada tecla |
 | **Ordenación** | Por fecha, aplicación, nivel, host o entorno, asc/desc |
 | **Paginación** | 10 / 25 / 50 / 100 por página, con navegación anterior/siguiente |
-| **Inspector del log** | Propiedades, stack con el código propio resaltado, metadata, contexto de ±2 min y "Copiar para IA"; navegable con flechas |
+| **Inspector del log** | Un diálogo casi a pantalla completa, igual en Logs y en Registros: propiedades, stack con el código propio resaltado, metadata, contexto de ±2 min y "Copiar para IA"; ←/→ recorren la página |
 | **Registros** | La tabla sin resumen, con **búsqueda avanzada** por campo (mensaje, servicio, host, traceId exacto, nombre y código del error) y el detalle del log a pantalla completa, con ←/→ para recorrer la página |
+| **Snapshots** | **Compartir** en Logs, Registros, Errores y Traza guarda una copia congelada de la pantalla con su enlace, de equipo o pública; la página **Snapshots** los lista con sus vistas y permite borrarlos (ver [23](#23-snapshots-compartibles)) |
 | **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición y brief para IA |
 | **Traza** | Una operación entre sistemas en línea temporal, con los saltos de tiempo entre pasos |
 | **Selector de espacio** | En lo alto del menú: espacio activo y rol, cambio de espacio sin recargar, crear espacio y salir del actual. Cada pestaña puede estar en un espacio distinto |
@@ -288,7 +290,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Reportes** | Informe Markdown para personas, brief para agentes de IA (Markdown) y datos en JSON (`mclog.agent-report/v2`); comparación con el periodo anterior (fallos nuevos, que empeoran o que desaparecen), warnings agrupados opcionales, enmascarado de correos, IPs y tokens con recuento de lo tapado, preferencias recordadas y **Ctrl + Enter** para generar |
 | **Filtros en la URL** | `?range=7d&level=error&application=x`, incluida la búsqueda avanzada (`&errorCode=ECONNRESET`) — copiar el enlace reproduce la vista exacta |
 | **Estados de carga** | Skeletons al cargar; al refiltrar se mantiene la tabla anterior atenuada (sin parpadeo) |
-| **Sesión automática** | Un 401 dispara un reintento vía `/auth/refresh`; si falla, redirige a `/login` |
+| **Sesión automática** | Un 401 dispara un reintento vía `/auth/refresh`; si falla, lleva al acceso (`/`) y, tras entrar, de vuelta a la página |
 
 ---
 
@@ -613,6 +615,7 @@ El catálogo es cerrado y tipado: cada clave tiene tipo, límites y un valor pre
 | `labEnabled` | Lab e ingesta con sesión de usuario (apagado: `403`; las API keys siguen) | Activado |
 | `publicSnapshotsEnabled` | Snapshots públicos: crearlos y abrirlos (apagado: `403` al crear, `404` al abrir) | Activado |
 | `maxSnapshotRows` | Logs que guarda un snapshot (10–2000) | 500 |
+| `maxSnapshotsPerWorkspace` | Snapshots vigentes por espacio; los caducados no cuentan (`409` al superarlo) | 100 (0 = sin límite) |
 | `passwordResetTtlMinutes` | Minutos que vale un enlace de "olvidé mi contraseña" | `PASSWORD_RESET_TTL_MINUTES` |
 
 Guardar varios valores es atómico: se validan todos y, si alguno no cumple, no se aplica ninguno (`400` con el error de cada clave). Cada cambio queda en el log del servicio con su valor anterior, el nuevo y quién lo hizo. **Restablecer** borra el valor guardado y vuelve al predeterminado.
@@ -625,17 +628,23 @@ Lo que no está en el catálogo —secretos, CORS, cookies, JWT— sigue siendo 
 
 ## 23. Snapshots compartibles
 
-Copia congelada de la vista de Logs o Registros, con un enlace propio para enseñarla a otras personas.
+Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio para enseñarla a otras personas.
 
-**Quién:** cualquier miembro crea los de equipo; los públicos, solo el **dueño** del espacio. **Código:** [snapshotService.ts](../Back_MCLog/src/services/snapshotService.ts) · [snapshotRoutes.ts](../Back_MCLog/src/routes/snapshotRoutes.ts) · [redact.ts](../Back_MCLog/src/utils/redact.ts) · [ShareSnapshotDialog.tsx](../frontend_mclog/src/components/organisms/ShareSnapshotDialog.tsx) · [app/s/[token]/](../frontend_mclog/src/app/s/) · [app/snapshots/](../frontend_mclog/src/app/snapshots/) · Guía: [Compartir un snapshot](guias/compartir-snapshots.md)
+**Quién:** cualquier miembro crea los de equipo; los públicos, solo el **dueño** del espacio. **Código:** [snapshotService.ts](../Back_MCLog/src/services/snapshotService.ts) · [snapshotRoutes.ts](../Back_MCLog/src/routes/snapshotRoutes.ts) · [redact.ts](../Back_MCLog/src/utils/redact.ts) · [ShareSnapshotDialog.tsx](../frontend_mclog/src/components/organisms/ShareSnapshotDialog.tsx) · [app/s/[token]/](../frontend_mclog/src/app/s/) (visor, vista previa e imagen Open Graph) · [app/snapshots/](../frontend_mclog/src/app/snapshots/) · Guía: [Compartir un snapshot](guias/compartir-snapshots.md)
 
-- **Qué guarda.** Los datos, no la consulta (tabla `Snapshot`): el resumen del rango, la aplicación y el entorno (totales por nivel, serie por hora de hasta 31 días, repartos por aplicación y entorno, fallos distintos y los 5 principales) y hasta `maxSnapshotRows` logs que cumplen **todos** los filtros, en el orden de la tabla. `totalMatched` dice cuántos cumplían. Los rangos abiertos se cierran en el momento de la captura.
+- **Tipos** (`kind`). `logs` (Logs y Registros), `errors` (Errores agrupados: los grupos del rango, hasta 100, y el ejemplo más reciente de cada uno, que se abre con **Ver ejemplo**) y `trace` (los logs de un `traceId` en orden, hasta `maxSnapshotRows`, y los totales de la operación entera). El visor pinta cada uno con las mismas tarjetas, tabla o línea temporal que la pantalla original.
+- **Qué guarda (`logs`).** Los datos, no la consulta (tabla `Snapshot`): el resumen del rango, la aplicación y el entorno (totales por nivel, serie por hora de hasta 31 días, repartos por aplicación y entorno, fallos distintos y los 5 principales) y hasta `maxSnapshotRows` logs que cumplen **todos** los filtros, en el orden de la tabla. `totalMatched` dice cuántos cumplían. Los rangos abiertos se cierran en el momento de la captura.
 - **Visibilidad.** `workspace`: solo miembros del espacio con sesión; sin sesión, `401` con `requiresAuth` para ofrecer entrar. `public`: cualquiera con el enlace.
 - **Enmascarado.** Los públicos se enmascaran **siempre en el servidor**, con las mismas reglas que los reportes para IA: mensaje, host, stack, metadata, mensajes de ejemplo de los fallos y los filtros de texto libre. IDs de log, `traceId` y huellas se conservan. Tampoco se devuelve el nombre del espacio.
-- **Enlace.** Un token de 32 bytes aleatorios (base64url) en `/s/<token>`. La lectura va fuera de `/api` (`GET /snapshots/:token`), con `Cache-Control: no-store` y `X-Robots-Tag: noindex`; la página añade `noindex` y `no-referrer`.
+- **Enlace.** Un token de 32 bytes aleatorios (base64url) en `/s/<token>`. La lectura es `GET /api/share/:token`, sin espacio activo (el enlace ya dice cuál es) y bajo `/api` para que el proxy la mande a la API en cualquier topología; con `Cache-Control: no-store` y `X-Robots-Tag: noindex`. La página añade `noindex` y `no-referrer`.
+- **Vista previa en chats.** Al pegar el enlace en Slack, WhatsApp o Teams, el servidor del dashboard pide `GET /api/share/:token/preview` (título, tipo, fecha y unos totales, sin logs ni resumen y sin contar visita) y genera las etiquetas Open Graph y una imagen de 1200×630 con el título y las cifras. Solo de los públicos vigentes: uno de equipo o desconocido da una tarjeta genérica, sin título.
+- **Compresión.** La respuesta del enlace (y cualquier JSON de la API de más de 1 KB) va comprimida con brotli o gzip: un snapshot de 2000 logs pasa de varios MB a una fracción.
 - **Denegar sin revelar.** Inexistente, caducado, de un espacio borrado o de otro espacio: siempre `404`.
 - **Caducidad.** 1, 7 o 30 días, o nunca. Caducado deja de servirse al momento; el planificador lo borra cada hora.
 - **Borrar.** Su autor o el dueño del espacio. Al borrar un espacio, sus snapshots se van con él.
+- **Topes.** `maxSnapshotRows` logs por snapshot y `maxSnapshotsPerWorkspace` vigentes por espacio (`409`): cada snapshot es una copia, y sin tope pulsar **Compartir** podría llenar la base de datos.
+- **Lectura en dos fases.** Primero se comprueba el acceso y solo después se cargan los datos, que pueden pesar megas.
+- **Retención.** La retención y la purga manual no tocan los snapshots: son copias con su propia caducidad.
 - **Interruptor.** Apagar `publicSnapshotsEnabled` impide crearlos y deja de servir los ya creados, sin borrarlos.
 - **Visor de solo lectura.** Orden y paginación en el navegador; el detalle no ofrece contexto, traza ni "similares", que consultarían datos en vivo.
 
@@ -660,7 +669,8 @@ Copia congelada de la vista de Logs o Registros, con un enlace propio para ense�
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **dueño** | [13](#13-api-keys-con-permisos) |
 | `GET`/`POST`/`DELETE` | `/api/snapshots` · `/:id` | JWT (dueño para los públicos) | [23](#23-snapshots-compartibles) |
-| `GET` | `/snapshots/:token` | — (JWT de miembro si es de equipo) | [23](#23-snapshots-compartibles) |
+| `GET` | `/api/share/:token` | — (JWT de miembro si es de equipo) | [23](#23-snapshots-compartibles) |
+| `GET` | `/api/share/:token/preview` | — (solo públicos) | [23](#23-snapshots-compartibles) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/workspaces` · `/:id` · `/:id/members` | JWT (dueño para administrar) | [7](#7-espacios-de-trabajo-y-roles) |
 | `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | [20](#20-verificación-en-dos-pasos-2fa) |

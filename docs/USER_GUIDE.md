@@ -16,7 +16,7 @@ Si no sabes qué significa alguna palabra, está en el [Glosario](GLOSSARY.md). 
 
 ## A.1 Entrar
 
-1. Abre el dashboard. En desarrollo: **http://localhost:3001**. Verás la portada de MCLog; pulsa **Iniciar sesión**.
+1. Abre el dashboard. En desarrollo: **http://localhost:3001**. La primera pantalla es el acceso; si ya tenías la sesión abierta, entras directo a Logs.
 2. Escribe tu **Correo** y tu **Contraseña** y pulsa **Entrar**. Te los da el administrador del servicio.
 3. **Si tienes activada la verificación en dos pasos**, aparece una segunda pantalla. Escribe el **Código de verificación** de 6 dígitos de tu app autenticadora y pulsa **Verificar**.
    - Sin el móvil a mano, escribe en el mismo campo uno de tus **códigos de recuperación**.
@@ -35,6 +35,7 @@ A la izquierda tienes el menú de secciones (en el móvil se abre con el botón 
 | **Registros** | Solo la tabla, con **búsqueda avanzada** por campo y el detalle a pantalla completa |
 | **Errores** | Los fallos agrupados por causa. Casi siempre, el mejor sitio para empezar |
 | **Reportes** | Informes en Markdown y briefs para agentes de IA |
+| **Snapshots** | Las copias de Logs, Registros, Errores o una Traza compartidas con un enlace: quién las creó, cuándo caducan, cuántas veces se abrieron |
 | **Miembros** | Quién ve el espacio: invitar, cambiar rol, quitar (dueño) |
 | **Alertas** | Avisos automáticos por webhook, correo o Telegram (dueño) |
 | **API keys** | Claves para que las máquinas envíen o consulten en este espacio (dueño) |
@@ -62,11 +63,11 @@ Una sola fila encima de todo. Se combinan entre sí, y el resumen y la tabla se 
 
 **Limpiar filtros** los quita todos salvo el rango. El orden (fecha, aplicación, nivel, host o entorno) se cambia en la cabecera de la tabla.
 
-> **Comparte lo que ves.** La dirección del navegador refleja los filtros activos. Copia la URL y pégala en un chat: quien la abra verá exactamente tu misma vista.
+> **Comparte lo que ves.** La dirección del navegador refleja los filtros activos. Copia la URL y pégala en un chat: quien la abra verá exactamente tu misma vista, con los datos de ese momento. Si quien lo va a ver no tiene cuenta, o quieres que lo que ve no cambie, usa **Compartir** ([snapshot](#compartir-un-snapshot)).
 
 ### Resumen
 
-- **Tarjetas**: registros, errores y warnings del rango con su tendencia, fallos distintos y aplicaciones activas.
+- **Tarjetas**: registros, errores y warnings del rango con su tendencia, fallos distintos y aplicaciones activas. Pasa el ratón por el **icono de cada tarjeta** (o púlsalo) para ver qué mide y cómo se calcula; los gráficos lo tienen en el ⓘ junto al título.
 - **Actividad**: un gráfico de barras con el volumen del rango, apilado por nivel. Los errores van abajo, pegados a la línea base, porque es la parte que se puede comparar de un vistazo entre barras. Responde a una pregunta concreta y muy frecuente: **¿desde cuándo pasa esto?** Si la franja roja aparece de golpe, ahí tienes el momento del incidente. Pasa el ratón para ver el desglose exacto; **arrastra sobre el gráfico para acotar el rango** a esa franja, o haz clic en una barra para aislarla. **Ver como tabla** da las mismas cifras en filas.
 - **Por nivel y por entorno**, **fallos principales** y **aplicaciones más activas**. Un clic en cualquiera lo convierte en filtro.
 
@@ -82,7 +83,7 @@ Solo se puede activar en la primera página, con el orden por fecha descendente 
 
 Cada fila es un evento: hora con milisegundos, nivel, aplicación y servicio, entorno y mensaje; en pantallas anchas, también host y traza. Una barra a la izquierda lleva el color del nivel (rojo = error, ámbar = warn, azul = info, gris = debug). En la cabecera eliges el orden, la densidad (cómoda o compacta) y cuántos registros por página (10, 25, 50 o 100).
 
-**Haz clic en cualquier fila** (o muévete con las flechas y pulsa Intro) para abrir su detalle. En pantallas de 1920 px o más aparece como una columna junto a la tabla, y puedes seguir recorriéndola con las flechas; en pantallas más pequeñas se abre por encima y se cierra con <kbd>Esc</kbd>. Incluye:
+**Haz clic en cualquier fila** (o muévete con las flechas y pulsa Intro) para abrir su detalle, en una ventana casi a pantalla completa. <kbd>←</kbd> <kbd>→</kbd> (o los botones de arriba) pasan al registro anterior o siguiente de la página sin cerrarla, y <kbd>Esc</kbd> o un clic fuera la cierran. Incluye:
 
 - **Mensaje completo**, sin recortar
 - **Propiedades**: aplicación, servicio, host, traceId, error y código, huella e ID
@@ -110,12 +111,12 @@ Desde el mismo menú, **Informe Markdown** y **Brief para agentes IA** abren la 
 
 ### Compartir un snapshot
 
-**Compartir** (en Logs y en Registros) guarda una copia congelada de lo que ves, resumen y tabla, y te da un enlace:
+**Compartir** (en Logs, Registros, Errores y Traza) guarda una copia congelada de lo que ves y te da un enlace. En Errores guarda los fallos agrupados con un ejemplo de cada uno; en Traza, la operación completa:
 
 - **Equipo**: solo lo abren los miembros del espacio, con su sesión.
 - **Público**: lo abre cualquiera con el enlace, sin cuenta. Solo lo puede crear el dueño del espacio, y los datos sensibles (correos, IPs, tokens, contraseñas) se enmascaran siempre.
 
-La copia no cambia aunque lleguen logs nuevos. Eliges cuándo caduca (1, 7 o 30 días, o nunca) y en **Snapshots** ves todos los del espacio, cuántas veces se han abierto, y puedes borrarlos. Paso a paso: [Compartir un snapshot](guias/compartir-snapshots.md).
+La copia no cambia aunque lleguen logs nuevos. Eliges cuándo caduca (1, 7 o 30 días, o nunca) y en **Snapshots** ves todos los del espacio, cuántas veces se han abierto, y puedes borrarlos. Cada espacio tiene un tope de snapshots vigentes (100 por defecto); los caducados no cuentan. Al pegar un enlace público en Slack, WhatsApp o Teams sale una tarjeta con el título y las cifras; uno de equipo sale como tarjeta genérica, sin título. Paso a paso: [Compartir un snapshot](guias/compartir-snapshots.md).
 
 ## A.2.1 Registros y la búsqueda avanzada
 
@@ -429,7 +430,7 @@ Cada quien cambia su propia contraseña, activa la verificación en dos pasos o 
 
 ### Configuración de la plataforma (solo root)
 
-En **Plataforma → Configuración**, visible solo para la cuenta root (`ADMIN_EMAIL`). Cambia el comportamiento de MCLog para todos, al momento y sin reiniciar: límites de miembros e invitaciones por espacio, quién puede crear espacios, validez de los enlaces, retención, tamaño de exportaciones y lotes, conexiones en vivo, y encender o apagar MCP, alertas y el Lab.
+En **Plataforma → Configuración**, visible solo para la cuenta root (`ADMIN_EMAIL`). Cambia el comportamiento de MCLog para todos, al momento y sin reiniciar: límites de miembros e invitaciones por espacio, quién puede crear espacios, validez de los enlaces, retención, tamaño de exportaciones y lotes, conexiones en vivo, topes de los snapshots, y encender o apagar MCP, alertas, el Lab y los snapshots públicos.
 
 Cada ajuste muestra su valor predeterminado (el de la variable de entorno, si la hay) y, si lo cambiaste, quién y cuándo. Edita los que quieras y pulsa **Guardar cambios** en la barra inferior; **Restablecer** vuelve al predeterminado. Detalle de cada clave en [FEATURES.md](FEATURES.md#22-configuración-de-la-plataforma).
 

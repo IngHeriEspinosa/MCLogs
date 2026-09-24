@@ -54,6 +54,11 @@ services:
         # Vacio a proposito: Caddy sirve dashboard y API bajo el mismo dominio,
         # asi que el navegador llama a rutas relativas.
         NEXT_PUBLIC_API_URL: ""
+    environment:
+      # El navegador llama a rutas relativas, pero el servidor de Next tambien
+      # llama a la API (vista previa de los enlaces de snapshots en Slack,
+      # WhatsApp…) y necesita una direccion absoluta: la de la red interna.
+      API_INTERNAL_URL: http://api:3000
     restart: unless-stopped
     depends_on:
       - api

@@ -2,9 +2,12 @@ import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import client from "@/common/api/client";
 import type { LogEntry } from "@/hooks/useAuth";
+import type { ErrorGroup } from "@/hooks/useErrors";
 import type { SortField } from "@/hooks/useLogFilters";
 
 export type SnapshotVisibility = "workspace" | "public";
+/** La pantalla de la que sale: define la forma del resumen y de los logs. */
+export type SnapshotKind = "logs" | "errors" | "trace";
 
 /** Los filtros con los que se capturo, con el rango ya en fechas absolutas. */
 export type SnapshotFilters = {
@@ -30,9 +33,11 @@ export type SnapshotMeta = {
   id: number;
   token: string;
   title: string;
+  kind: SnapshotKind;
   visibility: SnapshotVisibility;
   redacted: boolean;
   filters: SnapshotFilters;
+  /** Logs que cumplian los filtros, ocurrencias de los fallos o registros de la traza. */
   totalMatched: number;
   createdAt: string;
   expiresAt: string | null;
@@ -63,13 +68,28 @@ export type SnapshotSummary = {
   }[];
 };
 
-/** Lo que devuelve el enlace. */
-export type Snapshot = {
+/** Errores: los grupos de fallo, y en `logs` el ejemplo mas reciente de cada uno. */
+export type ErrorsSummary = {
+  level: "error" | "warn";
+  groups: ErrorGroup[];
+  capped: boolean;
+  occurrences: number;
+};
+
+/** Traza: los totales de la operacion entera, aunque no se guardaran todos sus logs. */
+export type TraceSummary = {
+  traceId: string;
+  total: number;
+  errors: number;
+  applications: string[];
+  durationMs: number;
+};
+
+type SnapshotBase = {
   title: string;
   visibility: SnapshotVisibility;
   redacted: boolean;
   filters: SnapshotFilters;
-  summary: SnapshotSummary;
   logs: LogEntry[];
   totalMatched: number;
   createdAt: string;
@@ -78,8 +98,17 @@ export type Snapshot = {
   workspaceName: string | null;
 };
 
+/** Lo que devuelve el enlace. */
+export type Snapshot = SnapshotBase &
+  (
+    | { kind: "logs"; summary: SnapshotSummary }
+    | { kind: "errors"; summary: ErrorsSummary }
+    | { kind: "trace"; summary: TraceSummary }
+  );
+
 export type CreateSnapshotInput = {
   title: string;
+  kind: SnapshotKind;
   visibility: SnapshotVisibility;
   /** null = no caduca. */
   expiresInDays: 1 | 7 | 30 | null;
@@ -131,11 +160,14 @@ export const usePublicSnapshot = (token: string) =>
     queryKey: ["snapshot-view", token],
     queryFn: async () => {
       try {
-        const res = await client.get(`/snapshots/${encodeURIComponent(token)}`);
+        const res = await client.get(`/api/share/${encodeURIComponent(token)}`);
         return { state: "ok", snapshot: res.data.data };
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 401) return { state: "signIn" };
-        if (axios.isAxiosError(error) && error.response?.status === 404) return { state: "notFound" };
+        // 400 = enlace mal formado (cortado al copiarlo, por ejemplo): para quien lo abre es lo mismo que no existir.
+        if (axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 400)) {
+          return { state: "notFound" };
+        }
         throw error;
       }
     },

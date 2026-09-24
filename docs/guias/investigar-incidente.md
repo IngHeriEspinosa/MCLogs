@@ -58,10 +58,10 @@ Haz clic en una fila de la tabla para abrir su detalle:
 - **Metadata**: los datos con los que falló (el pedido, el usuario…).
 - **Contexto**: lo que pasó en la misma aplicación **dos minutos antes y después**. Muchas veces la causa está en el log de justo antes.
 
-Con el detalle abierto, las flechas del teclado recorren la tabla y van cambiando el detalle.
+El detalle se abre en una ventana casi a pantalla completa. <kbd>←</kbd> <kbd>→</kbd> pasan al registro anterior o siguiente de la página sin cerrarla, y <kbd>Esc</kbd> la cierra.
 
 > [!TIP]
-> Si prefieres leer a pantalla completa, abre la misma búsqueda en **Registros** con el icono junto al número de registros. Allí el detalle ocupa casi toda la pantalla y <kbd>←</kbd> <kbd>→</kbd> pasan de un registro al siguiente.
+> Si necesitas afinar más, abre la misma búsqueda en **Registros** con el icono junto al número de registros: allí tienes la búsqueda avanzada por campo.
 
 ## Paso 5 — Sigue la operación completa
 
@@ -83,6 +83,7 @@ Elige según a quién va:
 | Para | Cómo |
 |---|---|
 | **Un compañero** | Copia la **URL** del navegador: lleva todos los filtros, y quien la abra verá exactamente lo mismo |
+| **Alguien sin cuenta, o una foto fija del incidente** | **Compartir** en Logs, Registros, Errores o Traza: un [snapshot](compartir-snapshots.md) con su propio enlace, que no cambia aunque lleguen logs nuevos. Público, con los datos sensibles enmascarados, o solo para tu equipo |
 | **Un ticket** | **Copiar JSON** en el detalle del log |
 | **Un asistente de IA** | **Copiar para IA** en el detalle (o el botón ✦ en Errores): un brief en Markdown con el log, su stack y su contexto, **con los datos sensibles enmascarados** |
 | **Un informe del incidente** | **Reportes** → **Informe Markdown** (para personas) o **Brief para agentes IA** con el objetivo **Resumen de incidente** |

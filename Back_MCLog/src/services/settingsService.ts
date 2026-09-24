@@ -50,6 +50,8 @@ export const SETTINGS = {
   maxLiveConnections: { type: "number", category: "logs", min: 1, max: 1_000, default: () => config.sseMaxConnections },
   /** Logs que guarda un snapshot, como mucho. Cada uno es una copia: pesa en la base de datos. */
   maxSnapshotRows: { type: "number", category: "logs", min: 10, max: 2_000, default: () => 500 },
+  /** Snapshots vigentes por espacio. 0 = sin limite. */
+  maxSnapshotsPerWorkspace: { type: "number", category: "logs", min: 0, max: 10_000, default: () => 100 },
 
   // --- Funciones ---
   /** Endpoint MCP para asistentes de IA. */

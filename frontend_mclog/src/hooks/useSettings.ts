@@ -29,6 +29,8 @@ export type PublicSettings = {
   publicSnapshotsEnabled: boolean;
   /** Logs que guarda un snapshot, como mucho. */
   maxSnapshotRows: number;
+  /** Snapshots vigentes por espacio. 0 = sin limite. */
+  maxSnapshotsPerWorkspace: number;
 };
 
 /** Valores con los que el panel se comporta como antes mientras carga. */
@@ -40,6 +42,7 @@ export const PUBLIC_DEFAULTS: PublicSettings = {
   invitationTtlDays: 7,
   publicSnapshotsEnabled: true,
   maxSnapshotRows: 500,
+  maxSnapshotsPerWorkspace: 100,
 };
 
 export const usePublicSettings = () => {

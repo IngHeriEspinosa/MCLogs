@@ -180,7 +180,7 @@ function RecordsView() {
         )}
       </div>
 
-      <ShareSnapshotDialog open={sharing} onClose={() => setSharing(false)} filters={filters} advanced total={logs.data?.total ?? null} />
+      <ShareSnapshotDialog open={sharing} onClose={() => setSharing(false)} source={{ kind: "logs", filters, advanced: true }} total={logs.data?.total ?? null} />
 
       {shown && (
         <LogInspector

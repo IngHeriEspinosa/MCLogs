@@ -34,6 +34,7 @@ router.get("/public", (req: AuthenticatedRequest, res: Response) => {
       invitationTtlDays: getSetting("invitationTtlDays"),
       publicSnapshotsEnabled: getSetting("publicSnapshotsEnabled"),
       maxSnapshotRows: getSetting("maxSnapshotRows"),
+      maxSnapshotsPerWorkspace: getSetting("maxSnapshotsPerWorkspace"),
     },
   });
 });

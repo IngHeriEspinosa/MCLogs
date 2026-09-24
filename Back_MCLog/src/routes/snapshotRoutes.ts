@@ -8,8 +8,10 @@ import {
   createSnapshot,
   deleteSnapshot,
   getSnapshotByToken,
+  getSnapshotPreview,
   listSnapshots,
   SNAPSHOT_EXPIRY_DAYS,
+  SNAPSHOT_KINDS,
   SNAPSHOT_SORT_FIELDS,
   SNAPSHOT_TITLE_MAX,
   SnapshotError,
@@ -56,6 +58,14 @@ snapshotRouter.post(
   [
     body("title").isString().trim().notEmpty().withMessage("title is required").isLength({ max: SNAPSHOT_TITLE_MAX }),
     body("visibility").isIn(["workspace", "public"]).withMessage("visibility must be workspace or public"),
+    body("kind").optional().isIn([...SNAPSHOT_KINDS]).withMessage(`kind must be one of: ${SNAPSHOT_KINDS.join(", ")}`),
+    // Una traza sin traceId no es nada que capturar.
+    body("filters.traceId")
+      .if(body("kind").equals("trace"))
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("filters.traceId is required for a trace snapshot"),
     body("expiresInDays")
       .optional({ values: "null" })
       .isIn(SNAPSHOT_EXPIRY_DAYS.map(String))
@@ -85,6 +95,7 @@ snapshotRouter.post(
         userId: req.user!.id,
         role: req.workspace!.role,
         title: req.body.title,
+        kind: req.body.kind ?? "logs",
         visibility: req.body.visibility,
         expiresInDays: (req.body.expiresInDays as number | undefined) ?? null,
         filters: known,
@@ -92,6 +103,7 @@ snapshotRouter.post(
       logger.info("Snapshot created", {
         id: snapshot.id,
         workspaceId: workspaceIdOf(req),
+        kind: snapshot.kind,
         visibility: snapshot.visibility,
         rows: snapshot.totalMatched,
         by: req.user?.email,
@@ -125,17 +137,41 @@ snapshotRouter.delete(
 );
 
 /**
- * Lectura de un snapshot por su enlace. Va fuera de /api porque no depende del
- * espacio activo: el enlace ya dice de que espacio es. Sin sesion solo se abren
- * los publicos; los de equipo piden entrar y ser miembro.
+ * Lectura de un snapshot por su enlace (`/api/share`). No depende del espacio
+ * activo: el enlace ya dice de que espacio es. Sin sesion solo se abren los
+ * publicos; los de equipo piden entrar y ser miembro.
  */
 export const snapshotViewRouter = express.Router();
+
+// El token se valida antes de mirar la sesion: uno mal formado no llega a
+// verificar JWT ni a renovar cookies.
+const validToken = [param("token").isString().isLength({ min: 20, max: 64 }).matches(/^[A-Za-z0-9_-]+$/), handleValidation];
+
+/**
+ * Vista previa para quien pega el enlace en un chat: el servidor del dashboard
+ * la pide para rellenar las etiquetas Open Graph. Sin sesion y sin contar
+ * visita; de los de equipo no dice nada (404).
+ */
+snapshotViewRouter.get("/:token/preview", queryLimiter, ...validToken, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  try {
+    const preview = await getSnapshotPreview(String(req.params.token));
+    if (!preview) {
+      res.status(404).json({ error: "Snapshot not found" });
+      return;
+    }
+    res.json({ data: preview });
+  } catch (error) {
+    respondWithError(error, res, "Error loading snapshot preview");
+  }
+});
 
 snapshotViewRouter.get(
   "/:token",
   queryLimiter,
+  ...validToken,
   optionalAuth,
-  [param("token").isString().isLength({ min: 20, max: 64 }).matches(/^[A-Za-z0-9_-]+$/), handleValidation],
   async (req: AuthenticatedRequest, res: express.Response) => {
     // Un enlace compartido no debe quedar en caches intermedias ni en buscadores.
     res.setHeader("Cache-Control", "no-store");
@@ -150,14 +186,7 @@ snapshotViewRouter.get(
         res.status(401).json({ error: "Sign in to view this snapshot", requiresAuth: true });
         return;
       }
-      const { workspace, workspaceId: _workspaceId, id: _id, ...snapshot } = result.snapshot;
-      res.json({
-        data: {
-          ...snapshot,
-          // El nombre del espacio solo lo ve quien ya es miembro.
-          workspaceName: snapshot.visibility === "workspace" ? workspace.name : null,
-        },
-      });
+      res.json({ data: result.snapshot });
     } catch (error) {
       respondWithError(error, res, "Error loading snapshot");
     }

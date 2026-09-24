@@ -81,6 +81,8 @@ En la cabecera de la tabla eliges el **orden** (fecha, aplicación, nivel, host 
 
 Todos los filtros, incluida la búsqueda avanzada, están en la **URL** del navegador. Cópiala y pégala en un chat o un ticket: quien la abra verá exactamente los mismos resultados, y podrá seguir filtrando desde ahí.
 
+La URL solo sirve a miembros de tu espacio, y enseña los datos del momento en que se abre. Para enseñárselo a alguien sin cuenta, o para que lo que ve no cambie, pulsa **Compartir**: crea un snapshot con su propio enlace ([Compartir un snapshot](compartir-snapshots.md)).
+
 ## Paso 6 — Exporta
 
 La exportación está en la pantalla **Logs**, botón **Exportar**, y respeta los filtros activos. Para exportar una búsqueda hecha en Registros, copia su URL y cambia `/records` por `/logs`: los filtros se conservan.

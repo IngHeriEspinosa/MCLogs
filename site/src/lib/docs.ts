@@ -73,6 +73,13 @@ export const DOCS: DocMeta[] = [
     group: "guias",
   },
   {
+    slug: "compartir-un-snapshot",
+    file: "guias/compartir-snapshots.md",
+    title: "Compartir un snapshot",
+    description: "Un enlace a una copia congelada de Logs, Errores o una Traza, para tu equipo o público con los datos enmascarados.",
+    group: "guias",
+  },
+  {
     slug: "proteger-tu-cuenta",
     file: "guias/seguridad-cuenta.md",
     title: "Proteger tu cuenta",

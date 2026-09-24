@@ -51,6 +51,8 @@ Solo Caddy publica puertos. La base de datos, la API y el dashboard quedan en la
 
 Con dominios separados (opción B) también funciona, pero hay que configurar CORS y cookies con cuidado.
 
+El servidor del dashboard también llama a la API, para la vista previa de los enlaces de snapshots en Slack o WhatsApp. Como el navegador usa rutas relativas (`NEXT_PUBLIC_API_URL` vacía), `docker-compose.prod.yml` le da la dirección interna con `API_INTERNAL_URL=http://api:3000`. En la opción B no hace falta nada: usa `NEXT_PUBLIC_API_URL`.
+
 ### A.2 Requisitos
 
 | Requisito | Detalle |
@@ -237,7 +239,7 @@ Navegador ──► https://mclog.tu-dominio.com            (Railway: frontend_m
 
    Es una variable **de compilación**: Next la incrusta en el código del navegador. Railway la pasa al build porque el `Dockerfile` la declara con `ARG`. Si la cambias, hay que redesplegar.
 4. No definas `PORT`: Railway lo inyecta y la imagen escucha en él.
-5. Despliega y abre `https://mclog.tu-dominio.com`. Deberías ver la portada de MCLog; pulsa **Iniciar sesión** y entra con la cuenta root.
+5. Despliega y abre `https://mclog.tu-dominio.com`. Deberías ver la pantalla de acceso de MCLog; entra con la cuenta root.
 
 ### B.5 Dos dominios: CORS y cookies
 

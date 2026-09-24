@@ -95,13 +95,12 @@ npm run dev
 
 `.env.local` le dice al dashboard dónde está la API (`NEXT_PUBLIC_API_URL=http://localhost:3000`).
 
-**Comprueba:** abre **http://localhost:3001** en el navegador. Verás la portada de MCLog.
+**Comprueba:** abre **http://localhost:3001** en el navegador. Verás la pantalla de acceso de MCLog.
 
 ## Paso 5 — Entra en el dashboard
 
-1. Pulsa **Iniciar sesión**.
-2. En **Correo** escribe `admin@example.com` y en **Contraseña** `ChangeMe123!`.
-3. Pulsa **Entrar**.
+1. En **Correo** escribe `admin@example.com` y en **Contraseña** `ChangeMe123!`.
+2. Pulsa **Entrar**.
 
 Llegas a la pantalla **Logs**, todavía vacía. A la izquierda tienes el menú; arriba a la derecha, el idioma y el tema.
 
