@@ -131,8 +131,8 @@ Las migraciones pendientes se aplican solas al arrancar la API. Comprueba despu�
 
 ### En CapRover + Railway
 
-- **API**: `cd Back_MCLog && caprover deploy`. Las migraciones se aplican solas al arrancar.
-- **Dashboard**: Railway redespliega con cada push a la rama conectada, o manualmente con **Redeploy**.
+- **API**: `cd Back_MCLog && caprover deploy` (sube el último commit) o, con cambios sin commitear, un `.tar` con `caprover deploy -t ./deploy.tar` ([DEPLOYMENT.md § B.3](../DEPLOYMENT.md#b3-la-api-caprover), paso 4). Las migraciones se aplican solas al arrancar.
+- **Dashboard**: Railway redespliega con cada push a la rama conectada, o manualmente con **Redeploy**. Es aparte: el `.tar` del backend no lo incluye.
 
 Actualiza primero la API y después el dashboard.
 

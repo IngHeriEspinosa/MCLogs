@@ -218,6 +218,20 @@ Navegador ──► https://mclog.tu-dominio.com            (Railway: frontend_m
    ```
 
    CapRover construye la imagen con el `Dockerfile` que indica `captain-definition`. Al arrancar, `entrypoint.sh` aplica las migraciones y lanza el servidor, que crea la cuenta root.
+
+   > [!IMPORTANT]
+   > Dentro de un repositorio git, `caprover deploy` sube el **último commit** (`git archive HEAD`), no lo que tienes en disco: los cambios sin commitear no se despliegan. Si quieres desplegar sin commitear, usa un `.tar`, como se explica a continuación.
+
+   **Desplegar desde un `.tar`.** Empaqueta lo que usa el `Dockerfile` y súbelo. El `npx tsc` frena el empaquetado si el código no compila:
+
+   ```bash
+   cd Back_MCLog
+   npx tsc --noEmit -p . && tar -cf deploy.tar ./.dockerignore ./Dockerfile ./captain-definition ./entrypoint.sh \
+     ./package-lock.json ./package.json ./prisma ./prisma.config.ts ./src ./tsconfig.json
+   caprover deploy -t ./deploy.tar
+   ```
+
+   En PowerShell, la misma orden con `tar.exe` (viene con Windows) y `if ($?) { … }` en lugar de `&&`. También se puede subir a mano en la app: **Deployment → Method 2: Tarball**. `deploy.tar` está en `.gitignore`.
 5. Comprueba:
 
    ```bash
@@ -272,8 +286,8 @@ Llévate esos ficheros fuera del servidor (S3, Spaces, otro host) con `rclone` o
 
 ### Actualizar a una versión nueva
 
-- **API**: `cd Back_MCLog && caprover deploy`. Las migraciones se aplican solas al arrancar.
-- **Dashboard**: Railway redespliega con cada push a la rama conectada, o desde **Deployments → Redeploy**.
+- **API**: `cd Back_MCLog && caprover deploy` (sube el último commit) o, con cambios sin commitear, un `.tar` ([B.3](#b3-la-api-caprover), paso 4). Las migraciones se aplican solas al arrancar.
+- **Dashboard**: Railway redespliega con cada push a la rama conectada, o desde **Deployments → Redeploy**. Es un despliegue aparte: el `.tar` del backend no lo incluye.
 
 Haz una copia de la base antes si la versión trae cambios de esquema.
 

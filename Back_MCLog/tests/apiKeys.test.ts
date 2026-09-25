@@ -45,11 +45,13 @@ beforeAll(async () => {
   adminToken = adminLogin.body.accessToken;
 
   // Usuario sin rol admin, para comprobar que no puede administrar claves.
+  // activatedAt es obligatorio: sin el, login lo trata como invitacion pendiente.
   const hash = await bcrypt.hash("SoloLectura1", 12);
+  const activatedAt = new Date();
   await prisma.user.upsert({
     where: { email: "lector@example.com" },
-    update: { passwordHash: hash, role: "user" },
-    create: { email: "lector@example.com", passwordHash: hash, role: "user" },
+    update: { passwordHash: hash, role: "user", activatedAt },
+    create: { email: "lector@example.com", passwordHash: hash, role: "user", activatedAt },
   });
   const userLogin = await request(app)
     .post("/auth/login")

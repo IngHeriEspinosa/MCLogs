@@ -84,7 +84,12 @@ cd Back_MCLog
 caprover deploy
 ```
 
-Elige tu servidor y la app `mclog-api`. CapRover construye la imagen con el `Dockerfile` (lo indica `captain-definition`). Al arrancar, el contenedor:
+Elige tu servidor y la app `mclog-api`.
+
+> [!IMPORTANT]
+> `caprover deploy` sube el **último commit**, no lo que tienes en disco. Para desplegar cambios sin commitear, empaqueta un `.tar` y súbelo con `caprover deploy -t ./deploy.tar` ([DEPLOYMENT.md § B.3](../DEPLOYMENT.md#b3-la-api-caprover), paso 4).
+
+CapRover construye la imagen con el `Dockerfile` (lo indica `captain-definition`). Al arrancar, el contenedor:
 
 1. aplica las migraciones de la base (`entrypoint.sh`);
 2. arranca la API, que crea la cuenta root.
