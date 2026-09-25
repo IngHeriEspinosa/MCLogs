@@ -44,19 +44,25 @@ const runExclusively = async (name: string, task: () => Promise<unknown>) => {
   }
 };
 
+/** Fecha limite de la retencion: `months` meses naturales antes de `from`. */
+export const retentionCutoff = (months: number, from = new Date()) => {
+  const cutoff = new Date(from);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - months);
+  return cutoff;
+};
+
 /**
- * Purga los logs que superan la ventana de retencion.
- * Con `RETENTION_DAYS=0` no borra nada: la tabla crece sin limite, que es el
- * comportamiento historico y hay que elegirlo a conciencia.
+ * Purga los logs que superan la ventana de retencion. La ventana la fija la
+ * cuenta root en la configuracion, entre tres meses y cinco anos: siempre se
+ * borra algo, la tabla no crece sin limite.
  */
 export const runRetentionNow = async (): Promise<number> => {
-  const retentionDays = getSetting("retentionDays");
-  if (retentionDays <= 0) return 0;
-  const before = new Date(Date.now() - retentionDays * DAY_MS);
+  const retentionMonths = getSetting("retentionMonths");
+  const before = retentionCutoff(retentionMonths);
   const deleted = await deleteLogsOlderThanInBatches(before);
   if (deleted > 0) {
     logger.info("Retention purge completed", {
-      retentionDays,
+      retentionMonths,
       before: before.toISOString(),
       deleted,
     });
@@ -105,10 +111,7 @@ export const startScheduler = () => {
   schedule("workspacePurge", WORKSPACE_PURGE_INTERVAL_MS, purgeDeletedWorkspaces);
   schedule("snapshotPurge", SNAPSHOT_PURGE_INTERVAL_MS, purgeExpiredSnapshots);
 
-  logger.info("Scheduler started", {
-    retentionDays: getSetting("retentionDays"),
-    retentionEnabled: getSetting("retentionDays") > 0,
-  });
+  logger.info("Scheduler started", { retentionMonths: getSetting("retentionMonths") });
 
   // Primera pasada nada mas arrancar: si el servicio estuvo caido, no conviene
   // esperar una hora mas para recuperar el mantenimiento pendiente.

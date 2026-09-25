@@ -11,7 +11,7 @@ Da acceso a las personas de tu equipo y a las máquinas que envían o leen logs,
 
 ## Antes de empezar
 
-- Para la parte de espacio: ser **dueño** del espacio. Si en el menú no ves la sección **Espacio**, en ese espacio eres miembro.
+- Para la parte de espacio: ser **dueño** del espacio (o admin de plataforma, que lo es de todos). Si en el menú no ves la sección **Espacio**, en ese espacio eres miembro.
 - Para la parte de plataforma: ser **admin de plataforma**. Si no ves la sección **Plataforma**, no lo eres.
 - Idealmente, tu propia cuenta ya protegida con la verificación en dos pasos ([Proteger tu cuenta](seguridad-cuenta.md)).
 
@@ -29,7 +29,7 @@ Aparte está el rol de **plataforma**:
 | Rol de plataforma | Puede |
 |---|---|
 | **Usuario** | Nada más: lo que haga depende de su rol en cada espacio |
-| **Admin de plataforma** | Además, dar de alta y de baja cuentas. **No ve los datos de los espacios a los que no pertenece** |
+| **Admin de plataforma** | Administra la aplicación entera: da de alta y de baja cuentas y es **dueño de todos los espacios**, aunque no sea miembro de ellos. Los ve todos en el selector |
 
 Cualquier cuenta puede crear espacios nuevos desde el selector (**Crear espacio**) y queda como su dueña. Es la forma de separar, por ejemplo, un cliente de otro.
 
@@ -83,7 +83,7 @@ Todo en **Plataforma → Cuentas**. Solo lo ve el admin de plataforma.
 1. Pulsa **Nueva cuenta** y escribe el **Correo**.
 2. En **Espacio de trabajo**, elige:
    - **Espacio propio**: la cuenta estrena un espacio vacío del que es dueña. Puedes darle nombre; si no, se llama "Espacio de …".
-   - **Unirse a mi espacio**: entra a uno de **tus** espacios (solo aparecen aquellos de los que eres dueño), con el rol que elijas.
+   - **Unirse a un espacio**: entra a cualquier espacio existente (como admin de plataforma los administras todos), con el rol que elijas.
 3. **Rol en la plataforma**: normalmente **Usuario**.
 4. Pulsa **Crear cuenta**.
 
@@ -93,7 +93,7 @@ La persona recibe el enlace de activación por correo o, si no hay correo config
 
 | Columna / etiqueta | Qué dice |
 |---|---|
-| **Espacios** | En cuántos espacios está. No ves cuáles ni sus datos |
+| **Espacios** | Los espacios en los que está y su rol en cada uno. Pulsa uno para abrir sus miembros: como admin de plataforma administras todos |
 | **Pendiente** | Aún no ha activado la cuenta con su enlace |
 | **Root** | La cuenta de arranque del servicio (`ADMIN_EMAIL`). Su rol no se puede cambiar y no tiene botón **Eliminar** |
 | **2FA** | Tiene activada la verificación en dos pasos |
@@ -198,7 +198,7 @@ En la misma página están la retención de logs, los tamaños de exportación y
 | No puedo eliminar una cuenta desde **Cuentas** | Es la root, el último admin, o la única dueña de un espacio con más miembros |
 | La persona invitada dice "Credenciales inválidas" | Aún no ha activado la cuenta con su enlace; genera uno con **Nuevo enlace** |
 | El enlace dice que no es válido o ha caducado | Pasaron 7 días o ya se usó; genera otro con **Nuevo enlace** |
-| En **Unirse a mi espacio** no aparece ningún espacio | No eres dueño de ninguno: crea uno desde el selector |
+| En **Unirse a un espacio** no aparece ningún espacio | Aún no hay ninguno: crea uno desde el selector |
 | Los logs de un emisor no aparecen | La clave es de otro espacio: cambia de espacio en el selector |
 | Un emisor recibe `403` con `allowedApplications` | Su `application` no está en las **Aplicaciones** de la clave |
 | Un emisor recibe `401` | Clave revocada, caducada, mal copiada, o su espacio se borró |

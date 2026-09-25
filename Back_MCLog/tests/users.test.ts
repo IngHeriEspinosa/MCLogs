@@ -109,6 +109,14 @@ describe("Alta y administracion de usuarios", () => {
     const emails = res.body.data.map((u: { email: string }) => u.email);
     expect(emails).toContain(process.env.ADMIN_EMAIL);
     expect(emails).toContain("nuevo@example.com");
+
+    // El admin administra todo: ve en que espacios esta cada cuenta y con que rol.
+    type Row = { email: string; workspaces: { id: number; name: string; role: string }[]; workspaceCount: number };
+    const nuevo = res.body.data.find((u: Row) => u.email === "nuevo@example.com") as Row;
+    expect(nuevo.workspaces).toHaveLength(1);
+    expect(nuevo.workspaces[0]).toMatchObject({ role: "owner" });
+    expect(typeof nuevo.workspaces[0].name).toBe("string");
+    expect(nuevo.workspaceCount).toBe(1);
   });
 
   it("cambia el rol de un usuario y cierra sus sesiones", async () => {

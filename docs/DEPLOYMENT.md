@@ -88,7 +88,7 @@ openssl rand -hex 32
 | `API_KEY` | Aleatoria. Es la clave heredada y deprecada; lo normal es no repartirla y crear claves con permisos desde el dashboard |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciales de la **cuenta root** (el primer administrador, que no se puede borrar ni degradar). El valor de `.env.example` es público: el arranque lo rechaza en producción |
 | `CORS_ORIGINS` / `PUBLIC_DASHBOARD_URL` | `https://<tu dominio>`, exacto y sin barra final |
-| `RETENTION_DAYS` | Días de logs a conservar. `0` desactiva la purga y la tabla crecerá sin límite |
+| `RETENTION_MONTHS` | Meses de logs a conservar, entre 3 y 60 (3 por defecto). La cuenta root lo cambia después desde **Plataforma → Configuración** |
 
 Levanta todo:
 
@@ -206,7 +206,7 @@ Navegador ──► https://mclog.tu-dominio.com            (Railway: frontend_m
    FORCE_HTTPS=1
    COOKIE_SECURE=1
    COOKIE_SAMESITE=lax                   # "none" si los dominios no comparten dominio raíz (B.5)
-   RETENTION_DAYS=30
+   RETENTION_MONTHS=3
    ```
 
    El resto de variables tiene valores por defecto razonables; la lista completa está en [TECHNICAL.md](TECHNICAL.md#5-configuración).
@@ -351,7 +351,7 @@ Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nad
 | El dashboard muestra "No se pudo contactar con el servidor" (B) | `NEXT_PUBLIC_API_URL` mal puesta o sin HTTPS, o `CORS_ORIGINS` no coincide **exactamente** con el origen del dashboard. Mira la consola del navegador |
 | La sesión se cae al navegar | `CORS_ORIGINS` o `PUBLIC_DASHBOARD_URL` no coinciden exactamente con el dominio, falta `TRUST_PROXY=1`, o (B) los dominios son de sitios distintos y `COOKIE_SAMESITE` no es `none` ([B.5](#b5-dos-dominios-cors-y-cookies)) |
 | `unable to get local issuer certificate` al hacer `caprover deploy` o `docker build` | Un proxy corporativo intercepta TLS. Apunta `NODE_EXTRA_CA_CERTS` al certificado raíz de la empresa; nunca uses `NODE_TLS_REJECT_UNAUTHORIZED=0` |
-| El disco se llena | `RETENTION_DAYS=0` o demasiado alto. Mira el tamaño con `psql -c "\dt+"` dentro del contenedor de la base |
+| El disco se llena | La retención (**Plataforma → Configuración**) es demasiado alta. Mira el tamaño con `psql -c "\dt+"` dentro del contenedor de la base |
 | Los emisores reciben `429` | Superan el límite de ingesta. Agrupa en lotes antes de subir `INGEST_RATE_LIMIT_MAX` |
 | El stream **En vivo** no muestra nada detrás de un proxy propio | El proxy acumula la respuesta. Caddy ya lo resuelve (`flush_interval -1`) y la API manda `X-Accel-Buffering: no` para nginx |
 

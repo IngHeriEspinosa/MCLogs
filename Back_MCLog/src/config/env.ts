@@ -3,11 +3,6 @@ import "dotenv/config";
 const bool = (value: string | undefined) => value === "1" || value === "true";
 /** Booleano cuyo valor por defecto es true: solo un "0"/"false" explicito lo desactiva. */
 const boolDefaultTrue = (value: string | undefined) => (value === undefined || value === "" ? true : bool(value));
-/** Entero que admite 0 como valor valido (a diferencia de `int`, que lo trata como ausente). */
-const intAllowingZero = (value: string | undefined, fallback: number) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-};
 const int = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -37,8 +32,9 @@ export const config = {
   maxBatchSize: int(process.env.MAX_BATCH_SIZE, 500),
   maxExportRows: int(process.env.MAX_EXPORT_ROWS, 10000),
 
-  // Mantenimiento automatico. RETENTION_DAYS=0 desactiva la purga.
-  retentionDays: intAllowingZero(process.env.RETENTION_DAYS, 0),
+  // Mantenimiento automatico. Meses que se conservan los logs; la configuracion
+  // (settingsService) lo acota entre 3 meses y 5 anos, y la cuenta root lo cambia en caliente.
+  retentionMonths: int(process.env.RETENTION_MONTHS, 3),
   schedulerEnabled: boolDefaultTrue(process.env.SCHEDULER_ENABLED),
   /** Endpoint MCP para asistentes de IA. Activo salvo que se desactive a proposito. */
   mcpEnabled: boolDefaultTrue(process.env.MCP_ENABLED),

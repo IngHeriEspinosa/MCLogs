@@ -210,9 +210,9 @@ Condición que dispara una [alerta](#alerta). Dos tipos:
 La segunda es la más accionable tras un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes". Cada regla filtra por aplicación, entorno y nivel, y tiene su [cooldown](#cooldown-silencio-tras-avisar).
 
 ### Retención
-Borrado automático de los logs más antiguos que `RETENTION_DAYS`. Se ejecuta cada hora, en lotes de 5000 filas cediendo el control entre uno y otro, para no bloquear la tabla ni competir con la ingesta.
+Borrado automático de los logs más antiguos que la retención configurada por la cuenta root (entre 3 meses y 5 años). Se ejecuta cada hora, en lotes de 5000 filas cediendo el control entre uno y otro, para no bloquear la tabla ni competir con la ingesta.
 
-`RETENTION_DAYS=0` la desactiva y **la tabla crece sin límite**. Con varias instancias, `SCHEDULER_ENABLED` debe quedar activo en una sola. → [Purga](#purga)
+No se puede desactivar: como mínimo se guardan 3 meses y como máximo 5 años. Con varias instancias, `SCHEDULER_ENABLED` debe quedar activo en una sola. → [Purga](#purga)
 
 ### Rol
 Nivel de permiso de un **usuario**. `user` puede consultar, buscar, ver errores, estadísticas, exportar y gestionar su propia cuenta; [`admin`](#admin) además purga y administra claves, usuarios, alertas y el Lab. Sin sesión → `401`; con sesión pero rol insuficiente → `403`.

@@ -174,7 +174,7 @@ No pagina: devuelve hasta `MAX_EXPORT_ROWS` (10 000 por defecto) filas, o menos 
 
 `before` es obligatorio y debe ser ISO-8601 — no existe forma de borrar "todo" por accidente. Devuelve `{ "deleted": n }` y deja constancia de la operación en los logs del servicio.
 
-> La tabla `Log` **crece sin límite** si no se purga. Lo normal es dejarlo en manos de la retención automática (`RETENTION_DAYS`, ver [17](#17-mantenimiento-automático)); esta operación queda para limpiezas puntuales. Ver [USER_GUIDE.md](USER_GUIDE.md#c7-retención-de-logs).
+> La tabla `Log` **crece sin límite** si no se purga. Lo normal es dejarlo en manos de la retención automática (`retentionMonths`, ver [17](#17-mantenimiento-automático)); esta operación queda para limpiezas puntuales. Ver [USER_GUIDE.md](USER_GUIDE.md#c7-retención-de-logs).
 
 ---
 
@@ -229,7 +229,7 @@ Esa cuenta es la **root** del servicio: nadie puede eliminarla ni quitarle el ro
 
 **Código:** [workspaceService.ts](../Back_MCLog/src/services/workspaceService.ts) · [workspaceContext.ts](../Back_MCLog/src/middlewares/workspaceContext.ts) · [workspaceRoutes.ts](../Back_MCLog/src/routes/workspaceRoutes.ts)
 
-Un **espacio de trabajo** es la unidad de aislamiento: logs, API keys, canales y reglas de alerta pertenecen a uno, y solo sus miembros los ven. Una cuenta puede estar en varios espacios, con un rol distinto en cada uno, y cualquier cuenta puede crear espacios nuevos (queda como su dueña).
+Un **espacio de trabajo** es la unidad de aislamiento: logs, API keys, canales y reglas de alerta pertenecen a uno, y solo sus miembros los ven. Una cuenta puede estar en varios espacios, con un rol distinto en cada uno, y cualquier cuenta puede crear espacios nuevos (queda como su dueña). Por encima está el **admin de plataforma**, que administra toda la aplicación y entra a cualquier espacio como dueño.
 
 | Rol en el espacio | Puede |
 |---|---|
@@ -239,7 +239,7 @@ Un **espacio de trabajo** es la unidad de aislamiento: logs, API keys, canales y
 | Rol de plataforma | Puede |
 |---|---|
 | `user` | Nada más allá de su rol en cada espacio y su propia cuenta |
-| `admin` | Además, dar de alta y de baja cuentas (`/auth/users`). **No ve los datos de los espacios a los que no pertenece** |
+| `admin` | Administra la aplicación entera: da de alta y de baja cuentas (`/auth/users`) y es **dueño implícito de todos los espacios**, sin figurar como miembro. La cuenta root (`ADMIN_EMAIL`) es un `admin` que además cambia la configuración |
 
 **Cómo se elige el espacio de cada petición.** Con API key, el de la clave: la cabecera se ignora y una clave nunca sale de su espacio. Con sesión, la cabecera `X-Workspace-Id` (o `?workspace=` en el stream, porque `EventSource` no admite cabeceras); sin ella, el espacio por defecto de la cuenta (el más antiguo que administra). La membresía se comprueba en cada petición, con una caché en memoria de 30 s que se vacía al cambiar cualquier membresía.
 
@@ -283,7 +283,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Traza** | Una operación entre sistemas en línea temporal, con los saltos de tiempo entre pasos |
 | **Selector de espacio** | En lo alto del menú: espacio activo y rol, cambio de espacio sin recargar, crear espacio y salir del actual. Cada pestaña puede estar en un espacio distinto |
 | **Espacio** (dueño) | Miembros e invitaciones, API keys, alertas y el **Lab** de pruebas (ver [21](#21-lab-de-pruebas)) |
-| **Plataforma** (admin) | Cuentas: alta con espacio propio o dentro de uno tuyo, con enlace de activación |
+| **Plataforma** (admin) | Cuentas: alta con espacio propio o dentro de cualquier espacio existente, con enlace de activación. El admin ve todos los espacios en el selector y los administra como dueño |
 | **Mi cuenta** | Preferencias, cambio de contraseña, verificación en dos pasos y eliminar la propia cuenta |
 | **Badges por severidad** | Color por nivel para localizar errores de un vistazo |
 | **Export** | CSV y NDJSON con los filtros activos |
@@ -400,11 +400,11 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 | `POST /auth/me/2fa/*` | Cada uno la suya. Verificación en dos pasos con app autenticadora (TOTP) y códigos de recuperación |
 | `DELETE /auth/me` | Cada uno la suya, con contraseña y código 2FA. **La cuenta root (`ADMIN_EMAIL`) no se puede eliminar ni degradar** |
 | Alta, cambio de rol, reseteo de contraseña y baja de cuentas | `admin` de plataforma |
-| Miembros de un espacio: invitar, cambiar rol, reenviar enlace, quitar | Dueño del espacio (`/api/workspaces/:id/members`) |
+| Miembros de un espacio: invitar, cambiar rol, reenviar enlace, quitar | Dueño del espacio, o el `admin` de plataforma en cualquiera (`/api/workspaces/:id/members`) |
 
 Cambiar la contraseña o el rol de alguien **revoca todos sus refresh tokens**: las sesiones abiertas en otros dispositivos dejan de valer y el nuevo rol se aplica en el siguiente token.
 
-**Alta sin contraseña compartida.** `POST /auth/users` (admin) y `POST /api/workspaces/:id/members` (dueño) crean la cuenta **pendiente** si no existe y generan un enlace de activación de un solo uso, válido 7 días, reutilizando el mecanismo de "olvidé mi contraseña" (solo se guarda el hash). Se envía por correo si hay SMTP y `PUBLIC_DASHBOARD_URL`; si no, la respuesta incluye `invitePath` para compartirlo a mano. Una cuenta pendiente no puede iniciar sesión. Al dar de alta, el admin elige `mode: "own"` (espacio propio) o `mode: "join"` (uno de sus espacios); nunca, como antes, acceso a todo.
+**Alta sin contraseña compartida.** `POST /auth/users` (admin) y `POST /api/workspaces/:id/members` (dueño) crean la cuenta **pendiente** si no existe y generan un enlace de activación de un solo uso, válido 7 días, reutilizando el mecanismo de "olvidé mi contraseña" (solo se guarda el hash). Se envía por correo si hay SMTP y `PUBLIC_DASHBOARD_URL`; si no, la respuesta incluye `invitePath` para compartirlo a mano. Una cuenta pendiente no puede iniciar sesión. Al dar de alta, el admin elige `mode: "own"` (espacio propio) o `mode: "join"` (cualquier espacio existente); una cuenta `user` nunca nace con acceso a todo.
 
 Cuatro operaciones están bloqueadas para que nada se quede sin administración:
 
@@ -476,12 +476,12 @@ El endpoint es **sin estado**: cada petición se atiende y se cierra, así que e
 
 | Trabajo | Cada | Qué hace |
 |---|---|---|
-| Retención | 1 h | Borra los logs más antiguos que `RETENTION_DAYS` |
+| Retención | 1 h | Borra los logs más antiguos que la retención configurada (`retentionMonths`: de 3 meses a 5 años) |
 | Limpieza de sesiones | 6 h | Elimina los refresh tokens caducados |
 
 La purga va en **lotes de 5000 filas** cediendo el control entre uno y otro: un único `DELETE` sobre millones de filas bloquearía la tabla y competiría con la ingesta. Se ejecuta también al arrancar, para recuperar el mantenimiento pendiente si el servicio estuvo caído.
 
-`RETENTION_DAYS=0` desactiva la purga y la tabla crece sin límite. Con varias instancias detrás de un balanceador, `SCHEDULER_ENABLED=1` debe quedar en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
+La retención la fija la cuenta root en la configuración, entre 3 meses y 5 años (`RETENTION_MONTHS` da el valor inicial, 3). No existe "nunca borrar". Con varias instancias detrás de un balanceador, `SCHEDULER_ENABLED=1` debe quedar en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 
 ---
 
@@ -606,7 +606,7 @@ El catálogo es cerrado y tipado: cada clave tiene tipo, límites y un valor pre
 | `invitationTtlDays` | Días que vale un enlace de invitación (1–30) | 7 |
 | `allowWorkspaceCreation` | Si cualquier cuenta puede crear espacios o solo los admins de plataforma (`403`) | Activado |
 | `maxOwnedWorkspaces` | Espacios que puede poseer cada cuenta; no aplica a admins (`409`) | 0 = sin límite |
-| `retentionDays` | Días de retención de logs; 0 = no borrar | `RETENTION_DAYS` |
+| `retentionMonths` | Meses que se conservan los logs (3–60) | `RETENTION_MONTHS` (3) |
 | `maxExportRows` | Filas por exportación CSV/NDJSON | `MAX_EXPORT_ROWS` |
 | `maxBatchSize` | Logs por lote de ingesta | `MAX_BATCH_SIZE` |
 | `maxLiveConnections` | Conexiones simultáneas al stream en vivo, por instancia | `SSE_MAX_CONNECTIONS` |

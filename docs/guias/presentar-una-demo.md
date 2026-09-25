@@ -184,7 +184,7 @@ Deja en pantalla la dirección de la documentación y cede la palabra.
 | ¿Cuánto cuesta? | El software es MIT y autoalojado. El coste es el servidor donde ya corre y el tiempo de integrar cada aplicación |
 | ¿Y el governance de NetSuite? | 10 unidades por llamada. En User Events, una llamada; en Map/Reduce, lotes de 500 logs por llamada |
 | ¿Qué pasa si MCLog se cae? | Nada en las aplicaciones: los clientes nunca lanzan errores, registran el fallo y siguen |
-| ¿Cuánto tiempo se guardan los logs? | Lo que configuremos (`RETENTION_DAYS`, 30 días por defecto). Se borra solo |
+| ¿Cuánto tiempo se guardan los logs? | Lo que configure la cuenta root: entre 3 meses y 5 años (3 meses por defecto). Se borra solo |
 | ¿La IA puede borrar o cambiar algo? | No. Su clave es de solo lectura, acotada a las aplicaciones que decidamos, y no puede administrar nada |
 | ¿Quién puede entrar? | Cada persona con su usuario. Los administradores, con verificación en dos pasos. La cuenta root no se puede borrar |
 | ¿Sustituye al Execution Log de NetSuite? | No, lo complementa: NetSuite sigue igual; MCLog es donde se ve todo junto y agrupado |

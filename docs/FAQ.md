@@ -39,7 +39,7 @@ No. Un `POST` HTTP basta. Hay dos clientes listos por comodidad —[`@multicompu
 ### ¿Se puede usar en producción?
 Sí. Tiene guardias de configuración que impiden arrancar con secretos por defecto, rate limiting, HTTPS forzable, verificación en dos pasos y validación estricta. Lo que **debes** decidir tú:
 
-- **La retención**: `RETENTION_DAYS`, porque con `0` la [base crece sin parar](#la-base-de-datos-crece-sin-parar-qué-hago).
+- **La retención**: entre 3 meses y 5 años, desde **Plataforma → Configuración**; si el disco es pequeño, [bájala](#la-base-de-datos-crece-sin-parar-qué-hago).
 - **Las copias de seguridad**: el despliegue con Docker Compose trae un servicio diario, pero hay que llevarlas fuera del servidor.
 
 Ver [DEPLOYMENT.md](DEPLOYMENT.md).
@@ -382,9 +382,9 @@ No es obligatorio, pero mejora mucho el resultado mandar la excepción entera en
 ## Operación y rendimiento
 
 ### La base de datos crece sin parar, ¿qué hago?
-Pon `RETENTION_DAYS` en el `.env`. El servicio purga cada hora los logs más antiguos que esa ventana, en lotes de 5000 filas para no bloquear la tabla ni competir con la ingesta. También limpia los refresh tokens caducados.
+Baja la retención en **Plataforma → Configuración** (cuenta root): los logs se conservan entre **3 meses y 5 años**, 3 meses por defecto (`RETENTION_MONTHS`). El servicio purga cada hora los más antiguos que esa ventana, en lotes de 5000 filas para no bloquear la tabla ni competir con la ingesta. También limpia los refresh tokens caducados.
 
-`RETENTION_DAYS=0` desactiva la purga y la tabla crece sin límite, que era el comportamiento anterior. Sigue existiendo `DELETE /api/logs?before=<fecha>` para purgas puntuales.
+No hay opción de "no borrar nunca": la tabla no debe crecer sin límite. Sigue existiendo `DELETE /api/logs?before=<fecha>` para purgas puntuales.
 
 Con varias instancias detrás de un balanceador, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 

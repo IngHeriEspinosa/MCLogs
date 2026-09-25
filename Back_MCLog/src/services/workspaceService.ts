@@ -12,6 +12,10 @@ import { UserServiceError } from "./userService";
  * Logs, API keys y alertas pertenecen a un espacio y solo los ven sus miembros.
  * El dueño (owner) lo administra; el miembro (member) solo observa. Un espacio
  * tiene siempre al menos un dueño: sin el, nadie podria gestionarlo.
+ *
+ * Por encima de los espacios esta el admin de plataforma (rol `admin`, la
+ * cuenta root incluida): administra la aplicacion entera, asi que es dueño
+ * implicito de todos los espacios sin figurar como miembro de ninguno.
  */
 
 export const WORKSPACE_ROLES = ["owner", "member"] as const;
@@ -82,33 +86,57 @@ const membershipCache = new Map<string, { role: WorkspaceRole | null; expires: n
 
 export const invalidateMemberships = () => membershipCache.clear();
 
-/** Rol del usuario en el espacio, o null si no es miembro o el espacio esta borrado. */
-export const getMembershipRole = async (userId: number, workspaceId: number): Promise<WorkspaceRole | null> => {
-  const key = `${userId}:${workspaceId}`;
+/** Quien administra la plataforma entera: la cuenta root y los demas admins. */
+export const isPlatformAdmin = (user: { role: string }) => user.role === "admin";
+
+const cachedRole = async (key: string, load: () => Promise<WorkspaceRole | null>) => {
   const cached = membershipCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.role;
-
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId, workspaceId, workspace: { deletedAt: null } },
-    select: { role: true },
-  });
-  const role = member?.role ?? null;
+  const role = await load();
   membershipCache.set(key, { role, expires: Date.now() + MEMBERSHIP_TTL_MS });
   return role;
+};
+
+/** Rol del usuario como miembro del espacio, o null si no lo es o el espacio esta borrado. */
+export const getMembershipRole = (userId: number, workspaceId: number): Promise<WorkspaceRole | null> =>
+  cachedRole(`${userId}:${workspaceId}`, async () => {
+    const member = await prisma.workspaceMember.findFirst({
+      where: { userId, workspaceId, workspace: { deletedAt: null } },
+      select: { role: true },
+    });
+    return member?.role ?? null;
+  });
+
+/**
+ * Rol con el que la cuenta actua en el espacio, o null si no tiene acceso.
+ * El admin de plataforma es dueño de cualquier espacio vivo, sea o no miembro;
+ * el resto, lo que diga su membresia. Es la unica puerta que deben usar las
+ * rutas: consultar la membresia a secas dejaria fuera al admin.
+ */
+export const getWorkspaceRole = (user: { id: number; role: string }, workspaceId: number): Promise<WorkspaceRole | null> => {
+  if (!isPlatformAdmin(user)) return getMembershipRole(user.id, workspaceId);
+  return cachedRole(`admin:${workspaceId}`, async () => {
+    const workspace = await prisma.workspace.findFirst({ where: { id: workspaceId, deletedAt: null }, select: { id: true } });
+    return workspace ? "owner" : null;
+  });
 };
 
 /**
  * Espacio que se usa cuando la peticion no dice cual: el mas antiguo que
  * administra el usuario, o si no administra ninguno, el mas antiguo al que
  * pertenece. Asi un cliente que no conozca los espacios sigue funcionando.
+ * Un admin sin membresias cae en el espacio mas antiguo de la plataforma.
  */
-export const getFallbackWorkspace = async (userId: number) => {
+export const getFallbackWorkspace = async (user: { id: number; role: string }) => {
   const member = await prisma.workspaceMember.findFirst({
-    where: { userId, workspace: { deletedAt: null } },
+    where: { userId: user.id, workspace: { deletedAt: null } },
     orderBy: [{ role: "asc" }, { workspaceId: "asc" }],
     select: { workspaceId: true, role: true },
   });
-  return member ? { id: member.workspaceId, role: member.role } : null;
+  if (member) return { id: member.workspaceId, role: isPlatformAdmin(user) ? "owner" : member.role };
+  if (!isPlatformAdmin(user)) return null;
+  const first = await prisma.workspace.findFirst({ where: { deletedAt: null }, orderBy: { id: "asc" }, select: { id: true } });
+  return first ? { id: first.id, role: "owner" as const } : null;
 };
 
 // --- Espacio por defecto (API_KEY heredada) ---
@@ -135,10 +163,24 @@ export const getDefaultWorkspaceId = async (): Promise<number | null> => {
 
 const defaultNameFor = (email: string) => `Espacio de ${email.split("@")[0]}`.slice(0, WORKSPACE_NAME_MAX);
 
-export const listUserWorkspaces = async (userId: number): Promise<WorkspaceSummary[]> => {
+const workspaceSummaryFields = { id: true, name: true, createdAt: true, _count: { select: { members: true } } } as const;
+
+/**
+ * Espacios a los que la cuenta puede entrar, con su rol en cada uno. Para el
+ * admin de plataforma son todos los espacios vivos, siempre como dueño.
+ */
+export const listUserWorkspaces = async (user: { id: number; role: string }): Promise<WorkspaceSummary[]> => {
+  if (isPlatformAdmin(user)) {
+    const workspaces = await prisma.workspace.findMany({
+      where: { deletedAt: null },
+      select: workspaceSummaryFields,
+      orderBy: { id: "asc" },
+    });
+    return workspaces.map((w) => ({ id: w.id, name: w.name, role: "owner", memberCount: w._count.members, createdAt: w.createdAt }));
+  }
   const memberships = await prisma.workspaceMember.findMany({
-    where: { userId, workspace: { deletedAt: null } },
-    include: { workspace: { select: { id: true, name: true, createdAt: true, _count: { select: { members: true } } } } },
+    where: { userId: user.id, workspace: { deletedAt: null } },
+    include: { workspace: { select: workspaceSummaryFields } },
     orderBy: { workspaceId: "asc" },
   });
   return memberships.map((m) => ({

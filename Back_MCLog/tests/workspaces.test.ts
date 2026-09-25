@@ -118,9 +118,22 @@ describe("Aislamiento entre espacios", () => {
     expect(invalid.status).toBe(400);
   });
 
-  it("el admin de plataforma tampoco entra a espacios en los que no esta", async () => {
-    const res = await request(app).get("/api/logs").set(as(adminToken, ownerWs));
-    expect(res.status).toBe(404);
+  it("el admin de plataforma entra a cualquier espacio como dueño, sin ser miembro", async () => {
+    expect(await prisma.workspaceMember.findFirst({ where: { workspaceId: ownerWs, user: { email: process.env.ADMIN_EMAIL } } })).toBeNull();
+
+    const logs = await request(app).get("/api/logs").query({ search: "ws-iso" }).set(as(adminToken, ownerWs));
+    expect(logs.status).toBe(200);
+    expect(logs.body.data.map((log: { application: string }) => log.application)).toEqual(["ws-iso-b"]);
+
+    const members = await request(app).get(`/api/workspaces/${ownerWs}/members`).set(bearer(adminToken));
+    expect(members.status).toBe(200);
+
+    const list = await request(app).get("/api/workspaces").set(bearer(adminToken));
+    const seen = list.body.data.find((w: { id: number }) => w.id === ownerWs);
+    expect(seen?.role).toBe("owner");
+
+    const unknown = await request(app).get("/api/logs").set(as(adminToken, 999999));
+    expect(unknown.status).toBe(404);
   });
 
   it("un log de otro espacio no existe por id ni por contexto", async () => {
@@ -299,12 +312,20 @@ describe("Invitaciones", () => {
     expect(await prisma.user.findUnique({ where: { id: userId } })).toBeNull();
   });
 
-  it("el admin de plataforma solo suma cuentas a espacios de los que es dueño", async () => {
+  it("el admin de plataforma suma cuentas a cualquier espacio, aunque no sea miembro", async () => {
     const res = await request(app)
       .post("/auth/users")
       .set(bearer(adminToken))
       .send({ email: PENDING, mode: "join", workspaceId: ownerWs });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
+    expect(res.body.data.activatedAt).toBeNull();
+    expect(await prisma.workspaceMember.findFirst({ where: { workspaceId: ownerWs, user: { email: PENDING } } })).not.toBeNull();
+
+    const missing = await request(app)
+      .post("/auth/users")
+      .set(bearer(adminToken))
+      .send({ email: "otro.pendiente@example.com", mode: "join", workspaceId: 999999 });
+    expect(missing.status).toBe(403);
   });
 });
 

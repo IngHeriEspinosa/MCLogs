@@ -23,7 +23,7 @@ type SidebarProps = {
   hasWorkspace: boolean;
   /** Dueño del espacio activo: ve su administracion. */
   isOwner: boolean;
-  /** Admin de plataforma: ve la gestion de cuentas. */
+  /** Admin de plataforma: ve la gestion de cuentas (y es dueño de todos los espacios). */
   isPlatformAdmin: boolean;
   /** Cuenta root: ve la configuracion de la aplicacion. */
   isRoot: boolean;
@@ -36,8 +36,8 @@ type SidebarProps = {
  * un panel que se desliza sobre el contenido.
  *
  * Tres bloques: lo que se observa (todos los miembros del espacio), la
- * administracion del espacio (solo su dueño) y la de la plataforma (solo su
- * admin, que gestiona cuentas pero no ve los datos de otros espacios).
+ * administracion del espacio (su dueño, y el admin de plataforma en todos) y
+ * la de la plataforma (solo su admin, que ademas gestiona las cuentas).
  */
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,

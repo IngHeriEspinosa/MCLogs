@@ -205,10 +205,10 @@ describe("Efecto de cada configuracion", () => {
         level: "info",
         environment: "development",
         message: "viejo",
-        timestamp: new Date(Date.now() - 10 * 86_400_000),
+        timestamp: new Date(Date.now() - 400 * 86_400_000),
       },
     });
-    await setSettings({ retentionDays: 5 });
+    await setSettings({ retentionMonths: 3 });
     expect(await runRetentionNow()).toBeGreaterThanOrEqual(1);
     expect(await prisma.log.count({ where: { application: "ajustes-retencion" } })).toBe(0);
   });

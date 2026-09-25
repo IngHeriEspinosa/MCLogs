@@ -452,7 +452,7 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 | `COOKIE_DOMAIN` | — | Para compartir cookie entre subdominios |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | Cuenta root: se crea al arrancar si no existe, y no se puede borrar ni degradar |
 | `LOGIN_RATE_LIMIT_WINDOW_MS` / `LOGIN_RATE_LIMIT_MAX` | 900000 / 10 | Login, segundo paso del 2FA, alta/baja del 2FA y borrar la propia cuenta; cuenta únicamente los intentos fallidos |
-| `RETENTION_DAYS` | `0` | Días de logs a conservar. `0` no purga nunca y la tabla crece sin límite |
+| `RETENTION_MONTHS` | `3` | Meses de logs a conservar (3–60). Es solo el valor inicial: la cuenta root lo cambia en caliente desde **Plataforma → Configuración** |
 | `SCHEDULER_ENABLED` | `1` | Mantenimiento periódico. Con varias instancias, dejarlo activo en una sola |
 | `MCP_ENABLED` | `1` | Expone el servidor MCP en `/mcp` |
 | `SSE_MAX_CONNECTIONS` | `50` | Conexiones simultáneas al stream en vivo, **por instancia** |
@@ -614,7 +614,7 @@ Guía completa en [DEPLOYMENT.md](DEPLOYMENT.md). Hay dos topologías soportadas
 3. `ADMIN_EMAIL` real y `ADMIN_PASSWORD` fuerte (será la cuenta root)
 4. `CORS_ORIGINS` con la URL exacta del dashboard
 5. `FORCE_HTTPS=1`, `COOKIE_SECURE=1`, `TRUST_PROXY=1` si hay proxy
-6. `RETENTION_DAYS` distinto de 0: el propio servicio purga cada hora; con 0 la tabla crece sin límite
+6. Retención ajustada (**Plataforma → Configuración**, entre 3 meses y 5 años): el propio servicio purga cada hora
 7. Backups de la base de datos
 8. Tras el primer login: cambiar la contraseña del root y activar su verificación en dos pasos
 

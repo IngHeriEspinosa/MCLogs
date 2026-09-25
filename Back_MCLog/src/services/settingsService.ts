@@ -20,6 +20,15 @@ import { prisma } from "../config/prisma";
  */
 
 export const SETTING_CATEGORIES = ["workspaces", "logs", "features", "security"] as const;
+
+/**
+ * Retencion de logs, en meses. Siempre se borra algo: como minimo se guardan
+ * tres meses y como maximo cinco anos. No hay "nunca": la tabla no debe crecer
+ * sin limite. Un RETENTION_MONTHS fuera de rango se acota, no se rechaza.
+ */
+export const RETENTION_MIN_MONTHS = 3;
+export const RETENTION_MAX_MONTHS = 60;
+const clampRetention = (months: number) => Math.min(RETENTION_MAX_MONTHS, Math.max(RETENTION_MIN_MONTHS, Math.round(months)));
 export type SettingCategory = (typeof SETTING_CATEGORIES)[number];
 
 type NumberSetting = { type: "number"; category: SettingCategory; min: number; max: number; default: () => number };
@@ -40,8 +49,14 @@ export const SETTINGS = {
   maxOwnedWorkspaces: { type: "number", category: "workspaces", min: 0, max: 1_000, default: () => 0 },
 
   // --- Logs ---
-  /** Dias de retencion. 0 = no se borra nada. */
-  retentionDays: { type: "number", category: "logs", min: 0, max: 3_650, default: () => config.retentionDays },
+  /** Meses que se conservan los logs antes de borrarse (3 meses a 5 anos). */
+  retentionMonths: {
+    type: "number",
+    category: "logs",
+    min: RETENTION_MIN_MONTHS,
+    max: RETENTION_MAX_MONTHS,
+    default: () => clampRetention(config.retentionMonths),
+  },
   /** Filas maximas de una exportacion CSV/NDJSON. */
   maxExportRows: { type: "number", category: "logs", min: 100, max: 100_000, default: () => config.maxExportRows },
   /** Logs maximos en un lote de ingesta. */

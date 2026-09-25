@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createPrismaClient } from "../src/config/prisma";
 import { config } from "../src/config/env";
-import { runRefreshTokenCleanupNow, runRetentionNow } from "../src/jobs/scheduler";
+import { retentionCutoff, runRefreshTokenCleanupNow, runRetentionNow } from "../src/jobs/scheduler";
+import { getSetting } from "../src/services/settingsService";
 import { deleteLogsOlderThanInBatches } from "../src/services/logService";
 import { ensureAdminUser } from "../src/services/authService";
 import { getDefaultWorkspaceId } from "../src/services/workspaceService";
@@ -12,7 +13,7 @@ process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 const prisma = createPrismaClient();
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const retentionDaysOriginal = config.retentionDays;
+const retentionMonthsOriginal = config.retentionMonths;
 let userId: number;
 let workspaceId: number;
 
@@ -35,7 +36,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  config.retentionDays = retentionDaysOriginal;
+  config.retentionMonths = retentionMonthsOriginal;
   await prisma.log.deleteMany({ where: { application: { in: ["retencion", "lotes"] } } });
   await prisma.refreshToken.deleteMany({ where: { userId } });
 });
@@ -47,9 +48,9 @@ afterAll(async () => {
 describe("Purga por retencion", () => {
   it("borra solo los logs mas antiguos que la ventana configurada", async () => {
     await prisma.log.createMany({
-      data: [logAgedDays(10), logAgedDays(5), logAgedDays(3), logAgedDays(0.5), logAgedDays(0)],
+      data: [logAgedDays(400), logAgedDays(200), logAgedDays(120), logAgedDays(60), logAgedDays(0)],
     });
-    config.retentionDays = 2;
+    config.retentionMonths = 3;
 
     const deleted = await runRetentionNow();
     expect(deleted).toBe(3);
@@ -57,17 +58,32 @@ describe("Purga por retencion", () => {
     const quedan = await prisma.log.findMany({ where: { application: "retencion" } });
     expect(quedan).toHaveLength(2);
     // Lo que sobrevive esta dentro de la ventana.
-    const limite = Date.now() - 2 * DAY_MS;
+    const limite = retentionCutoff(3).getTime();
     expect(quedan.every((row) => row.timestamp.getTime() >= limite)).toBe(true);
   });
 
-  it("no borra nada con RETENTION_DAYS=0", async () => {
-    await prisma.log.createMany({ data: [logAgedDays(365), logAgedDays(500)] });
-    config.retentionDays = 0;
+  it("con el maximo conserva hasta cinco anos", async () => {
+    await prisma.log.createMany({ data: [logAgedDays(365), logAgedDays(1500), logAgedDays(2000)] });
+    config.retentionMonths = 60;
 
     const deleted = await runRetentionNow();
-    expect(deleted).toBe(0);
+    expect(deleted).toBe(1);
     expect(await prisma.log.count({ where: { application: "retencion" } })).toBe(2);
+  });
+
+  it("nunca guarda menos de tres meses: un valor de entorno menor se acota", async () => {
+    await prisma.log.createMany({ data: [logAgedDays(60), logAgedDays(120)] });
+    config.retentionMonths = 1;
+    expect(getSetting("retentionMonths")).toBe(3);
+
+    const deleted = await runRetentionNow();
+    expect(deleted).toBe(1);
+    expect(await prisma.log.count({ where: { application: "retencion" } })).toBe(1);
+  });
+
+  it("un valor de entorno mayor de cinco anos se acota a sesenta meses", () => {
+    config.retentionMonths = 120;
+    expect(getSetting("retentionMonths")).toBe(60);
   });
 
   it("recorre todos los lotes cuando hay mas filas que el tamano de lote", async () => {

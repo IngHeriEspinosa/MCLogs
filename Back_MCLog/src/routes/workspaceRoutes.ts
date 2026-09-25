@@ -12,7 +12,7 @@ import {
   assertCanCreateWorkspace,
   createWorkspace,
   deleteWorkspace,
-  getMembershipRole,
+  getWorkspaceRole,
   listMembers,
   listUserWorkspaces,
   removeMember,
@@ -50,7 +50,8 @@ const respondWithError = (error: unknown, res: Response, context: string) => {
 
 /**
  * Carga el espacio de `:id` en `req.workspace`. Quien no es miembro recibe 404,
- * igual que si no existiera; con `ownerOnly`, un miembro recibe 403.
+ * igual que si no existiera; con `ownerOnly`, un miembro recibe 403. El admin
+ * de plataforma cuenta como dueño de todos.
  */
 const workspaceFromParam =
   (ownerOnly: boolean) => (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -60,7 +61,7 @@ const workspaceFromParam =
       return;
     }
     void (async () => {
-      const role = await getMembershipRole(req.user!.id, id);
+      const role = await getWorkspaceRole(req.user!, id);
       if (!role) {
         res.status(404).json({ error: "Workspace not found" });
         return;
@@ -87,7 +88,7 @@ router.use(queryLimiter, requireAuth);
 
 router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    res.json({ data: await listUserWorkspaces(req.user!.id) });
+    res.json({ data: await listUserWorkspaces(req.user!) });
   } catch (error) {
     respondWithError(error, res, "Error listing workspaces");
   }

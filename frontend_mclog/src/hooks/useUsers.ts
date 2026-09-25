@@ -12,11 +12,12 @@ export type ManagedUser = {
   createdAt: string;
   /** Null mientras la invitacion esta pendiente. */
   activatedAt: string | null;
-  /** En cuantos espacios esta; el admin de plataforma no ve cuales. */
+  /** Espacios en los que esta, con su rol en cada uno. El admin de plataforma puede abrir cualquiera. */
+  workspaces: { id: number; name: string; role: "owner" | "member" }[];
   workspaceCount: number;
 };
 
-/** Alta de cuenta: con espacio propio o dentro de uno del que eres dueño. */
+/** Alta de cuenta: con espacio propio o dentro de cualquier espacio existente. */
 export type CreateUserInput = {
   email: string;
   role: UserRole;

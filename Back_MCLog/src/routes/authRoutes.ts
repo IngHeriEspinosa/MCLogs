@@ -271,8 +271,8 @@ router.post(
 
 // --- Administracion de cuentas (admin de plataforma) ---
 //
-// El admin de plataforma gestiona cuentas, no datos: ve cuantas cuentas hay y
-// en cuantos espacios esta cada una, pero no los espacios ajenos ni sus logs.
+// El admin de plataforma administra la aplicacion entera: las cuentas desde
+// aqui y, como dueño implicito, cualquier espacio desde las rutas de espacios.
 
 const adminOnly = [requireAuth, requireRole("admin")];
 
@@ -308,7 +308,7 @@ router.post(
         workspaceName: req.body.workspaceName,
         workspaceId: req.body.workspaceId,
         workspaceRole: req.body.workspaceRole,
-        requesterId: req.user!.id,
+        requester: req.user!,
         locale: req.body.locale,
       });
       logger.info("User created", {

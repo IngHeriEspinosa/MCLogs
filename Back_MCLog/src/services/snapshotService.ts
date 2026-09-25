@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
 import logger from "../config/logger";
 import { buildWhere, getLogStats, LogFilters } from "./logService";
 import { getErrorGroups, getLevelTimeline, MAX_TRACE_LOGS } from "./analysisService";
-import { getMembershipRole } from "./workspaceService";
+import { getWorkspaceRole } from "./workspaceService";
 import { getSetting } from "./settingsService";
 import { createRedactor } from "../utils/redact";
 
@@ -401,7 +401,7 @@ type SnapshotView = NonNullable<Awaited<ReturnType<typeof loadData>>> & { worksp
  */
 export const getSnapshotByToken = async (
   token: string,
-  viewerId: number | undefined,
+  viewer: { id: number; role: string } | undefined,
 ): Promise<{ snapshot: SnapshotView } | { requiresAuth: true } | null> => {
   // Primero el acceso y despues los datos: un enlace de equipo abierto sin
   // sesion, o por quien no es miembro, no carga megas de logs para nada.
@@ -413,8 +413,8 @@ export const getSnapshotByToken = async (
   if (snapshot.visibility === "public" && !getSetting("publicSnapshotsEnabled")) return null;
 
   if (snapshot.visibility === "workspace") {
-    if (viewerId === undefined) return { requiresAuth: true };
-    if (!(await getMembershipRole(viewerId, snapshot.workspaceId))) return null;
+    if (viewer === undefined) return { requiresAuth: true };
+    if (!(await getWorkspaceRole(viewer, snapshot.workspaceId))) return null;
   }
 
   const data = await loadData(snapshot.id);

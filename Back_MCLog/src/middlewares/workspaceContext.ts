@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import type { AuthenticatedRequest, WorkspaceContext } from "./requireAuth";
-import { getFallbackWorkspace, getMembershipRole } from "../services/workspaceService";
+import { getFallbackWorkspace, getWorkspaceRole } from "../services/workspaceService";
 import { getSetting } from "../services/settingsService";
 
 /**
@@ -13,7 +13,8 @@ import { getSetting } from "../services/settingsService";
  * - Con **JWT** el espacio llega en la cabecera `X-Workspace-Id` o, para el
  *   stream en vivo (EventSource no admite cabeceras), en `?workspace=`. Sin
  *   ninguna de las dos se usa el espacio por defecto del usuario, para que los
- *   clientes que no conocen los espacios sigan funcionando.
+ *   clientes que no conocen los espacios sigan funcionando. El admin de
+ *   plataforma entra a cualquier espacio como dueño.
  *
  * Si el usuario no es miembro se responde 404, no 403: un 403 confirmaria que
  * ese espacio existe.
@@ -35,9 +36,9 @@ const resolveWorkspace = async (req: AuthenticatedRequest): Promise<WorkspaceCon
 
   const requested = requestedWorkspaceId(req);
   if (requested === null) return "invalid";
-  if (requested === undefined) return getFallbackWorkspace(req.user.id);
+  if (requested === undefined) return getFallbackWorkspace(req.user);
 
-  const role = await getMembershipRole(req.user.id, requested);
+  const role = await getWorkspaceRole(req.user, requested);
   return role ? { id: requested, role } : null;
 };
 

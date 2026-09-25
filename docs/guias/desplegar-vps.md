@@ -60,7 +60,7 @@ Edita `deploy/.env` (`nano .env`) y cambia **todo lo que empieza por `CAMBIAR`**
 | `ADMIN_EMAIL` | Tu correo real. Será la **cuenta root** |
 | `ADMIN_PASSWORD` | Una contraseña fuerte (la cambiarás al entrar) |
 | `CORS_ORIGINS` y `PUBLIC_DASHBOARD_URL` | `https://mclog.tu-dominio.com`, exacto y **sin barra final** |
-| `RETENTION_DAYS` | Días de logs a conservar (30 por defecto). `0` = nunca borrar |
+| `RETENTION_MONTHS` | Meses de logs a conservar, entre 3 y 60 (3 por defecto). La cuenta root lo cambia después desde el panel |
 
 El resto ya tiene valores correctos para este despliegue (`TRUST_PROXY=1`, `FORCE_HTTPS=1`, `COOKIE_SECURE=1`…).
 

@@ -177,7 +177,7 @@ snapshotViewRouter.get(
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Robots-Tag", "noindex, nofollow");
     try {
-      const result = await getSnapshotByToken(String(req.params.token), req.user?.id);
+      const result = await getSnapshotByToken(String(req.params.token), req.user);
       if (!result) {
         res.status(404).json({ error: "Snapshot not found" });
         return;

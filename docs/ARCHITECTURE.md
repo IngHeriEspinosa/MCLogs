@@ -78,7 +78,7 @@ Por eso conviene usar **subdominios del mismo dominio raíz**.
 
 Decisiones clave:
 
-- **Todo pertenece a un espacio de trabajo.** Logs, claves y alertas llevan `workspaceId`, y cada petición resuelve su espacio antes de tocar datos: el de la API key, o el de la cabecera `X-Workspace-Id` validando que la sesión sea miembro. Un espacio ajeno responde `404`. Dentro del espacio, `owner` administra y `member` solo observa; el `admin` de plataforma gestiona cuentas pero no ve los datos de espacios a los que no pertenece. Se eligió una columna por tabla (aislamiento lógico en una sola base) frente a un esquema o una base por espacio: mantiene una única migración y un único pool de conexiones, y el filtro obligatorio en el tipo (`LogFilters.workspaceId`) y los índices que empiezan por `workspaceId` lo hacen seguro y rápido.
+- **Todo pertenece a un espacio de trabajo.** Logs, claves y alertas llevan `workspaceId`, y cada petición resuelve su espacio antes de tocar datos: el de la API key, o el de la cabecera `X-Workspace-Id` validando que la sesión sea miembro. Un espacio ajeno responde `404`. Dentro del espacio, `owner` administra y `member` solo observa; el `admin` de plataforma (la cuenta root incluida) administra la aplicación entera: gestiona cuentas y es dueño implícito de todos los espacios (`getWorkspaceRole`), sin figurar como miembro. Se eligió una columna por tabla (aislamiento lógico en una sola base) frente a un esquema o una base por espacio: mantiene una única migración y un único pool de conexiones, y el filtro obligatorio en el tipo (`LogFilters.workspaceId`) y los índices que empiezan por `workspaceId` lo hacen seguro y rápido.
 
 - **Los permisos se separan porque el daño de una filtración lo define el permiso, no la clave.** Una clave de ingesta comprometida escribe logs basura; no expone nada de lo almacenado.
 - **Una clave puede acotarse a una lista de aplicaciones**, y la restricción se aplica en escritura y en lectura, incluido el detalle por id, que responde `404` en lugar de `403` para no confirmar que el registro existe.
@@ -218,7 +218,7 @@ Un snapshot es una **copia**, no una consulta guardada: al crearlo, el backend e
 
 **Camino de crecimiento (en orden de necesidad):**
 
-1. **Retención**: ya automática vía `RETENTION_DAYS`. Ajustarla es lo primero si el disco crece.
+1. **Retención**: ya automática, entre 3 meses y 5 años (`retentionMonths`, ajustable por la cuenta root). Bajarla es lo primero si el disco crece.
 2. **Particionamiento por rango de `timestamp`** cuando la tabla supere decenas de millones de filas: las purgas pasan a ser `DROP PARTITION`.
 3. **Réplicas de lectura** si las consultas compiten con la ingesta.
 4. **Difusión de eventos** con `LISTEN/NOTIFY` o Redis, si el stream en vivo debe ser global entre réplicas.

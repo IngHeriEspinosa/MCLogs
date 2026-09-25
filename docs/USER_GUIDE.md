@@ -405,16 +405,16 @@ El procedimiento completo, con requisitos, DNS, certificados y resolución de pr
 
 ## C.3 Espacios y cuentas
 
-Cada **espacio de trabajo** está aislado: sus logs, API keys y alertas solo los ven sus miembros. Dentro de un espacio, el **dueño** lo administra (miembros, claves, alertas, Lab, purga) y el **miembro** solo observa. Cualquier cuenta puede crear espacios desde el selector. Guía paso a paso: [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md).
+Cada **espacio de trabajo** está aislado: sus logs, API keys y alertas solo los ven sus miembros. Dentro de un espacio, el **dueño** lo administra (miembros, claves, alertas, Lab, purga) y el **miembro** solo observa. Cualquier cuenta puede crear espacios desde el selector. El **admin de plataforma** ve todos los espacios y los administra como dueño. Guía paso a paso: [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md).
 
 **Invitar a alguien a tu espacio:** **Espacio → Miembros** → **Invitar a alguien** → **Correo** y **Rol** → **Invitar**. Si ya tiene cuenta entra al momento; si no, recibe un enlace para elegir su contraseña (o lo ves en pantalla para compartirlo, si el servidor no tiene correo configurado).
 
-**Dar de alta una cuenta** (admin de plataforma): **Plataforma → Cuentas** → **Nueva cuenta** → **Correo**, **Espacio propio** o **Unirse a mi espacio**, y **Rol en la plataforma** → **Crear cuenta**. La persona recibe su enlace de activación igual que en una invitación.
+**Dar de alta una cuenta** (admin de plataforma): **Plataforma → Cuentas** → **Nueva cuenta** → **Correo**, **Espacio propio** o **Unirse a un espacio**, y **Rol en la plataforma** → **Crear cuenta**. La persona recibe su enlace de activación igual que en una invitación.
 
 | Rol de plataforma | Puede |
 |---|---|
 | `user` | Lo que le permita su rol en cada espacio |
-| `admin` | Además, dar de alta y de baja cuentas. No ve los datos de los espacios a los que no pertenece |
+| `admin` | Administra la aplicación entera: da de alta y de baja cuentas y entra a cualquier espacio como dueño, sin ser miembro |
 
 En la lista de cuentas, estas etiquetas junto al correo:
 
@@ -491,9 +491,9 @@ Crea una clave con permiso `read` y sigue **[AI_INTEGRATION.md](AI_INTEGRATION.m
 
 ## C.7 Retención de logs
 
-Pon `RETENTION_DAYS` en el `.env` y olvídate: cada hora se purgan los logs más antiguos que esa ventana, en lotes para no bloquear la tabla ni competir con la ingesta. También se limpian los refresh tokens caducados.
+Los logs se conservan entre **3 meses y 5 años**; lo decide la cuenta root en **Plataforma → Configuración → Retención de logs** (en meses; 3 por defecto, o lo que diga `RETENTION_MONTHS` en el `.env`). Cada hora se purgan los más antiguos que esa ventana, en lotes para no bloquear la tabla ni competir con la ingesta. También se limpian los refresh tokens caducados.
 
-`RETENTION_DAYS=0` desactiva la purga y **la tabla crece sin límite**.
+No hay forma de desactivar la purga: la tabla no debe crecer sin límite.
 
 Con varias instancias detrás de un balanceador, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 

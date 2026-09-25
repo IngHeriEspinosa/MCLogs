@@ -63,7 +63,7 @@ srv-captain--mclog-db:5432         → PostgreSQL  (CapRover, app mclog-db, sin 
    FORCE_HTTPS=1
    COOKIE_SECURE=1
    COOKIE_SAMESITE=lax
-   RETENTION_DAYS=30
+   RETENTION_MONTHS=3
    ```
 
    Guarda con **Save & Update**.

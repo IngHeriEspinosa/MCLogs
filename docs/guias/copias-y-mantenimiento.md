@@ -17,15 +17,14 @@ Los comandos de Docker Compose se lanzan desde la carpeta `deploy/` del proyecto
 
 ## Parte 1 — Retención: cuánto se guarda
 
-MCLog borra solo, **cada hora**, los logs más antiguos que `RETENTION_DAYS`. Lo hace en lotes pequeños para no bloquear la tabla ni frenar la ingesta.
+MCLog borra solo, **cada hora**, los logs más antiguos que la retención configurada. Lo hace en lotes pequeños para no bloquear la tabla ni frenar la ingesta.
 
-1. Decide cuántos días necesitas consultar hacia atrás. 30 es un buen punto de partida; menos, si el disco es pequeño.
-2. Cámbialo:
-   - **VPS**: en `deploy/.env`, `RETENTION_DAYS=30`, y aplica con `docker compose -f docker-compose.prod.yml up -d`.
-   - **CapRover**: en **App Configs** de `mclog-api`, y **Save & Update**.
+1. Decide cuántos meses necesitas consultar hacia atrás: entre **3 meses y 5 años**. 3 meses es el valor inicial; menos, si el disco es pequeño.
+2. Cámbialo con la cuenta root en **Plataforma → Configuración → Retención de logs**. Se aplica al momento, sin reiniciar.
+   - El valor inicial, antes de tocarlo ahí, sale de `RETENTION_MONTHS` en el `.env` (3 si no está).
 
-> [!WARNING]
-> `RETENTION_DAYS=0` **desactiva** el borrado: la tabla crece sin límite hasta llenar el disco.
+> [!NOTE]
+> No se puede desactivar el borrado: como mínimo se guardan 3 meses y como máximo 5 años.
 
 **Ver cuánto ocupa** (VPS):
 
@@ -149,7 +148,7 @@ Actualiza primero la API y después el dashboard.
 | Síntoma | Solución |
 |---|---|
 | `backups/` está vacío | Mira `docker compose -f docker-compose.prod.yml logs backup`. Un volcado vacío se descarta y conserva las copias anteriores |
-| El disco se llena | Baja `RETENTION_DAYS` y `BACKUP_RETENTION_DAYS`; comprueba que no esté a `0` |
+| El disco se llena | Baja la retención en **Plataforma → Configuración** y `BACKUP_RETENTION_DAYS` |
 | Tras actualizar, la API no arranca | Mira sus logs. Si falla una migración, restaura la copia previa y abre un issue con el error |
 | La restauración a mano falla con "role does not exist" | El usuario de la base del destino es distinto; añade `--no-owner` a `pg_restore` (el script `restore.sh` ya lo hace) |
 

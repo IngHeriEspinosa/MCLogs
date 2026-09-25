@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Alert } from "@/components/atoms/Alert";
 import { Button } from "@/components/atoms/Button";
 import { Field } from "@/components/atoms/Field";
@@ -31,8 +32,8 @@ type Created = { email: string; emailSent: boolean; link?: string };
 
 /**
  * Alta de cuentas. La contrasena la elige la propia persona con el enlace de
- * activacion; aqui solo se decide donde entra: un espacio propio o uno de los
- * que administra quien la crea.
+ * activacion; aqui solo se decide donde entra: un espacio propio o uno ya
+ * existente (el admin de plataforma administra todos).
  */
 const CreateUserForm: React.FC = () => {
   const { t, locale } = useI18n();
@@ -49,7 +50,7 @@ const CreateUserForm: React.FC = () => {
   const [created, setCreated] = useState<Created | null>(null);
   const create = useCreateUser();
 
-  // Por defecto, el espacio activo si es tuyo; si no, el primero que administras.
+  // Por defecto, el espacio activo; si no, el primero de la lista.
   const joinId = workspaceId || String((owned.find((w) => w.id === current?.id) ?? owned[0])?.id ?? "");
   const canJoin = owned.length > 0;
 
@@ -148,7 +149,35 @@ const CreatedNotice: React.FC<{ created: Created }> = ({ created }) => {
 };
 
 
-const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSelf }) => {
+/**
+ * Espacios de una cuenta, con su rol en cada uno. El admin de plataforma es
+ * dueño de todos, asi que cada uno se abre directamente en su pagina de miembros.
+ */
+const UserWorkspaces: React.FC<{ workspaces: ManagedUser["workspaces"]; onOpen: (id: number) => void }> = ({ workspaces, onOpen }) => {
+  const { t } = useI18n();
+  if (workspaces.length === 0) return <span className="text-xs text-ink-3">{t.users.noWorkspaces}</span>;
+  return (
+    <ul className="flex max-w-xs flex-wrap gap-1">
+      {workspaces.map((workspace) => (
+        <li key={workspace.id}>
+          <button
+            type="button"
+            title={t.users.openWorkspace(workspace.name)}
+            onClick={() => onOpen(workspace.id)}
+            className={`inline-flex max-w-[14rem] items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors hover:border-brand-solid hover:text-brand-ink ${
+              workspace.role === "owner" ? "border-brand-soft bg-brand-soft/40 text-brand-ink" : "border-line text-ink-2"
+            }`}
+          >
+            <span className="truncate">{workspace.name}</span>
+            <span className="shrink-0 font-mono text-[0.625rem] uppercase tracking-wider opacity-70">{t.workspace.roles[workspace.role]}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean; onOpenWorkspace: (id: number) => void }> = ({ user, isSelf, onOpenWorkspace }) => {
   const { t, fmt } = useI18n();
   const roles = useRoleOptions();
   const update = useUpdateUser();
@@ -200,7 +229,9 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
             />
           </div>
         </td>
-        <td className="whitespace-nowrap border-b border-line px-4 py-3 font-mono text-xs text-ink-2">{user.workspaceCount}</td>
+        <td className="border-b border-line px-4 py-3">
+          <UserWorkspaces workspaces={user.workspaces} onOpen={onOpenWorkspace} />
+        </td>
         <td className="whitespace-nowrap border-b border-line px-4 py-3 text-xs text-ink-2">{fmt.date(user.createdAt)}</td>
         <td className="border-b border-line py-3 pl-4 pr-5">
           <div className="flex justify-end gap-1">
@@ -260,8 +291,16 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean }> = ({ user, isSel
 
 const UsersTable: React.FC<{ currentUserId?: number }> = ({ currentUserId }) => {
   const { t } = useI18n();
+  const router = useRouter();
+  const { switchTo } = useWorkspace();
   const users = useUsers();
   const data = users.data ?? [];
+
+  // Abrir un espacio desde la lista: se activa y se va a sus miembros.
+  const openWorkspace = (id: number) => {
+    switchTo(id);
+    router.push("/settings/workspace");
+  };
 
   return (
     <Card title={`${t.users.list} · ${data.length}`} divider flush>
@@ -294,7 +333,7 @@ const UsersTable: React.FC<{ currentUserId?: number }> = ({ currentUserId }) => 
               </thead>
               <tbody>
                 {data.map((user) => (
-                  <UserRow key={user.id} user={user} isSelf={user.id === currentUserId} />
+                  <UserRow key={user.id} user={user} isSelf={user.id === currentUserId} onOpenWorkspace={openWorkspace} />
                 ))}
               </tbody>
             </table>

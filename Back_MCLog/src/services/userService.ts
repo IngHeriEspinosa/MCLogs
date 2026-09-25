@@ -7,7 +7,7 @@ import {
   createPendingAccount,
   createWorkspace,
   deliverInvitation,
-  getMembershipRole,
+  getWorkspaceRole,
   listUserWorkspaces,
   releaseWorkspacesOf,
 } from "./workspaceService";
@@ -40,8 +40,11 @@ export type PublicUser = {
   activatedAt: Date | null;
 };
 
-/** Lo que ve el admin de plataforma: la cuenta y en cuantos espacios esta, nunca cuales ni sus datos. */
-export type ManagedUser = PublicUser & { workspaceCount: number };
+/** Espacio al que pertenece una cuenta, tal como lo ve el admin de plataforma. */
+export type ManagedMembership = { id: number; name: string; role: "owner" | "member" };
+
+/** Lo que lista el admin de plataforma: la cuenta y los espacios en los que esta, con su rol en cada uno. */
+export type ManagedUser = PublicUser & { workspaces: ManagedMembership[]; workspaceCount: number };
 
 /** La sesion actual, con sus espacios: el panel arranca con una sola peticion. */
 export type CurrentUser = PublicUser & { workspaces: WorkspaceSummary[] };
@@ -63,19 +66,26 @@ export const listUsers = async (): Promise<ManagedUser[]> => {
   const users = await prisma.user.findMany({
     select: {
       ...publicFields,
-      _count: { select: { memberships: { where: { workspace: { deletedAt: null } } } } },
+      memberships: {
+        where: { workspace: { deletedAt: null } },
+        select: { role: true, workspace: { select: { id: true, name: true } } },
+        orderBy: { workspaceId: "asc" },
+      },
     },
     orderBy: { createdAt: "asc" },
   });
-  return users.map(({ _count, ...user }) => ({ ...user, workspaceCount: _count.memberships }));
+  return users.map(({ memberships, ...user }) => {
+    const workspaces = memberships.map((m) => ({ id: m.workspace.id, name: m.workspace.name, role: m.role }));
+    return { ...user, workspaces, workspaceCount: workspaces.length };
+  });
 };
 
 export const getUserById = (id: number): Promise<PublicUser | null> =>
   prisma.user.findUnique({ where: { id }, select: publicFields });
 
 export const getCurrentUser = async (id: number): Promise<CurrentUser | null> => {
-  const [user, workspaces] = await Promise.all([getUserById(id), listUserWorkspaces(id)]);
-  return user ? { ...user, workspaces } : null;
+  const user = await getUserById(id);
+  return user ? { ...user, workspaces: await listUserWorkspaces(user) } : null;
 };
 
 const countAdmins = () => prisma.user.count({ where: { role: "admin" } });
@@ -103,8 +113,8 @@ export type CreateUserInput = {
   workspaceName?: string;
   workspaceId?: number;
   workspaceRole?: "owner" | "member";
-  /** Quien da de alta la cuenta: solo puede sumarla a espacios de los que es dueño. */
-  requesterId: number;
+  /** Quien da de alta la cuenta: solo puede sumarla a espacios que administra. */
+  requester: { id: number; role: string };
   locale?: "es" | "en";
 };
 
@@ -112,8 +122,8 @@ export type CreateUserResult = { user: PublicUser; emailSent: boolean; invitePat
 
 /**
  * Alta de una cuenta por el admin de plataforma. Siempre acaba dentro de un
- * espacio: el suyo propio o uno del que quien la crea es dueño. Nunca, como
- * antes, con acceso a todo.
+ * espacio: el suyo propio o uno ya existente (el admin administra todos).
+ * Nunca, como antes, con acceso a todo.
  */
 export const createUser = async (input: CreateUserInput): Promise<CreateUserResult> => {
   const mode = input.mode ?? "own";
@@ -121,8 +131,8 @@ export const createUser = async (input: CreateUserInput): Promise<CreateUserResu
 
   if (mode === "join") {
     if (!input.workspaceId) throw new UserServiceError("workspaceId is required to join a workspace", 400);
-    if ((await getMembershipRole(input.requesterId, input.workspaceId)) !== "owner") {
-      throw new UserServiceError("You can only add people to workspaces you own", 403);
+    if ((await getWorkspaceRole(input.requester, input.workspaceId)) !== "owner") {
+      throw new UserServiceError("You can only add people to workspaces you manage", 403);
     }
     await assertCanAddMember(input.workspaceId);
     const workspace = await prisma.workspace.findUnique({ where: { id: input.workspaceId } });

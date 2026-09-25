@@ -61,7 +61,7 @@ La excepción es la variable `API_KEY`, que es única y está deprecada: cambiar
 
 ## Retención de logs
 
-Pon `RETENTION_DAYS` en el `.env` y el propio servicio purga cada hora, en lotes, los logs más antiguos que esa ventana. `RETENTION_DAYS=0` lo desactiva y **la tabla crece sin límite**.
+La cuenta root fija la retención en **Plataforma → Configuración**, entre 3 meses y 5 años (`RETENTION_MONTHS` da el valor inicial, 3). El propio servicio purga cada hora, en lotes, los logs más antiguos que esa ventana. No se puede desactivar.
 
 Con varias instancias, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a la vez compiten por las mismas filas sin aportar nada.
 
