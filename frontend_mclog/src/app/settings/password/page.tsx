@@ -3,12 +3,12 @@ import React, { useState } from "react";
 import { Alert } from "@/components/atoms/Alert";
 import { Button } from "@/components/atoms/Button";
 import { Field } from "@/components/atoms/Field";
-import { Input } from "@/components/atoms/Input";
 import { Segmented } from "@/components/atoms/Segmented";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
 import { InfoTip } from "@/components/molecules/InfoTip";
+import { PasswordInput } from "@/components/molecules/PasswordInput";
 import { DeleteAccountCard } from "@/components/organisms/DeleteAccountCard";
 import { TwoFactorCard } from "@/components/organisms/TwoFactorCard";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
@@ -124,8 +124,7 @@ export default function AccountPage() {
           <Card title={t.account.changePassword} description={t.account.note} divider>
             <form className="flex flex-col gap-5" onSubmit={submit}>
               <Field label={t.account.current} info={t.fieldInfo.account.current}>
-                <Input
-                  type="password"
+                <PasswordInput
                   icon="lock"
                   value={currentPassword}
                   onChange={(event) => setCurrentPassword(event.target.value)}
@@ -134,8 +133,7 @@ export default function AccountPage() {
                 />
               </Field>
               <Field label={t.account.next} hint={t.account.nextHint(PASSWORD_MIN_LENGTH)} info={t.fieldInfo.account.next(PASSWORD_MIN_LENGTH)}>
-                <Input
-                  type="password"
+                <PasswordInput
                   icon="key"
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
@@ -145,8 +143,7 @@ export default function AccountPage() {
                 />
               </Field>
               <Field label={t.account.repeat} error={localError ?? undefined} info={t.fieldInfo.account.repeat}>
-                <Input
-                  type="password"
+                <PasswordInput
                   icon="key"
                   value={repeated}
                   onChange={(event) => setRepeated(event.target.value)}

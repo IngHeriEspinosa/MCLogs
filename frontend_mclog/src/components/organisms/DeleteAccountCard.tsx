@@ -6,6 +6,7 @@ import { Field } from "@/components/atoms/Field";
 import { Input } from "@/components/atoms/Input";
 import { Card } from "@/components/molecules/Card";
 import { Dialog } from "@/components/molecules/Dialog";
+import { PasswordInput } from "@/components/molecules/PasswordInput";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { CurrentUser, useDeleteAccount } from "@/hooks/useAuth";
@@ -59,8 +60,7 @@ export const DeleteAccountCard: React.FC<{ user: CurrentUser }> = ({ user }) => 
       >
         <form className="flex flex-col gap-4" onSubmit={submit}>
           <Field label={t.account.danger.password} info={t.fieldInfo.account.deletePassword}>
-            <Input
-              type="password"
+            <PasswordInput
               icon="lock"
               value={password}
               onChange={(event) => setPassword(event.target.value)}

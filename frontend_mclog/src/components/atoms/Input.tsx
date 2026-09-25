@@ -9,7 +9,7 @@ const HEIGHT: Record<Size, string> = {
   lg: "h-11 text-[0.9375rem]",
 };
 
-type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> & {
+export type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> & {
   icon?: IconName;
   /** Contenido al final del campo: un atajo de teclado, un boton de limpiar... */
   trailing?: React.ReactNode;

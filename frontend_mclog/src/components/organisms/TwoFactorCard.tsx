@@ -8,6 +8,7 @@ import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
 import { CopyButton } from "@/components/molecules/CopyButton";
 import { Dialog } from "@/components/molecules/Dialog";
+import { PasswordInput } from "@/components/molecules/PasswordInput";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import {
@@ -101,8 +102,7 @@ const DisableDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
     >
       <form className="flex flex-col gap-4" onSubmit={submit}>
         <Field label={t.account.current} info={t.fieldInfo.account.current}>
-          <Input
-            type="password"
+          <PasswordInput
             icon="lock"
             value={password}
             onChange={(event) => setPassword(event.target.value)}

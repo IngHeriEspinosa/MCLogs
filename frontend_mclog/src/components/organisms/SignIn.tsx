@@ -4,10 +4,11 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { Alert } from "@/components/atoms/Alert";
-import { Button, IconButton } from "@/components/atoms/Button";
+import { Button } from "@/components/atoms/Button";
 import { Field } from "@/components/atoms/Field";
 import { Input } from "@/components/atoms/Input";
 import { Spinner } from "@/components/atoms/Spinner";
+import { PasswordInput } from "@/components/molecules/PasswordInput";
 import { AuthLayout } from "@/components/templates/AuthLayout";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import type { Dictionary } from "@/common/i18n/dictionaries";
@@ -64,7 +65,6 @@ export const SignIn: React.FC = () => {
   const me = useMe();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [visible, setVisible] = useState(false);
   const login = useLogin();
   const secondFactor = useLoginSecondFactor();
   const [mfaToken, setMfaToken] = useState<string | null>(null);
@@ -177,8 +177,7 @@ export const SignIn: React.FC = () => {
             </Link>
           }
         >
-          <Input
-            type={visible ? "text" : "password"}
+          <PasswordInput
             icon="lock"
             size="lg"
             value={password}
@@ -187,14 +186,6 @@ export const SignIn: React.FC = () => {
             autoComplete="current-password"
             placeholder={t.auth.passwordPlaceholder}
             required
-            trailing={
-              <IconButton
-                icon={visible ? "eyeOff" : "eye"}
-                label={visible ? t.auth.hidePassword : t.auth.showPassword}
-                size="sm"
-                onClick={() => setVisible((current) => !current)}
-              />
-            }
           />
         </Field>
         {login.isError && <Alert variant="error">{messageFor(login.error, t)}</Alert>}

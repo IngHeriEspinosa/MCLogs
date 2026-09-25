@@ -4,7 +4,7 @@ import axios from "axios";
 import { Alert } from "@/components/atoms/Alert";
 import { Button, ButtonLink } from "@/components/atoms/Button";
 import { Field } from "@/components/atoms/Field";
-import { Input } from "@/components/atoms/Input";
+import { PasswordInput } from "@/components/molecules/PasswordInput";
 import { AuthLayout } from "@/components/templates/AuthLayout";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import type { Dictionary } from "@/common/i18n/dictionaries";
@@ -108,8 +108,7 @@ export default function ResetPasswordPage() {
           hint={t.auth.reset.hint(PASSWORD_MIN_LENGTH)}
           info={t.fieldInfo.auth.resetPassword(PASSWORD_MIN_LENGTH)}
         >
-          <Input
-            type="password"
+          <PasswordInput
             icon="key"
             size="lg"
             value={password}
@@ -126,8 +125,7 @@ export default function ResetPasswordPage() {
           error={mismatch ? t.auth.reset.mismatch : undefined}
           info={t.fieldInfo.auth.resetRepeat}
         >
-          <Input
-            type="password"
+          <PasswordInput
             icon="key"
             size="lg"
             value={repeated}

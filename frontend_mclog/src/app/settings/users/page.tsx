@@ -11,6 +11,7 @@ import { Card } from "@/components/molecules/Card";
 import { Segmented } from "@/components/atoms/Segmented";
 import { ConfirmButton } from "@/components/molecules/ConfirmButton";
 import { InviteLinkNotice } from "@/components/molecules/InviteLinkNotice";
+import { PasswordInput } from "@/components/molecules/PasswordInput";
 import { Select } from "@/components/molecules/Select";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
@@ -260,8 +261,7 @@ const UserRow: React.FC<{ user: ManagedUser; isSelf: boolean; onOpenWorkspace: (
           <td colSpan={5} className="border-b border-line bg-surface-2/70 px-5 py-3">
             {reset && (
               <form className="flex flex-wrap items-center gap-2" onSubmit={applyPassword}>
-                <Input
-                  type="password"
+                <PasswordInput
                   icon="lock"
                   size="sm"
                   wrapperClassName="w-72"
