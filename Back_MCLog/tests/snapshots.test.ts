@@ -78,6 +78,9 @@ beforeAll(async () => {
   expect(added.status).toBe(201);
 
   // Doce logs con datos sensibles, y uno de otra aplicacion que el filtro deja fuera.
+  // Un unico instante de referencia: si Date.now() se leyera por log, el reloj
+  // podria avanzar entre uno y otro y la duracion de la traza dejaria de ser exacta.
+  const now = Date.now();
   const logs = Array.from({ length: 12 }, (_, i) => ({
     application: APP,
     level: i % 3 === 0 ? "error" : "info",
@@ -85,7 +88,7 @@ beforeAll(async () => {
     message: `pedido ${i} de cliente@empresa.com con token=abcdef123456`,
     errorName: i % 3 === 0 ? "TypeError" : undefined,
     metadata: { password: "hunter2", contacto: "otra@empresa.com", pedido: i },
-    timestamp: new Date(Date.now() - i * 60_000).toISOString(),
+    timestamp: new Date(now - i * 60_000).toISOString(),
     // Los cinco mas recientes son una misma operacion, con dos errores (i = 0 y 3).
     traceId: i < 5 ? TRACE : undefined,
   }));
