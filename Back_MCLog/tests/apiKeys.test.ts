@@ -44,14 +44,20 @@ beforeAll(async () => {
   });
   adminToken = adminLogin.body.accessToken;
 
-  // Usuario sin rol admin, para comprobar que no puede administrar claves.
+  // Miembro (no dueño) del espacio, para comprobar que no puede administrar claves.
   // activatedAt es obligatorio: sin el, login lo trata como invitacion pendiente.
+  // Sin membresia el espacio responde 404, no 403, asi que tambien hay que darsela.
   const hash = await bcrypt.hash("SoloLectura1", 12);
   const activatedAt = new Date();
-  await prisma.user.upsert({
+  const reader = await prisma.user.upsert({
     where: { email: "lector@example.com" },
     update: { passwordHash: hash, role: "user", activatedAt },
     create: { email: "lector@example.com", passwordHash: hash, role: "user", activatedAt },
+  });
+  await prisma.workspaceMember.upsert({
+    where: { workspaceId_userId: { workspaceId, userId: reader.id } },
+    update: { role: "member" },
+    create: { workspaceId, userId: reader.id, role: "member" },
   });
   const userLogin = await request(app)
     .post("/auth/login")
@@ -69,7 +75,7 @@ describe("Administracion de API keys", () => {
     expect(res.status).toBe(401);
   });
 
-  it("requiere rol admin para crear claves", async () => {
+  it("requiere ser dueño del espacio para crear claves", async () => {
     const res = await request(app)
       .post("/api/keys")
       .set("Authorization", `Bearer ${plainUserToken}`)
