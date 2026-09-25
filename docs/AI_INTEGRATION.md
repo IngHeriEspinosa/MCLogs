@@ -23,7 +23,7 @@ Copia el secreto en ese momento: en la base de datos solo queda su hash, así qu
 
 La conexión por MCP usa **solo la clave**: la verificación en dos pasos de tu usuario no interviene, y el asistente nunca necesita tu contraseña.
 
-> **¿Aún no tienes logs que investigar?** Un admin puede generar unos de prueba en **Espacio → Lab** (por ejemplo, **Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
+> **¿Aún no tienes logs que investigar?** El dueño del espacio puede generar unos de prueba en **Espacio → Lab** (por ejemplo, **Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
 
 ---
 
@@ -222,6 +222,6 @@ Debe devolver las ocho herramientas.
 - **El endpoint no guarda estado.** Cada petición se atiende y se cierra, así que el servicio sigue escalando horizontalmente sin sesiones pegadas a una instancia.
 - **La clave manda, no el asistente.** Todos los límites de una API key acotada se aplican dentro de MCP: el modelo no puede pedir lo que su clave no alcanza.
 - **Cada clave ve un solo espacio de trabajo**: el espacio en el que se creó. Para que un asistente investigue otro espacio, crea una clave `read` desde ese espacio. Si en lugar de una clave usas una sesión (JWT), el espacio se indica con la cabecera `X-Workspace-Id`.
-- **Se puede apagar** con `MCP_ENABLED=0` si no quieres exponerlo.
+- **Se puede apagar** desde **Plataforma → Configuración → Acceso para IA (MCP)** (cuenta root); `MCP_ENABLED=0` solo fija el valor inicial.
 
 Referencia de la API REST equivalente en [TECHNICAL.md](TECHNICAL.md). Despliegue en [DEPLOYMENT.md](DEPLOYMENT.md).

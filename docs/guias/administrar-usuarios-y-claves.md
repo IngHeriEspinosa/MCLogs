@@ -54,7 +54,7 @@ Lo que pasa depende de si la persona ya tiene cuenta:
 | No tiene cuenta y hay correo configurado | Recibe un enlace para **elegir su contraseña**. Aparece en la lista con la etiqueta **Pendiente** |
 | No tiene cuenta y **no** hay correo | Verás el enlace en pantalla con **Copiar enlace**. Pásaselo por un canal seguro |
 
-El enlace caduca en **7 días** y solo sirve una vez. Nadie más conoce la contraseña que elija. Mientras esté pendiente, la cuenta no puede iniciar sesión.
+El enlace caduca en **7 días** (la cuenta root puede cambiarlo en **Plataforma → Configuración → Validez de una invitación**) y solo sirve una vez. Nadie más conoce la contraseña que elija. Mientras esté pendiente, la cuenta no puede iniciar sesión.
 
 ### Cambiar el rol o quitar a alguien
 
@@ -80,7 +80,7 @@ Todo en **Plataforma → Cuentas**. Solo lo ve el admin de plataforma.
 
 ### Dar de alta una cuenta
 
-1. Pulsa **Nueva cuenta** y escribe el **Correo**.
+1. En el formulario **Nueva cuenta**, escribe el **Correo**.
 2. En **Espacio de trabajo**, elige:
    - **Espacio propio**: la cuenta estrena un espacio vacío del que es dueña. Puedes darle nombre; si no, se llama "Espacio de …".
    - **Unirse a un espacio**: entra a cualquier espacio existente (como admin de plataforma los administras todos), con el rol que elijas.
@@ -132,7 +132,7 @@ Todo en **Espacio → API keys**. Las claves autentican a las **máquinas**: apl
 ### Crear una clave
 
 1. Comprueba en el selector que estás en el espacio correcto.
-2. Pulsa **Nueva clave**.
+2. En el formulario **Nueva clave**:
 3. **Nombre**: para reconocerla después, por ejemplo `NetSuite producción` o `Claude Code — equipo backend`.
 4. **Permisos**: marca solo el que necesite.
 5. **Aplicaciones** (muy recomendable): los nombres de aplicación que podrá usar, separados por comas. Vacío significa todas las del espacio. La restricción vale en los dos sentidos: no podrá **escribir** logs de otras aplicaciones (`403`) ni **verlos** al consultar.
@@ -150,7 +150,7 @@ Entrégala a quien la vaya a usar por un canal seguro, y que la guarde en una va
 | **Prefijo** | El principio de la clave, para identificarla sin revelarla |
 | **Permisos** / **Aplicaciones** | Lo que puede hacer y dónde |
 | **Último uso** | Cuándo se usó por última vez. Una clave que lleva meses sin uso es candidata a revocarse |
-| **Caduca** / **Estado** | **Activa**, **Revocada** o **Caducada** |
+| **Estado** | **Activa**, **Revocada** o **Caducada**. Si tiene fecha de caducidad, aparece bajo el nombre |
 
 ### Rotar una clave sin cortar el servicio
 
@@ -197,7 +197,7 @@ En la misma página están la retención de logs, los tamaños de exportación y
 | No aparece **Crear espacio** | La configuración de la plataforma reserva la creación de espacios a los admins |
 | No puedo eliminar una cuenta desde **Cuentas** | Es la root, el último admin, o la única dueña de un espacio con más miembros |
 | La persona invitada dice "Credenciales inválidas" | Aún no ha activado la cuenta con su enlace; genera uno con **Nuevo enlace** |
-| El enlace dice que no es válido o ha caducado | Pasaron 7 días o ya se usó; genera otro con **Nuevo enlace** |
+| El enlace dice que no es válido o ha caducado | Pasó el plazo de validez (7 días por defecto) o ya se usó; genera otro con **Nuevo enlace** |
 | En **Unirse a un espacio** no aparece ningún espacio | Aún no hay ninguno: crea uno desde el selector |
 | Los logs de un emisor no aparecen | La clave es de otro espacio: cambia de espacio en el selector |
 | Un emisor recibe `403` con `allowedApplications` | Su `application` no está en las **Aplicaciones** de la clave |

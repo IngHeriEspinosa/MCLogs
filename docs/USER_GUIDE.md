@@ -57,8 +57,8 @@ Una sola fila encima de todo. Se combinan entre sí, y el resumen y la tabla se 
 |---|---|
 | **Rango de tiempo** | Rangos rápidos (15 minutos, 1 hora… 30 días, todo el histórico) o un rango a medida en el calendario, con hora de inicio y fin |
 | **Buscar** | Busca a la vez en el mensaje, la aplicación, el servicio, el host y el traceId. La tecla <kbd>/</kbd> te lleva directo al buscador |
-| **Nivel** | debug, info, warn o error |
-| **Entorno** | development, staging o production |
+| **Nivel** | Debug, Info, Warning o Error |
+| **Entorno** | Desarrollo, Staging o Producción |
 | **Aplicación** | Lista con buscador. También puedes escribir parte de un nombre que no esté en la lista |
 
 **Limpiar filtros** los quita todos salvo el rango. El orden (fecha, aplicación, nivel, host o entorno) se cambia en la cabecera de la tabla.
@@ -192,7 +192,7 @@ La vista previa muestra el documento formateado o el Markdown tal cual, con su t
 
 **Te avisan de un fallo en producción a las 10:30.**
 
-1. Abre **Errores**, pon el rango en **Últimas 24 horas** y el entorno en **production**.
+1. Abre **Errores**, pon el rango en **Últimas 24 horas** y el entorno en **Producción**.
 2. Mira la columna Actividad. Busca un fallo cuya **primera aparición** sea reciente: eso es algo que antes no pasaba.
 3. Pulsa **Ver ocurrencias** para ir a los registros concretos.
 4. Abre uno y lee el **stack trace**: te dice el archivo y la función exactos. El **contexto** te enseña qué pasó justo antes.
@@ -260,7 +260,7 @@ Guía completa con ejemplos por lenguaje en [INTEGRATION.md](INTEGRATION.md). Re
 ## B.1 Lo que necesitas
 
 - La **URL** del servicio (ej. `https://mclog.tu-dominio.com`)
-- Una **API key con permiso `ingest`**, que te da el administrador desde el dashboard (**Espacio → API keys**).
+- Una **API key con permiso `ingest`**, que te da el dueño del espacio desde el dashboard (**Espacio → API keys**).
 
 No necesitas usuario ni contraseña para enviar logs: eso es solo para consultar. Pide que la clave venga **acotada a tu aplicación**: así, si se filtra, no puede escribir en nombre de otra ni leer nada.
 
@@ -280,7 +280,7 @@ curl -X POST https://mclog.tu-dominio.com/api/log \
 
 Solo esos cuatro campos son obligatorios. El servidor rellena el resto.
 
-> **¿Quieres ver la petición antes de programarla?** Un admin puede componer un log en **Lab → Log a medida**: la pantalla muestra la petición equivalente en JSON y en cURL, lista para copiar.
+> **¿Quieres ver la petición antes de programarla?** El dueño del espacio puede componer un log en **Lab → Log a medida**: la pantalla muestra la petición equivalente en JSON y en cURL, lista para copiar.
 
 ## B.3 Registrar un error como es debido
 
@@ -405,7 +405,7 @@ El procedimiento completo, con requisitos, DNS, certificados y resolución de pr
 
 ## C.3 Espacios y cuentas
 
-Cada **espacio de trabajo** está aislado: sus logs, API keys y alertas solo los ven sus miembros. Dentro de un espacio, el **dueño** lo administra (miembros, claves, alertas, Lab, purga) y el **miembro** solo observa. Cualquier cuenta puede crear espacios desde el selector. El **admin de plataforma** ve todos los espacios y los administra como dueño. Guía paso a paso: [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md).
+Cada **espacio de trabajo** está aislado: sus logs, API keys y alertas solo los ven sus miembros. Dentro de un espacio, el **dueño** lo administra (miembros, claves, alertas, Lab, purga) y el **miembro** solo observa. Cualquier cuenta puede crear espacios desde el selector, salvo que la cuenta root lo reserve a los admins en la configuración. El **admin de plataforma** ve todos los espacios y los administra como dueño. Guía paso a paso: [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md).
 
 **Invitar a alguien a tu espacio:** **Espacio → Miembros** → **Invitar a alguien** → **Correo** y **Rol** → **Invitar**. Si ya tiene cuenta entra al momento; si no, recibe un enlace para elegir su contraseña (o lo ves en pantalla para compartirlo, si el servidor no tiene correo configurado).
 
@@ -446,7 +446,7 @@ En **Espacio → API keys**. Cada clave lleva permisos, y conviene dar los justo
 
 **Crear una clave:**
 
-1. Pulsa **Nueva clave**.
+1. En el formulario **Nueva clave**:
 2. Rellena el formulario:
    - **Nombre**: para reconocerla después.
    - **Permisos**: marca los justos.
@@ -487,7 +487,7 @@ En un webhook puedes poner un **secreto**: cada aviso viaja firmado con HMAC-SHA
 
 MCLog expone un servidor MCP en `/mcp`, de modo que Claude Code, Cursor o Claude Desktop puedan investigar los logs por su cuenta en lugar de que les pegues fragmentos.
 
-Crea una clave con permiso `read` y sigue **[AI_INTEGRATION.md](AI_INTEGRATION.md)**. Se desactiva con `MCP_ENABLED=0`.
+Crea una clave con permiso `read` y sigue **[AI_INTEGRATION.md](AI_INTEGRATION.md)**. La cuenta root lo enciende o apaga en **Plataforma → Configuración → Acceso para IA (MCP)**.
 
 ## C.7 Retención de logs
 

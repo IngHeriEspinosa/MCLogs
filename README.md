@@ -31,7 +31,7 @@ Desglose completo en [docs/FEATURES.md](docs/FEATURES.md). En resumen:
 - **Lab**: escenarios de prueba que envían logs reales para ver cada pantalla en acción, y un compositor que muestra la petición en JSON y cURL.
 - **Alertas** por webhook firmado, correo y Telegram, con reglas de umbral o de error nuevo y silencio configurable.
 - **Logs en vivo** en el dashboard por Server-Sent Events.
-- **Retención automática** por días, más purga puntual por fecha y aplicación.
+- **Retención automática** configurable entre 3 meses y 5 años, más purga puntual por fecha y aplicación.
 - **Sesiones** con JWT, refresh rotativo y renovación transparente.
 - **Despliegue** en un VPS con Docker Compose y Caddy (HTTPS automático y copias de seguridad diarias), o repartido entre CapRover (API y base de datos) y Railway (dashboard).
 - **Observabilidad** del propio servicio: `/health`, `/metrics` Prometheus y logging estructurado.

@@ -74,7 +74,7 @@ Por eso conviene usar **subdominios del mismo dominio raíz**.
 | API key `ingest` | Escribir logs | Aplicaciones emisoras |
 | API key `read` | Consultar logs y usar MCP | Asistentes de IA, integraciones |
 | API key `metrics` | Leer `/metrics` | Prometheus |
-| JWT de usuario | Consultar los espacios de los que es miembro; administrar los que posee | Personas, desde el dashboard (y el Lab) |
+| JWT de usuario | Consultar los espacios de los que es miembro; administrar los que posee. El `admin` de plataforma, todos | Personas, desde el dashboard (y el Lab) |
 
 Decisiones clave:
 

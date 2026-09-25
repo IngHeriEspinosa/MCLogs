@@ -160,7 +160,7 @@ export const WorkspaceSwitcher: React.FC<{ collapsed: boolean }> = ({ collapsed 
   const name = current?.name ?? t.workspace.create;
 
   return (
-    <div className={`relative px-3 pb-1 ${collapsed ? "lg:px-2" : ""}`}>
+    <div className={`relative px-3 pb-1 pt-3 ${collapsed ? "lg:px-2" : ""}`}>
       <Menu
         label={t.workspace.switcher(name)}
         align="start"

@@ -10,7 +10,7 @@ El Lab envía logs de prueba **reales** a MCLog y te lleva a la pantalla donde s
 
 ## Antes de empezar
 
-- Un usuario **admin**. El Lab está en **Espacio → Lab**.
+- Ser **dueño** del espacio (el admin de plataforma lo es de todos). El Lab está en **Espacio → Lab**.
 - No hace falta ninguna API key: el Lab envía con tu propia sesión.
 
 > [!NOTE]
@@ -80,7 +80,7 @@ Verás "Borrados N logs del lab." Solo se borran las aplicaciones `lab-*`: ningu
 
 | Síntoma | Solución |
 |---|---|
-| No aparece **Lab** en el menú | Solo lo ven los administradores |
+| No aparece **Lab** en el menú | Solo lo ve el dueño del espacio, y solo si la cuenta root no lo ha apagado en **Plataforma → Configuración → Lab de pruebas** |
 | "No se pudo enviar" | La sesión caducó (recarga la página y vuelve a entrar) o la API no responde |
 | Los logs no aparecen en Logs | Revisa que el **Entorno** y el **rango de tiempo** de Logs incluyan lo enviado. **Tráfico normal** reparte los logs en la última hora |
 | La regla de alerta no se dispara | El entorno de destino tiene que coincidir con el de la regla, y la regla no debe filtrar por una aplicación que no sea `lab-*`. Ver [Configurar alertas](configurar-alertas.md#paso-4--pruébala-con-el-lab) |

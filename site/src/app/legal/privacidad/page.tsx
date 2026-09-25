@@ -44,8 +44,8 @@ export default function PrivacidadPage() {
             datos de tu organización.
           </li>
           <li>
-            La retención la decides tú. MCLog borra automáticamente los logs más antiguos que el
-            número de días que configures, y permite purgas puntuales por fecha y aplicación.
+            La retención la decides tú. MCLog borra automáticamente los logs más antiguos que la
+            retención que configures (entre 3 meses y 5 años), y permite purgas puntuales por fecha y aplicación.
           </li>
         </ul>
         <p>

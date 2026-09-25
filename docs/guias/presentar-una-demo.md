@@ -17,7 +17,7 @@ El hilo de la demo es una historia, no una lista de pantallas: *"nos avisan de q
 | Necesitas | Detalle |
 |---|---|
 | Una instancia de MCLog | La de producción, o una local ([Primeros pasos](primeros-pasos.md)). Con producción, la demo enseña lo mismo que verán después |
-| Un usuario **admin** con 2FA activado | El Lab y las alertas son de admin. El 2FA se enseña en el login ([Proteger tu cuenta](seguridad-cuenta.md)) |
+| Un usuario **dueño del espacio** con 2FA activado | El Lab, las alertas y las API keys son del dueño del espacio (el admin de plataforma lo es de todos). El 2FA es opcional, pero se enseña en el login ([Proteger tu cuenta](seguridad-cuenta.md)) |
 | Un canal de alertas que **el público pueda ver** | Un grupo de Telegram o un canal de Slack/Teams al que estén invitados, o que proyectes |
 | Un móvil con la app autenticadora | Para el código del login |
 | Opcional: Claude Code, Cursor o VS Code con el servidor MCP configurado | Para el paso 8 ([Conectar una IA](conectar-ia.md)). Si no, hay alternativa |
@@ -29,7 +29,7 @@ Hazlo todo con la misma cuenta y el mismo navegador que usarás en la demo.
 
 1. **Entra** y comprueba que la verificación en dos pasos funciona con tu móvil.
 2. **Limpia el Lab**: **Espacio → Lab → Borrar datos del lab → Sí, borrar**. Así los recuentos de la demo salen redondos ("25 ocurrencias", no "73").
-3. **Crea el canal de alertas** en **Espacio → Alertas → Canales → Nuevo canal**, pulsa **Enviar prueba** y comprueba que el aviso llega donde el público lo verá ([Configurar alertas](configurar-alertas.md)).
+3. **Crea el canal de alertas** en **Espacio → Alertas → Canales**, con el formulario **Nuevo canal**; luego pulsa **Enviar prueba** y comprueba que el aviso llega donde el público lo verá ([Configurar alertas](configurar-alertas.md)).
 4. **Crea dos reglas**, las dos con **Entorno: Desarrollo** (el Lab envía ahí por defecto) y **Aplicación: Todas**:
 
    | Nombre | Tipo | Umbral / Ventana | Silencio |
@@ -81,7 +81,7 @@ No enseñes nada todavía: la pantalla vacía obliga a escuchar.
 2. Escribe tu correo y contraseña y pulsa **Entrar**.
 3. Aparece **Verificación en dos pasos**: escribe el código del móvil y pulsa **Verificar**.
 
-**Qué decir:** «Cada usuario entra con su cuenta, y los administradores con verificación en dos pasos: una contraseña robada no basta.» Señala el menú de la izquierda: el **selector de espacio** arriba (cada cliente o equipo ve solo lo suyo), **Observabilidad** para investigar y **Espacio** solo para su dueño.
+**Qué decir:** «Cada usuario entra con su cuenta y, si activa la verificación en dos pasos, una contraseña robada no basta.» Señala el menú de la izquierda: el **selector de espacio** arriba (cada cliente o equipo ve solo lo suyo), **Observabilidad** para investigar y **Espacio** solo para su dueño.
 
 ### Paso 3 — Los logs llegan (2 min)
 
@@ -112,13 +112,13 @@ No enseñes nada todavía: la pantalla vacía obliga a escuchar.
 
 ### Paso 6 — Que avise solo (3 min)
 
-1. Lab → **Pico de incidente** → **Ejecutar**. «80 errores en cinco minutos: la facturación se queda sin conexiones a la base de datos.»
+1. Lab → **Pico de incidente** → **Ejecutar**. «80 errores y warnings en cinco minutos: la facturación se queda sin conexiones a la base de datos.»
 2. Mientras se envía, pulsa **Ver en Logs**: el pico rojo en **Actividad**.
 3. Cambia a la pestaña de Telegram/Slack. El aviso llega en el minuto siguiente (lo cronometraste ayer). Si tarda, sigue hablando: enseña **Espacio → Alertas → Reglas** y explica los dos tipos:
 
-   > «**Umbral**: más de N errores en X minutos. **Error nuevo**: algo que no había fallado nunca. La segunda es la más útil después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".»
+   > «**Umbral de repeticiones**: al menos N errores en X minutos. **Error nuevo**: algo que no había fallado nunca. La segunda es la más útil después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".»
 
-4. Cuando llegue el aviso, muéstralo y luego **Alertas → Historial**: el disparo, cuántas coincidencias y a qué canales llegó.
+4. Cuando llegue el aviso, muéstralo y luego **Alertas → Historial**: el disparo, cuántas coincidencias y a cuántos canales se entregó (y cuáles fallaron, si alguno).
 
 ### Paso 7 — Buscar con precisión (2 min)
 
@@ -138,12 +138,12 @@ Primero, el problema de la privacidad, porque es lo que van a preguntar:
 
 **Qué decir:** «Estos logs llevan correos, IPs, tokens y contraseñas ficticios. Antes de que salga nada hacia un modelo, MCLog los tapa y te dice cuántos tapó. Lo que sí conserva son los identificadores de pedido y de traza, porque son lo que hace falta para investigar.»
 
-3. Señala la sección **Comparación con el periodo anterior**: «Fallos nuevos, los que empeoran y los que dejaron de aparecer respecto a la ventana anterior.»
+3. Señala la sección de comparación (en el brief aparece como `comparison`; en el panel **Secciones**, **Comparación con el periodo anterior**): «Fallos nuevos, los que empeoran y los que dejaron de aparecer respecto a la ventana anterior.»
 
 Luego, la IA en sí. Elige una de las dos:
 
 - **Con MCP** (si lo preparaste): cambia a Claude Code y escribe: «¿Qué está fallando en lab-checkout en la última hora y cuál es la causa más probable?». Mientras responde: «No le he pegado nada. Consulta MCLog con una clave de solo lectura, acotada a las aplicaciones que le dejemos ver.»
-- **Sin MCP**: en el detalle de un log de **Errores**, pulsa **Copiar para IA** y pégalo en el chat de IA que use el departamento. «Es el mismo brief: el log, su stack y su contexto, con lo sensible tapado.»
+- **Sin MCP**: en **Errores**, pulsa **Copiar para IA** en un grupo de fallo y pégalo en el chat de IA que use el departamento. «Es un brief del fallo con su último ejemplo, con lo sensible tapado.» (Desde el detalle de un log en **Logs** o **Registros**, el brief lleva además el stack y el contexto.)
 
 ### Paso 9 — Cómo se integra (3 min)
 
@@ -186,7 +186,7 @@ Deja en pantalla la dirección de la documentación y cede la palabra.
 | ¿Qué pasa si MCLog se cae? | Nada en las aplicaciones: los clientes nunca lanzan errores, registran el fallo y siguen |
 | ¿Cuánto tiempo se guardan los logs? | Lo que configure la cuenta root: entre 3 meses y 5 años (3 meses por defecto). Se borra solo |
 | ¿La IA puede borrar o cambiar algo? | No. Su clave es de solo lectura, acotada a las aplicaciones que decidamos, y no puede administrar nada |
-| ¿Quién puede entrar? | Cada persona con su usuario. Los administradores, con verificación en dos pasos. La cuenta root no se puede borrar |
+| ¿Quién puede entrar? | Cada persona con su usuario y, si quiere, verificación en dos pasos. Cada espacio decide quién lo ve. La cuenta root no se puede borrar |
 | ¿Sustituye al Execution Log de NetSuite? | No, lo complementa: NetSuite sigue igual; MCLog es donde se ve todo junto y agrupado |
 | ¿Puedo verlo con datos de mi aplicación? | Sí: ese es el piloto |
 
@@ -205,7 +205,7 @@ Deja en pantalla la dirección de la documentación y cede la palabra.
 
 1. **Borrar datos del lab**, para que no ensucien las métricas.
 2. Revoca la clave `demo-netsuite` si no la vas a usar en el piloto.
-3. Pausa o borra las dos reglas `Demo · …`, o súbeles el silencio.
+3. Apaga (interruptor) o borra las dos reglas `Demo · …`; las reglas no se editan, se crean de nuevo.
 4. Envía al departamento: la dirección de la documentación, la guía [Primeros pasos](primeros-pasos.md) para quien quiera probar en su equipo, e [Integrar NetSuite](integrar-netsuite.md) para quien vaya a hacer el piloto.
 5. Crea los usuarios de quienes vayan a entrar ([Administrar espacios, usuarios y claves](administrar-usuarios-y-claves.md)).
 

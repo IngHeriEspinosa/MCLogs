@@ -105,7 +105,7 @@ Cada descarga trae **hasta 10 000 registros**. Para más, divide el rango de fec
 | Síntoma | Solución |
 |---|---|
 | "No hay registros que coincidan" | Amplía el **rango de tiempo**; luego revisa **Entorno** y **Nivel**; después, los campos de la búsqueda avanzada (el número junto al título dice cuántos hay activos) |
-| Trace ID no encuentra nada | Tiene que ser el id **completo**, sin espacios. Para una búsqueda parcial usa **Buscar** |
+| Trace ID no encuentra nada | Tiene que ser el id **completo**, sin espacios: ni este campo ni **Buscar** hacen búsqueda parcial del trace ID |
 | **Nombre del error** o **Código de error** no encuentra nada | Esos campos solo existen si la aplicación envía la excepción entera ([INTEGRATION.md](../INTEGRATION.md#manda-la-excepción-no-solo-su-mensaje)). Prueba con **Mensaje contiene** |
 | Quité los filtros y siguen saliendo pocos resultados | **Limpiar filtros** no borra la búsqueda avanzada ni el rango: usa **Limpiar búsqueda avanzada** y amplía el rango |
 

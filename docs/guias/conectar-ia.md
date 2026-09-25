@@ -12,16 +12,16 @@ Preguntarle a tu asistente cosas como «¿qué está fallando en producción hoy
 |---|---|
 | Un asistente compatible con MCP por HTTP | Claude Code, Cursor, VS Code con Copilot, o Claude Desktop |
 | La URL de tu MCLog | Por ejemplo `https://api-mclog.tu-dominio.com`. El endpoint es `<URL>/mcp` |
-| Una **API key con permiso `read`** | El paso 1 explica cómo crearla (hace falta un admin) |
+| Una **API key con permiso `read`** | El paso 1 explica cómo crearla (hace falta ser dueño del espacio) |
 
 > [!NOTE]
 > La conexión usa **solo la clave**. Tu contraseña y tu verificación en dos pasos no intervienen, y el asistente nunca las necesita.
 
 ## Paso 1 — Crea una clave de lectura
 
-1. En el dashboard, **Espacio → API keys → Nueva clave**.
+1. En el dashboard, **Espacio → API keys**, formulario **Nueva clave**.
 2. **Nombre**: quién la usará, por ejemplo `Claude Code — equipo backend`.
-3. **Permisos**: solo **Consultar logs y errores**.
+3. **Permisos**: solo **Consultar logs y errores** (desmarca **Enviar logs**, que viene marcado).
 4. **Aplicaciones**: las que deba ver el asistente. Vacío significa todas.
 5. **Caducidad**: recomendable si la vas a repartir.
 6. **Crear clave**, **cópiala** (empieza por `mclog_`) y **Ya la he guardado**.
@@ -110,7 +110,7 @@ Funcionan mejor las preguntas de investigación que las búsquedas literales:
 - «Coge el error más frecuente de facturación, mira su stack y el contexto, y propón un arreglo.»
 
 > [!TIP]
-> ¿Aún no hay logs interesantes? Un admin puede generar unos de prueba en **Espacio → Lab** (**Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
+> ¿Aún no hay logs interesantes? El dueño del espacio puede generar unos de prueba en **Espacio → Lab** (**Error agrupado** y **Traza distribuida**) y pedirle luego al asistente que los analice.
 
 Para que lo use solo al depurar, añade al `CLAUDE.md` (o equivalente) de tu proyecto:
 
@@ -136,7 +136,7 @@ Los dos enmascaran correos, IPs, tokens y contraseñas antes de copiar.
 |---|---|
 | El cliente dice `401` | Clave mal copiada, revocada o caducada. Comprueba que la cabecera sea `Authorization: Bearer mclog_…` |
 | El cliente dice `403` | La clave no tiene el permiso **Consultar logs y errores** |
-| `404` en `/mcp` | El servidor MCP está desactivado (`MCP_ENABLED=0`) o la URL no apunta a la API |
+| `404` en `/mcp` | El servidor MCP está apagado (**Plataforma → Configuración → Acceso para IA (MCP)**) o la URL no apunta a la API |
 | `405 Method not allowed` | Tu cliente intenta abrir un stream con `GET`; el endpoint es sin estado y solo admite `POST`. Usa el transporte HTTP del cliente |
 | El asistente no ve una aplicación | La clave está acotada a otras aplicaciones |
 | No encuentra logs que sí existen | Pídele que amplíe la ventana de tiempo: muchas herramientas miran las últimas 24 h por defecto |

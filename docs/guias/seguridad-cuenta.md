@@ -99,7 +99,7 @@ En la tarjeta **Zona de peligro**:
 4. Escribe **ELIMINAR** en el último campo.
 5. Pulsa **Eliminar definitivamente**.
 
-Se borra tu usuario, se cierran todas tus sesiones y vuelves al login. **No se puede deshacer.** Las API keys que creaste siguen funcionando (un admin puede revocarlas en Espacio → API keys).
+Se borra tu usuario, se cierran todas tus sesiones y vuelves al login. **No se puede deshacer.** Las API keys que creaste siguen funcionando (el dueño del espacio puede revocarlas en Espacio → API keys).
 
 > [!NOTE]
 > La **cuenta root** del servicio no se puede eliminar: en su lugar verás "Esta es la cuenta root del servicio: no se puede eliminar". Tampoco se puede eliminar la cuenta del **último administrador**.
@@ -116,4 +116,4 @@ Se borra tu usuario, se cierran todas tus sesiones y vuelves al login. **No se p
 
 ## Siguiente paso
 
-- Si eres administrador: [Administrar espacios, usuarios y claves](administrar-usuarios-y-claves.md), y pide a los demás admins que activen también la verificación (la etiqueta **2FA** en **Usuarios** te dice quién la tiene).
+- Si eres administrador: [Administrar espacios, usuarios y claves](administrar-usuarios-y-claves.md), y pide a los demás admins que activen también la verificación (la etiqueta **2FA** en **Plataforma → Cuentas** te dice quién la tiene).

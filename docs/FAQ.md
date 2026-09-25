@@ -165,13 +165,13 @@ Algunas operaciones están bloqueadas a propósito: nadie puede borrarse a sí m
 La del `ADMIN_EMAIL` del backend, que se crea sola al arrancar por primera vez. Lleva la etiqueta **Root** en Usuarios y no se puede eliminar ni degradar, ni siquiera ella misma: así el servicio siempre tiene una puerta de entrada. Si cambias `ADMIN_EMAIL`, la nueva cuenta pasa a ser el root y la anterior queda como un admin normal.
 
 ### ¿Qué roles hay?
-`user` (consultar, buscar, estadísticas, exportar, reportes y su propia cuenta) y `admin` (todo lo anterior más purgar logs y administrar claves, usuarios, alertas y el Lab).
+En la plataforma, `user` y `admin`: el admin gestiona las cuentas y es dueño de todos los espacios. Dentro de cada espacio, **dueño** (administra: miembros, claves, alertas, Lab y purga) y **miembro** (solo observa).
 
 ### ¿Puedo eliminar mi propia cuenta?
 Sí, en **Mi cuenta → Zona de peligro → Eliminar mi cuenta**. Pide tu contraseña, el código de la verificación en dos pasos si la tienes, y que escribas `ELIMINAR`. No se puede deshacer. Las API keys que creaste siguen funcionando. La cuenta root y la del último administrador no se pueden eliminar.
 
 ### Olvidé la contraseña de un usuario
-Cualquier administrador puede restablecerla desde **Plataforma → Cuentas**. Si quien la ha perdido es el único administrador, no hay recuperación posible desde la aplicación (bcrypt es de una vía): hay que generar un hash nuevo y actualizar la fila a mano.
+Cualquier administrador puede restablecerla desde **Plataforma → Cuentas**. Con SMTP y `PUBLIC_DASHBOARD_URL` configurados, cualquiera puede pedir un enlace desde **¿Olvidaste tu contraseña?** en el acceso. Sin correo configurado y si quien la ha perdido es el único administrador, no hay recuperación desde la aplicación (bcrypt es de una vía): hay que generar un hash nuevo y actualizar la fila a mano.
 
 ```bash
 node -e "console.log(require('bcryptjs').hashSync('NuevaContraseña', 12))"
@@ -258,8 +258,8 @@ El espacio llegó al tope de snapshots vigentes (**Snapshots por espacio** en la
 ### Un enlace de snapshot dice "no existe o ha caducado"
 Lo borraron, caducó, el enlace llegó cortado, no eres miembro de su espacio, o es público y la cuenta root apagó los **Snapshots públicos**. MCLog responde lo mismo en todos los casos a propósito: así un enlace no confirma nada a quien no debe verlo.
 
-### `403 Requires role: admin`
-Estás autenticado pero tu usuario es `user` y la operación (purga, claves, usuarios, alertas) requiere `admin`.
+### `403 Requires role: admin` / `403 Requires workspace owner`
+El primero: gestionar cuentas (`/auth/users`) requiere el rol `admin` de plataforma. El segundo: purgar, claves, alertas, miembros o el Lab requieren ser **dueño** del espacio indicado en `X-Workspace-Id` (el admin de plataforma lo es de todos).
 
 ### `403 The root account cannot be deleted` (o `demoted`)
 Intentaste eliminar o quitar el rol de admin a la cuenta root. No se puede, a propósito: ver [¿Qué es la cuenta root?](#qué-es-la-cuenta-root).

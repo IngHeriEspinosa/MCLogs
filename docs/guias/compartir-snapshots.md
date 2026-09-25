@@ -66,7 +66,7 @@ Si alguien sin sesión abre uno **de equipo**, se le pide entrar y, al hacerlo, 
 
 En el menú, **Observabilidad → Snapshots** lista los del espacio: título, visibilidad, autor, cuándo se creó, cuándo caduca y cuántas veces se ha abierto.
 
-- **Copiar** vuelve a copiar el enlace.
+- El botón **Copiar enlace** (icono) vuelve a copiar el enlace.
 - **Borrar** lo quita al momento, para todos. Puede borrarlo quien lo creó o el dueño del espacio.
 
 Los caducados dejan de abrirse en cuanto vence la fecha y se borran solos en menos de una hora.

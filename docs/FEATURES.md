@@ -186,7 +186,7 @@ Dos planos completamente separados, por diseño:
 |---|---|---|---|
 | **Ingesta** | Máquinas (NetSuite, scripts, servicios) | API key con permiso `ingest` | ❌ No |
 | **Consulta automatizada** | Asistentes de IA, integraciones | API key con permiso `read` | ✅ Solo su espacio y sus aplicaciones |
-| **Consulta y administración** | Personas (dashboard) | JWT access + refresh, con segundo factor opcional | ✅ Solo los espacios de los que es miembro |
+| **Consulta y administración** | Personas (dashboard) | JWT access + refresh, con segundo factor opcional | ✅ Solo los espacios de los que es miembro; el `admin` de plataforma, todos |
 
 **Consecuencia de seguridad:** si una clave de ingesta se filtra, el atacante puede *escribir* logs basura, pero **no puede leer** los de nadie. Detalle de los permisos en [13](#13-api-keys-con-permisos).
 
@@ -229,7 +229,7 @@ Esa cuenta es la **root** del servicio: nadie puede eliminarla ni quitarle el ro
 
 **Código:** [workspaceService.ts](../Back_MCLog/src/services/workspaceService.ts) · [workspaceContext.ts](../Back_MCLog/src/middlewares/workspaceContext.ts) · [workspaceRoutes.ts](../Back_MCLog/src/routes/workspaceRoutes.ts)
 
-Un **espacio de trabajo** es la unidad de aislamiento: logs, API keys, canales y reglas de alerta pertenecen a uno, y solo sus miembros los ven. Una cuenta puede estar en varios espacios, con un rol distinto en cada uno, y cualquier cuenta puede crear espacios nuevos (queda como su dueña). Por encima está el **admin de plataforma**, que administra toda la aplicación y entra a cualquier espacio como dueño.
+Un **espacio de trabajo** es la unidad de aislamiento: logs, API keys, canales y reglas de alerta pertenecen a uno, y solo sus miembros los ven. Una cuenta puede estar en varios espacios, con un rol distinto en cada uno, y cualquier cuenta puede crear espacios nuevos (queda como su dueña) mientras la configuración lo permita (`allowWorkspaceCreation`, `maxOwnedWorkspaces`). Por encima está el **admin de plataforma**, que administra toda la aplicación y entra a cualquier espacio como dueño.
 
 | Rol en el espacio | Puede |
 |---|---|
@@ -404,7 +404,7 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 
 Cambiar la contraseña o el rol de alguien **revoca todos sus refresh tokens**: las sesiones abiertas en otros dispositivos dejan de valer y el nuevo rol se aplica en el siguiente token.
 
-**Alta sin contraseña compartida.** `POST /auth/users` (admin) y `POST /api/workspaces/:id/members` (dueño) crean la cuenta **pendiente** si no existe y generan un enlace de activación de un solo uso, válido 7 días, reutilizando el mecanismo de "olvidé mi contraseña" (solo se guarda el hash). Se envía por correo si hay SMTP y `PUBLIC_DASHBOARD_URL`; si no, la respuesta incluye `invitePath` para compartirlo a mano. Una cuenta pendiente no puede iniciar sesión. Al dar de alta, el admin elige `mode: "own"` (espacio propio) o `mode: "join"` (cualquier espacio existente); una cuenta `user` nunca nace con acceso a todo.
+**Alta sin contraseña compartida.** `POST /auth/users` (admin) y `POST /api/workspaces/:id/members` (dueño) crean la cuenta **pendiente** si no existe y generan un enlace de activación de un solo uso, válido los días que fije `invitationTtlDays` (7 por defecto), reutilizando el mecanismo de "olvidé mi contraseña" (solo se guarda el hash). Se envía por correo si hay SMTP y `PUBLIC_DASHBOARD_URL`; si no, la respuesta incluye `invitePath` para compartirlo a mano. Una cuenta pendiente no puede iniciar sesión. Al dar de alta, el admin elige `mode: "own"` (espacio propio) o `mode: "join"` (cualquier espacio existente); una cuenta `user` nunca nace con acceso a todo.
 
 Cuatro operaciones están bloqueadas para que nada se quede sin administración:
 
@@ -466,7 +466,7 @@ En el dashboard esto son la vista **Errores** y la vista de **Traza**, y en la t
 
 Dos decisiones gobiernan las respuestas: los listados van **recortados y sin metadata**, porque todo lo devuelto consume contexto del modelo y solo `get_log` entrega el registro entero; y cuando hay más resultados de los devueltos **se dice explícitamente**, para que el modelo no concluya que ya lo ha visto todo.
 
-El endpoint es **sin estado**: cada petición se atiende y se cierra, así que el servicio sigue escalando horizontalmente. Los límites de la clave se aplican dentro: una clave acotada no ve otras aplicaciones en ninguna herramienta. Se apaga con `MCP_ENABLED=0`.
+El endpoint es **sin estado**: cada petición se atiende y se cierra, así que el servicio sigue escalando horizontalmente. Los límites de la clave se aplican dentro: una clave acotada no ve otras aplicaciones en ninguna herramienta. Se apaga desde la configuración (`mcpEnabled`, cuya opción inicial da `MCP_ENABLED`).
 
 ---
 
@@ -589,7 +589,7 @@ Además, un **compositor** envía un log a medida y muestra la petición equival
 - Todo va a aplicaciones con prefijo `lab-`.
 - Por defecto se envía al entorno `development`, para no contaminar métricas ni alertas de producción.
 - **Borrar datos del lab** limpia solo esas aplicaciones.
-- La ingesta usa la sesión del admin: no hace falta crear una API key para probar.
+- La ingesta usa la sesión del dueño del espacio: no hace falta crear una API key para probar.
 
 ## 22. Configuración de la plataforma
 
@@ -622,7 +622,7 @@ Guardar varios valores es atómico: se validan todos y, si alguno no cumple, no 
 
 Lo que no está en el catálogo —secretos, CORS, cookies, JWT— sigue siendo solo de entorno a propósito: cambiarlo en caliente cerraría sesiones o abriría accesos.
 
-`GET /api/settings/public` lo lee cualquier sesión: las pocas banderas que el panel necesita para no ofrecer lo que está apagado (Lab, crear espacios, límite de miembros, validez de las invitaciones, snapshots públicos y su tope de logs).
+`GET /api/settings/public` lo lee cualquier sesión: las pocas banderas que el panel necesita para no ofrecer lo que está apagado (Lab, MCP, crear espacios, límite de miembros, validez de las invitaciones, snapshots públicos, su tope de logs y el de snapshots por espacio).
 
 ---
 
@@ -654,8 +654,8 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 
 | Método | Ruta | Auth | Funcionalidad |
 |---|---|---|---|
-| `POST` | `/api/log` | Clave `ingest` o JWT | [1.1](#11-log-individual--post-apilog) |
-| `POST` | `/api/logs/batch` | Clave `ingest` o JWT | [1.2](#12-lote--post-apilogsbatch) |
+| `POST` | `/api/log` | Clave `ingest`, o JWT **dueño** con el Lab encendido | [1.1](#11-log-individual--post-apilog) |
+| `POST` | `/api/logs/batch` | Clave `ingest`, o JWT **dueño** con el Lab encendido | [1.2](#12-lote--post-apilogsbatch) |
 | `GET` | `/api/logs` | Clave `read` o JWT | [2](#2-consulta-y-búsqueda) · [4](#4-exportación) |
 | `GET` | `/api/logs/stats` | Clave `read` o JWT | [3](#3-estadísticas) |
 | `GET` | `/api/logs/:id` | Clave `read` o JWT | [2.4](#24-detalle-individual--get-apilogsid) |
@@ -666,18 +666,19 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 | `DELETE` | `/api/logs` | JWT **dueño** | [5](#5-retención-y-purga) |
 | `POST` | `/mcp` | Clave `read` o JWT | [16](#16-acceso-para-ia-mcp) |
 | `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/channels/:id/test` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **dueño** | [13](#13-api-keys-con-permisos) |
 | `GET`/`POST`/`DELETE` | `/api/snapshots` · `/:id` | JWT (dueño para los públicos) | [23](#23-snapshots-compartibles) |
 | `GET` | `/api/share/:token` | — (JWT de miembro si es de equipo) | [23](#23-snapshots-compartibles) |
 | `GET` | `/api/share/:token/preview` | — (solo públicos) | [23](#23-snapshots-compartibles) |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/api/workspaces` · `/:id` · `/:id/members` | JWT (dueño para administrar) | [7](#7-espacios-de-trabajo-y-roles) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/workspaces` · `/:id` · `/:id/members` · `/:id/members/:userId` · `/:id/members/:userId/resend` | JWT (dueño para administrar; un miembro solo puede quitarse a sí mismo) | [7](#7-espacios-de-trabajo-y-roles) |
 | `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | [20](#20-verificación-en-dos-pasos-2fa) |
 | `GET`/`PATCH` · `DELETE /:key` | `/api/settings` | JWT **root** | [22](#22-configuración-de-la-plataforma) |
 | `GET` | `/api/settings/public` | JWT | [22](#22-configuración-de-la-plataforma) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin de plataforma** | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/login` · `/auth/login/2fa` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |
+| `POST` | `/auth/password/forgot` · `/auth/password/reset` | — (requiere SMTP y `PUBLIC_DASHBOARD_URL`; `503` si faltan) | [6](#6-autenticación-y-sesiones) |
 | `GET` | `/health` | — | [10](#10-observabilidad-del-propio-servicio) |
 | `GET` | `/metrics` | Clave `metrics` | [10](#10-observabilidad-del-propio-servicio) |
 | `GET` | `/docs` · `/openapi.json` | — | [12](#12-documentación-de-api-interactiva) |

@@ -106,7 +106,7 @@ curl https://<tu dominio>/health
 `/health` debe responder `{"status":"ok","database":"up",...}`. Después sigue con [Después del primer arranque](#después-del-primer-arranque).
 
 > **El arranque falla a propósito** si `NODE_ENV=production` y se da cualquiera de estos casos:
-> - queda algún `CAMBIAR-...` sin rellenar;
+> - `API_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` o `ADMIN_PASSWORD` siguen con el valor de ejemplo (`CAMBIAR-...`); el resto de `CAMBIAR-...` no detiene el arranque, pero revísalo igual;
 > - los dos secretos JWT son iguales;
 > - `CORS_ORIGINS` está vacío.
 >

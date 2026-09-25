@@ -10,7 +10,7 @@ Haz que MCLog te avise por Slack, Teams, Discord, correo o Telegram cuando algo 
 
 ## Antes de empezar
 
-- Un usuario **admin**.
+- Ser **dueño** del espacio (el admin de plataforma lo es de todos).
 - Según el canal:
 
 | Canal | Necesitas |
@@ -25,7 +25,7 @@ Haz que MCLog te avise por Slack, Teams, Discord, correo o Telegram cuando algo 
 ## Paso 1 — Crea un canal
 
 1. Abre **Espacio → Alertas**, pestaña **Canales**.
-2. Pulsa **Nuevo canal**.
+2. Rellena el formulario **Nuevo canal** (está siempre abierto en la pestaña).
 3. **Nombre**: por ejemplo `Slack #incidentes`.
 4. **Tipo** y sus campos:
    - **Webhook**: pega la **URL**. Opcionalmente pon un **Secreto de firma**: cada aviso viajará firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`, y el receptor podrá comprobar que viene de MCLog.
@@ -44,7 +44,7 @@ No sigas hasta que la prueba llegue.
 
 ## Paso 3 — Crea una regla
 
-1. Pestaña **Reglas** → **Nueva regla**.
+1. Pestaña **Reglas**, formulario **Nueva regla**.
 2. **Nombre**: qué vigila, por ejemplo `Errores de facturación en producción`.
 3. **Tipo**, uno de dos:
 
@@ -101,8 +101,8 @@ Pestaña **Historial**: cada disparo con su regla, cuántas coincidencias hubo y
 | **Enviar prueba** de correo: "no está configurado" | Faltan las variables `SMTP_*` en el backend |
 | **Enviar prueba** de Telegram: `chat not found` | El chat ID es incorrecto, o el bot no está en el grupo: añádelo |
 | La prueba llega, pero la regla nunca avisa | Revisa los filtros (entorno, aplicación, nivel) y que el umbral se alcance dentro de la ventana. Mira **Último aviso**: si avisó hace poco, está en su silencio |
-| Llegan demasiados avisos | Sube el **Silencio tras avisar** o el **Umbral** |
-| No aparece la opción **Alertas** | Solo la ven los administradores |
+| Llegan demasiados avisos | Las reglas no se editan: borra la regla y créala con más **Silencio tras avisar** o más **Umbral**, o apágala con su interruptor |
+| No aparece la opción **Alertas** | Solo la ve el dueño del espacio |
 
 ## Siguiente paso
 

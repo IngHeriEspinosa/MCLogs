@@ -18,7 +18,7 @@ Envía los logs y las excepciones de tu aplicación Node.js a MCLog con la libre
 
 ## Paso 1 — Crea una API key para tu aplicación
 
-1. En el dashboard, abre **Espacio → API keys** y pulsa **Nueva clave**.
+1. En el dashboard, abre **Espacio → API keys** y rellena el formulario **Nueva clave**.
 2. **Nombre**: el de tu aplicación y entorno, por ejemplo `facturacion producción`.
 3. **Permisos**: solo **Enviar logs**.
 4. **Aplicaciones**: escribe el nombre exacto que usarás en `application`, por ejemplo `facturacion`. Así, si la clave se filtra, no podrá escribir en nombre de otra aplicación ni leer nada.

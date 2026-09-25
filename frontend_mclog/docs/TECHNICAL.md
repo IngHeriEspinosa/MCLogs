@@ -24,10 +24,10 @@ src/
     errors/page.tsx            Errores agrupados por huella
     reports/page.tsx           Generador de reportes (Markdown, brief para IA, JSON)
     trace/[traceId]/page.tsx   Una operación completa, con línea temporal en cascada
-    lab/page.tsx               Lab: escenarios de prueba y compositor de logs (admin)
-    settings/api-keys/page.tsx Claves con permisos (admin)
-    settings/users/page.tsx    Usuarios y roles (admin)
-    settings/alerts/page.tsx   Canales, reglas e historial de avisos (admin)
+    lab/page.tsx               Lab: escenarios de prueba y compositor de logs (dueño del espacio)
+    settings/api-keys/page.tsx Claves con permisos (dueño del espacio)
+    settings/users/page.tsx    Cuentas de la plataforma (admin)
+    settings/alerts/page.tsx   Canales, reglas e historial de avisos (dueño del espacio)
     settings/password/page.tsx Mi cuenta: sesión, preferencias, contraseña, 2FA y zona de peligro
     (auth)/login/page.tsx      Alias de "/" para enlaces antiguos: monta el mismo SignIn
   common/
@@ -98,7 +98,7 @@ src/
   - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 y redirige a `/` (el acceso) si falla. Hay **un único refresh en vuelo**: si varias peticiones caducan a la vez, todas esperan al mismo en lugar de rotar el token cada una por su cuenta. Los 401 de `/auth/login`, `/auth/refresh` y `/auth/logout` no se reintentan; `/auth/me` sí, porque es lo que decide si el panel manda al login. Si el refresh de `/auth/me` falla, el interceptor **no** redirige: la pantalla de acceso (`/`) lo consulta solo para saber si hay sesión; el panel ya redirige desde `DashboardLayout`. `GET /api/share/:token` tampoco se reintenta ni redirige: su 401 significa "snapshot de equipo sin sesión" y el visor ofrece entrar sin perder el enlace.
   - `DashboardLayout` pide `/auth/me` y, si falla, manda a `/?next=<ruta>`. Tras entrar, el acceso vuelve a esa ruta (solo rutas internas: empieza por `/` y no por `//`); si no hay `next`, va a `/logs`. Se conserva la ruta con su query.
   - **`/` es el acceso.** `SignIn` pide `/auth/me`: mientras responde muestra un spinner (para no enseñar el formulario un instante a quien ya ha entrado), con sesión redirige a `next` o a `/logs`, y sin ella pinta el login. `/login` monta el mismo componente para no romper enlaces antiguos. Cerrar sesión, borrar la cuenta o cambiar la contraseña vuelven a `/`.
-- **Autorización visual, nunca como control**: el menú oculta la administración a quien no es admin, pero cada página comprueba el rol y el backend lo exige igualmente.
+- **Autorización visual, nunca como control**: el menú oculta la administración del espacio a quien no es su dueño y la de la plataforma a quien no es admin, pero cada página comprueba el rol y el backend lo exige igualmente.
 - **Filtros en la URL** (`useLogFilters`):
   - Rango (`range=24h` o `from`/`to` en ISO), nivel, entorno, aplicación, búsqueda, huella, orden y página.
   - Los seis campos de la búsqueda avanzada: `message`, `service`, `host`, `traceId`, `errorName`, `errorCode`. `advancedCount` cuenta cuántos hay activos, para el distintivo de la tarjeta.
@@ -211,7 +211,7 @@ Mapeo de errores:
 
 ## Lab
 
-Escenarios que envían **logs reales** a la API con la sesión del admin: la ingesta acepta el JWT igual que una API key `ingest`. Viven en `common/lab/`:
+Escenarios que envían **logs reales** a la API con la sesión del dueño del espacio: la ingesta acepta el JWT igual que una API key `ingest`. Viven en `common/lab/`:
 
 - **`scenarios.ts`** define los siete escenarios:
 

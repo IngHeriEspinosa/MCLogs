@@ -131,7 +131,7 @@ Base: `http://localhost:3000`. Swagger interactivo en `/docs`.
 ### 3.1 Ingesta
 
 #### `POST /api/log`
-**Auth:** API key con permiso `ingest` (`x-api-key` o `Authorization: Bearer mclog_…`) o JWT de usuario · **Rate limit:** `ingestLimiter`
+**Auth:** API key con permiso `ingest` (`x-api-key` o `Authorization: Bearer mclog_…`), o JWT del **dueño** del espacio con el Lab encendido (`labEnabled`) · **Rate limit:** `ingestLimiter`
 
 ```jsonc
 // Request
@@ -240,7 +240,7 @@ Query opcional: `application`, `environment`, `hours` (default 24) o `from`/`to`
 La serie solo incluye las horas con registros; quien la pinte debe rellenar los huecos o el eje temporal mentirá.
 
 #### `DELETE /api/logs`
-**Auth:** JWT con rol `admin`. Query: `before` (ISO-8601, **obligatorio**) y `application` (opcional). Respuesta `{ "deleted": n }`.
+**Auth:** JWT del **dueño** del espacio (`X-Workspace-Id`); el admin de plataforma lo es de todos. Query: `before` (ISO-8601, **obligatorio**) y `application` (opcional). Respuesta `{ "deleted": n }`.
 
 ### 3.3 Autenticación
 
@@ -250,6 +250,8 @@ La serie solo incluye las horas con registros; quien la pinte debe rellenar los 
 | `POST /auth/login/2fa` | `{ mfaToken, code }` | Igual que un login completo |
 | `POST /auth/refresh` | `{ refreshToken }` *(opcional: puede venir en cookie)* | Igual que login, con tokens nuevos |
 | `POST /auth/logout` | `{ refreshToken }` *(opcional: cookie)* | `{ ok: true }` |
+| `POST /auth/password/forgot` | `{ email, locale? }` | `{ ok: true }` siempre (no revela si la cuenta existe). `503` sin SMTP o sin `PUBLIC_DASHBOARD_URL`. Rate limit `passwordResetLimiter` |
+| `POST /auth/password/reset` | `{ token, password }` | `{ ok: true }`; revoca todas las sesiones. `400` enlace inválido o caducado. Rate limit `loginLimiter` |
 
 Errores:
 
@@ -324,7 +326,7 @@ abiertas al stream en vivo). La ruta se etiqueta por su patrón
 | `GET/POST /api/snapshots`, `DELETE /api/snapshots/:id` | JWT miembro (público: **dueño**) | Listar (sin datos), crear y borrar snapshots del espacio activo. `POST` recibe `{ title, kind (logs/errors/trace), visibility, expiresInDays (1/7/30/null), filters }` (para `trace`, `filters.traceId`) y captura en el momento: `403` si es público sin ser dueño o con `publicSnapshotsEnabled` apagado, `409` si el espacio llegó a `maxSnapshotsPerWorkspace`. Borra su autor o el dueño (`403`) |
 | `GET /api/share/:token/preview` | — | Vista previa para Open Graph: título, tipo, fecha, si va enmascarado y `stats`. Solo de los públicos vigentes (`404` para el resto) y sin contar visita |
 | `GET /api/share/:token` | — (miembro con sesión si es de equipo) | El snapshot, con `Cache-Control: no-store` y `X-Robots-Tag: noindex`. De equipo sin sesión: `401 { requiresAuth: true }`. Inexistente, caducado, de otro espacio o público con los públicos apagados: `404`. Los públicos llegan enmascarados y sin el nombre del espacio |
-| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** de plataforma | Gestión de cuentas. Alta con `mode: "own"` (espacio propio, `workspaceName?`) o `"join"` (`workspaceId` de un espacio del que el admin es dueño, `workspaceRole?`); sin `password` la cuenta nace pendiente y la respuesta trae `emailSent` e `invitePath?`. `PATCH` cambia `role` y/o `password` y revoca sus sesiones. No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`), dejar la plataforma sin admin (`409`) ni borrar a la única dueña de un espacio con más miembros (`409`). No hay endpoint para quitar el 2FA de otro usuario |
+| `GET/POST /auth/users`, `PATCH/DELETE /auth/users/:id` | JWT **admin** de plataforma | Gestión de cuentas. Alta con `mode: "own"` (espacio propio, `workspaceName?`) o `"join"` (`workspaceId` de cualquier espacio existente: el admin los administra todos, `workspaceRole?`); sin `password` la cuenta nace pendiente y la respuesta trae `emailSent` e `invitePath?`. `PATCH` cambia `role` y/o `password` y revoca sus sesiones. No se permite borrarse a uno mismo, borrar o degradar la cuenta root (`403`), dejar la plataforma sin admin (`409`) ni borrar a la única dueña de un espacio con más miembros (`409`). No hay endpoint para quitar el 2FA de otro usuario |
 
 La cuenta propia y el 2FA están en [3.3](#33-autenticación).
 
@@ -357,7 +359,7 @@ Auth y resto — `4xx/5xx`: `{ "error": "mensaje" }`.
 | API key `metrics` | Métricas | `GET /metrics` |
 | JWT de usuario | Lectura (e ingesta si es dueño) | En los espacios de los que es miembro; `DELETE /api/logs`, claves, alertas y miembros si es dueño; `/auth/users` si su rol de plataforma es `admin` |
 
-**Espacio de cada petición.** Con API key, el de la clave (`X-Workspace-Id` se ignora). Con JWT, la cabecera `X-Workspace-Id` o `?workspace=` (el stream SSE, porque `EventSource` no admite cabeceras); sin ninguna, el espacio por defecto de la cuenta. Si no es miembro, `404` (no `403`, para no confirmar que existe). La membresía se cachea 30 s en memoria y la caché se vacía al cambiar cualquier membresía. Ver [workspaceContext.ts](../Back_MCLog/src/middlewares/workspaceContext.ts).
+**Espacio de cada petición.** Con API key, el de la clave (`X-Workspace-Id` se ignora). Con JWT, la cabecera `X-Workspace-Id` o `?workspace=` (el stream SSE, porque `EventSource` no admite cabeceras); sin ninguna, el espacio por defecto de la cuenta. Si no es miembro, `404` (no `403`, para no confirmar que existe); el `admin` de plataforma entra a cualquier espacio vivo como dueño (`getWorkspaceRole`). La membresía se cachea 30 s en memoria y la caché se vacía al cambiar cualquier membresía. Ver [workspaceContext.ts](../Back_MCLog/src/middlewares/workspaceContext.ts).
 
 Una clave lleva los permisos que se le den al crearla, y puede acotarse además a una lista de aplicaciones. La restricción vale en los dos sentidos: no puede escribir logs de otra aplicación (`403`) ni verlos al consultar, ni en el listado, ni en las estadísticas, ni pidiendo un log por id, que responde `404` para no confirmar que existe.
 
@@ -401,9 +403,10 @@ El **margen de 30 segundos** existe porque, al abrir el dashboard con el access 
 | `helmet` | Defaults |
 | CORS | Lista blanca `CORS_ORIGINS`, `credentials: true`. Sin `Origin` → permitido (curl, health checks) |
 | Body limit | `BODY_LIMIT` (3 MB) |
-| Rate limit consulta | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` (600 / 15 min). Aplica a `/auth/*`, `/api/logs*` (salvo el stream), `/api/keys`, `/api/alerts`, `/api/snapshots`, `/api/share` y `/mcp`. Cuenta por clave si la hay, si no por IP |
+| Rate limit consulta | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` (600 / 15 min). Aplica a `/auth/*`, `/api/logs*` (salvo el stream), `/api/keys`, `/api/alerts`, `/api/snapshots`, `/api/share`, `/api/workspaces`, `/api/settings` y `/mcp`. Cuenta por clave si la hay, si no por IP |
 | Rate limit ingesta | `INGEST_RATE_LIMIT_MAX` / `..._WINDOW_MS` (2000 / 60 s), independiente del anterior. Cuenta por clave: una integración ruidosa no gasta la cuota de las demás |
-| Rate limit login | `LOGIN_RATE_LIMIT_MAX` / `..._WINDOW_MS` (10 / 15 min), por IP (IPv6 por `/64`). Solo cuenta los **fallos**. Cubre `POST /auth/login`, `/auth/login/2fa`, `DELETE /auth/me` y `/auth/me/2fa/enable` y `/disable` |
+| Rate limit login | `LOGIN_RATE_LIMIT_MAX` / `..._WINDOW_MS` (10 / 15 min), por IP (IPv6 por `/64`). Solo cuenta los **fallos**. Cubre `POST /auth/login`, `/auth/login/2fa`, `/auth/password/reset`, `DELETE /auth/me` y `/auth/me/2fa/enable` y `/disable` |
+| Rate limit "olvidé mi contraseña" | `PASSWORD_RESET_RATE_LIMIT_MAX` / `..._WINDOW_MS` (5 / 15 min), por IP. Cuenta **todas** las peticiones a `POST /auth/password/forgot`, no solo las fallidas, porque la respuesta es siempre la misma |
 | API key | Solo se guarda su sha256; la clave heredada se compara con `crypto.timingSafeEqual` (tiempo constante) |
 | Cookies | `httpOnly` siempre; `secure` forzado en producción; `sameSite` y `domain` configurables |
 | HTTPS | `FORCE_HTTPS=1` rechaza peticiones no cifradas con `400`. Las que vienen de loopback (el HEALTHCHECK del contenedor) quedan exentas |
@@ -440,8 +443,8 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 | `LOG_LEVEL` | `info` | `debug` registra también bodies redactados |
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | 900000 / 600 | Consultas, `/auth`, administración y `/mcp` |
 | `INGEST_RATE_LIMIT_WINDOW_MS` / `INGEST_RATE_LIMIT_MAX` | 60000 / 2000 | Solo ingesta |
-| `MAX_BATCH_SIZE` | `500` | Tope de entradas por lote |
-| `MAX_EXPORT_ROWS` | `10000` | Tope de filas en CSV/NDJSON |
+| `MAX_BATCH_SIZE` | `500` | Valor inicial de `maxBatchSize` (tope de entradas por lote); la cuenta root lo cambia en caliente |
+| `MAX_EXPORT_ROWS` | `10000` | Valor inicial de `maxExportRows` (filas en CSV/NDJSON); la cuenta root lo cambia en caliente |
 | `CORS_ORIGINS` | — | Lista separada por comas |
 | `TRUST_PROXY` | `0` | `1` detrás de load balancer (afecta IP real y rate limiting) |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | valores dev | **Deben ser distintos entre sí** |
@@ -454,11 +457,13 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 | `LOGIN_RATE_LIMIT_WINDOW_MS` / `LOGIN_RATE_LIMIT_MAX` | 900000 / 10 | Login, segundo paso del 2FA, alta/baja del 2FA y borrar la propia cuenta; cuenta únicamente los intentos fallidos |
 | `RETENTION_MONTHS` | `3` | Meses de logs a conservar (3–60). Es solo el valor inicial: la cuenta root lo cambia en caliente desde **Plataforma → Configuración** |
 | `SCHEDULER_ENABLED` | `1` | Mantenimiento periódico. Con varias instancias, dejarlo activo en una sola |
-| `MCP_ENABLED` | `1` | Expone el servidor MCP en `/mcp` |
-| `SSE_MAX_CONNECTIONS` | `50` | Conexiones simultáneas al stream en vivo, **por instancia** |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | — / 587 / `0` | Servidor de correo para el canal de alertas por email |
+| `MCP_ENABLED` | `1` | Valor inicial de `mcpEnabled` (servidor MCP en `/mcp`); la cuenta root lo enciende o apaga en caliente |
+| `SSE_MAX_CONNECTIONS` | `50` | Valor inicial de `maxLiveConnections` (conexiones simultáneas al stream en vivo, **por instancia**) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | — / 587 / `0` | Servidor de correo: alertas por email, invitaciones y "olvidé mi contraseña" (estas dos también necesitan `PUBLIC_DASHBOARD_URL`) |
 | `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — / — / `MCLog <no-reply@localhost>` | Credenciales y remitente del correo |
-| `PUBLIC_DASHBOARD_URL` | — | URL del dashboard, para enlaces en notificaciones |
+| `PUBLIC_DASHBOARD_URL` | — | URL del dashboard, para los enlaces de notificaciones, invitaciones y restablecimiento de contraseña |
+| `PASSWORD_RESET_TTL_MINUTES` | `30` | Valor inicial de `passwordResetTtlMinutes`: minutos que vale un enlace de "olvidé mi contraseña" |
+| `PASSWORD_RESET_RATE_LIMIT_MAX` / `..._WINDOW_MS` | `5` / `900000` | Peticiones a `/auth/password/forgot` por IP y ventana |
 
 ### Frontend (`frontend_mclog/.env.local`)
 

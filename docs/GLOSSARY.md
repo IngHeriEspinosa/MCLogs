@@ -8,7 +8,7 @@ Términos que aparecen en la documentación, la interfaz y la API. Ordenado alfa
 JWT de vida corta (**15 minutos** por defecto) que autoriza cada petición de consulta. Viaja en la cabecera `Authorization: Bearer …` o en la cookie `access_token`. Cuando caduca, el sistema lo renueva solo usando el [refresh token](#refresh-token). → [Refresh token](#refresh-token), [Auto-refresh](#auto-refresh)
 
 ### Admin
-[Rol](#rol) que, además de todo lo que puede hacer un `user`, **purga logs** y administra [API keys](#api-key), usuarios, [alertas](#alerta) y el [Lab](#lab). El primero se crea automáticamente al arrancar con `ADMIN_EMAIL` / `ADMIN_PASSWORD`, y es la [cuenta root](#cuenta-root).
+[Rol](#rol) de plataforma que administra la aplicación entera: da de alta y de baja cuentas y es **dueño implícito de todos los [espacios](#espacio-de-trabajo)**, con lo que también purga logs y administra [API keys](#api-key), [alertas](#alerta) y el [Lab](#lab) de cualquiera. El primero se crea automáticamente al arrancar con `ADMIN_EMAIL` / `ADMIN_PASSWORD`, y es la [cuenta root](#cuenta-root).
 
 Ninguna API key recibe este rol, por muchos [permisos](#permiso-scope) que tenga: administrar exige una sesión de persona.
 
@@ -171,7 +171,7 @@ La duración se etiqueta por **patrón** de ruta (`/api/logs/:id`) y no por la U
 Puerto del host donde se publica PostgreSQL en desarrollo. No es el 5432 para no chocar con otra instancia en la misma máquina; dentro de Docker el puerto sigue siendo el 5432.
 
 ### Purga
-Borrado de logs anteriores a una fecha (`DELETE /api/logs?before=…`), opcionalmente de una sola aplicación. Requiere rol [`admin`](#admin) y una fecha explícita, de modo que no existe forma de borrar "todo" por accidente.
+Borrado de logs anteriores a una fecha (`DELETE /api/logs?before=…`), opcionalmente de una sola aplicación. Requiere ser [dueño](#rol) del espacio y una fecha explícita, de modo que no existe forma de borrar "todo" por accidente.
 
 Es la herramienta para limpiezas puntuales. Para el borrado continuo está la [retención](#retención) automática. → [Retención](#retención)
 
@@ -215,7 +215,7 @@ Borrado automático de los logs más antiguos que la retención configurada por 
 No se puede desactivar: como mínimo se guardan 3 meses y como máximo 5 años. Con varias instancias, `SCHEDULER_ENABLED` debe quedar activo en una sola. → [Purga](#purga)
 
 ### Rol
-Nivel de permiso de un **usuario**. `user` puede consultar, buscar, ver errores, estadísticas, exportar y gestionar su propia cuenta; [`admin`](#admin) además purga y administra claves, usuarios, alertas y el Lab. Sin sesión → `401`; con sesión pero rol insuficiente → `403`.
+Nivel de permiso de un **usuario**. En la plataforma: `user` (su cuenta y sus espacios) y [`admin`](#admin) (cuentas y todos los espacios). En cada espacio: **dueño** (administra miembros, claves, alertas, Lab y purga) y **miembro** (consulta, busca, exporta, reportes y snapshots de equipo). Sin sesión → `401`; con sesión pero rol insuficiente → `403`; espacio ajeno → `404`.
 
 No confundir con los [permisos](#permiso-scope) de una API key, que son otra escala.
 

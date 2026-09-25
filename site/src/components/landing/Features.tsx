@@ -13,7 +13,7 @@ const FEATURES = [
   ["API keys con permisos", "Permisos ingest, read o metrics, acotables por aplicación, caducables y revocables."],
   ["Usuarios y roles", "Administrables desde el dashboard, con cambio de contraseña y cierre de sesiones."],
   ["Alertas", "Webhook firmado, correo y Telegram, con reglas de umbral o de error nuevo."],
-  ["Retención automática", "Purga por días, más limpieza puntual por fecha y aplicación."],
+  ["Retención automática", "De 3 meses a 5 años, más limpieza puntual por fecha y aplicación."],
   ["Acceso para IA (MCP)", "Ocho herramientas propias para que un asistente investigue los logs."],
   ["Observabilidad del servicio", "Endpoints /health y /metrics en formato Prometheus."],
   ["Despliegue con Docker", "Compose y Caddy, HTTPS automático y copias de seguridad diarias."],

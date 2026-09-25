@@ -75,7 +75,7 @@ Si no envías `message`, se usa el de la excepción. Un `code` numérico se guar
 | `429` | Límite de ingesta superado (2000 peticiones/min por clave) | Espera y reintenta, respetando `Retry-After`; agrupa en lotes |
 | `5xx` | Fallo del servidor | Reintenta con espera creciente |
 
-> **¿Quieres ver una petición válida antes de escribir código?** Un admin puede componer un log en **Lab → Log a medida**: la pantalla muestra la petición equivalente en JSON y cURL, lista para copiar.
+> **¿Quieres ver una petición válida antes de escribir código?** El dueño del espacio puede componer un log en **Lab → Log a medida**: la pantalla muestra la petición equivalente en JSON y cURL, lista para copiar.
 
 ## curl
 
