@@ -142,6 +142,7 @@ model AlertRule    { id, workspaceId → Workspace, name, type, filtros, thresho
                      lastTriggeredAt?, channels[] }
 model AlertEvent   { id, ruleId → AlertRule, triggeredAt, count, sampleLogIds[], deliveries Json }
 model AppSetting   { key @id, value Json, updatedAt, updatedById? → User }
+model AppSettingChange { id, key, fromValue Json, toValue Json, reset, changedById? → User, changedByEmail, createdAt }
 model Snapshot     { id, workspaceId → Workspace, token @unique, title, visibility (workspace|public), redacted,
                      filters Json, summary Json, logs Json, totalMatched, createdById? → User, expiresAt?, viewCount }
 ```

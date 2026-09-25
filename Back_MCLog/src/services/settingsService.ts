@@ -182,11 +182,26 @@ export class SettingsValidationError extends Error {
   }
 }
 
+/** Quien hace el cambio. El correo se copia al historial. */
+export type SettingsActor = { id: number; email: string };
+
+type SettingChange = { key: SettingKey; from: number | boolean; to: number | boolean };
+
+const historyRow = (change: SettingChange, actor: SettingsActor, reset = false) => ({
+  key: change.key,
+  fromValue: change.from,
+  toValue: change.to,
+  reset,
+  changedById: actor.id,
+  changedByEmail: actor.email,
+});
+
 /**
  * Guarda varios valores de una vez. Se validan todos antes de escribir nada:
- * o se aplican todos, o ninguno. Devuelve lo que cambio, para dejarlo en el log.
+ * o se aplican todos, o ninguno. Lo que cambia de verdad queda en el historial,
+ * en la misma transaccion. Devuelve esos cambios, para dejarlos en el log.
  */
-export const updateSettings = async (values: Record<string, unknown>, userId: number) => {
+export const updateSettings = async (values: Record<string, unknown>, actor: SettingsActor) => {
   const errors: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
     const problem = validateSetting(key, value);
@@ -194,28 +209,77 @@ export const updateSettings = async (values: Record<string, unknown>, userId: nu
   }
   if (Object.keys(errors).length > 0) throw new SettingsValidationError(errors);
 
-  const changes = Object.entries(values).map(([key, value]) => ({
+  // El valor "de" sale de la base de datos, no de una memoria que otra instancia pudo dejar atras.
+  await refreshSettings();
+  const changes: SettingChange[] = Object.entries(values).map(([key, value]) => ({
     key: key as SettingKey,
     from: getSetting(key as SettingKey),
     to: value as number | boolean,
   }));
+  const changed = changes.filter((change) => change.from !== change.to);
 
-  await prisma.$transaction(
-    changes.map(({ key, to }) =>
+  await prisma.$transaction([
+    ...changes.map(({ key, to }) =>
       prisma.appSetting.upsert({
         where: { key },
-        create: { key, value: to as Prisma.InputJsonValue, updatedById: userId },
-        update: { value: to as Prisma.InputJsonValue, updatedById: userId },
+        create: { key, value: to as Prisma.InputJsonValue, updatedById: actor.id },
+        update: { value: to as Prisma.InputJsonValue, updatedById: actor.id },
       }),
     ),
-  );
+    prisma.appSettingChange.createMany({ data: changed.map((change) => historyRow(change, actor)) }),
+  ]);
   await refreshSettings();
-  return changes.filter((change) => change.from !== change.to);
+  return changed;
 };
 
-/** Vuelve al valor predeterminado borrando el guardado. */
-export const resetSetting = async (key: string) => {
+/** Vuelve al valor predeterminado borrando el guardado. Si no habia uno guardado, no hace nada. */
+export const resetSetting = async (key: string, actor: SettingsActor) => {
   if (!isSettingKey(key)) throw new SettingsValidationError({ [key]: "Unknown setting" });
-  await prisma.appSetting.deleteMany({ where: { key } });
   await refreshSettings();
+  if (!overrides.has(key)) return;
+
+  const change: SettingChange = { key, from: getSetting(key), to: SETTINGS[key].default() };
+  await prisma.$transaction([
+    prisma.appSetting.deleteMany({ where: { key } }),
+    prisma.appSettingChange.create({ data: historyRow(change, actor, true) }),
+  ]);
+  await refreshSettings();
+};
+
+export type SettingChangeView = {
+  id: number;
+  key: string;
+  from: unknown;
+  to: unknown;
+  reset: boolean;
+  by: string;
+  at: Date;
+};
+
+export const HISTORY_PAGE_MAX = 100;
+
+/**
+ * Historial de cambios, del mas reciente al mas antiguo. Se pagina con `before`
+ * (el id del ultimo que ya se tiene). Las claves que ya no existen en el
+ * catalogo se devuelven igual: el historial no se reescribe.
+ */
+export const listSettingChanges = async ({ limit, before }: { limit: number; before?: number }) => {
+  const rows = await prisma.appSettingChange.findMany({
+    where: before ? { id: { lt: before } } : undefined,
+    orderBy: { id: "desc" },
+    take: limit + 1,
+  });
+  const page = rows.slice(0, limit);
+  return {
+    data: page.map<SettingChangeView>((row) => ({
+      id: row.id,
+      key: row.key,
+      from: row.fromValue,
+      to: row.toValue,
+      reset: row.reset,
+      by: row.changedByEmail,
+      at: row.createdAt,
+    })),
+    nextBefore: rows.length > limit ? page[page.length - 1].id : null,
+  };
 };

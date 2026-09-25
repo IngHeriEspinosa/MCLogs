@@ -113,6 +113,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   memberships         WorkspaceMember[]
   settingsUpdated     AppSetting[]
+  settingChanges      AppSettingChange[]
   snapshots           Snapshot[]
 }
 
@@ -126,6 +127,23 @@ model AppSetting {
   updatedAt   DateTime @updatedAt
   updatedById Int?
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// Historial de la configuracion: una fila por cada valor que cambio, al
+/// guardar o al restablecer. Solo se escribe; nunca se edita ni se purga.
+model AppSettingChange {
+  id             Int      @id @default(autoincrement())
+  key            String   @db.VarChar(64)
+  /// Valor vigente antes y despues del cambio (el predeterminado si no habia uno guardado).
+  fromValue      Json
+  toValue        Json
+  /// true si se volvio al predeterminado borrando el valor guardado.
+  reset          Boolean  @default(false)
+  changedById    Int?
+  changedBy      User?    @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  /// Copia del correo: el historial sigue diciendo quien fue aunque se borre la cuenta.
+  changedByEmail String   @db.VarChar(255)
+  createdAt      DateTime @default(now())
 }
 
 /// Enlace de "olvide mi contrasena". Solo se guarda el hash: quien lea la base

@@ -618,7 +618,9 @@ El catálogo es cerrado y tipado: cada clave tiene tipo, límites y un valor pre
 | `maxSnapshotsPerWorkspace` | Snapshots vigentes por espacio; los caducados no cuentan (`409` al superarlo) | 100 (0 = sin límite) |
 | `passwordResetTtlMinutes` | Minutos que vale un enlace de "olvidé mi contraseña" | `PASSWORD_RESET_TTL_MINUTES` |
 
-Guardar varios valores es atómico: se validan todos y, si alguno no cumple, no se aplica ninguno (`400` con el error de cada clave). Cada cambio queda en el log del servicio con su valor anterior, el nuevo y quién lo hizo. **Restablecer** borra el valor guardado y vuelve al predeterminado.
+Guardar varios valores es atómico: se validan todos y, si alguno no cumple, no se aplica ninguno (`400` con el error de cada clave). **Restablecer** borra el valor guardado y vuelve al predeterminado.
+
+**Historial de cambios.** Cada valor que cambia, al guardar o al restablecer, queda en la tabla `AppSettingChange` en la misma transacción: la clave, el valor anterior y el nuevo, si fue un restablecimiento, quién lo hizo y cuándo. Solo se escribe; no se edita ni se purga, y guarda una copia del correo para seguir diciendo quién fue aunque se borre la cuenta. Guardar un valor igual al vigente no deja fila. La página de Configuración lo muestra al final, del más reciente al más antiguo (`GET /api/settings/history?limit=&before=`, paginado por id). Además, cada cambio sigue saliendo en el log del servicio (`App setting changed`).
 
 Lo que no está en el catálogo —secretos, CORS, cookies, JWT— sigue siendo solo de entorno a propósito: cambiarlo en caliente cerraría sesiones o abriría accesos.
 
@@ -675,6 +677,7 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 | `GET`/`PATCH`/`DELETE` | `/auth/me` · `/auth/me/password` | JWT | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/me/2fa/setup` · `/enable` · `/disable` | JWT | [20](#20-verificación-en-dos-pasos-2fa) |
 | `GET`/`PATCH` · `DELETE /:key` | `/api/settings` | JWT **root** | [22](#22-configuración-de-la-plataforma) |
+| `GET` | `/api/settings/history` | JWT **root** | [22](#22-configuración-de-la-plataforma) |
 | `GET` | `/api/settings/public` | JWT | [22](#22-configuración-de-la-plataforma) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/auth/users` | JWT **admin de plataforma** | [14](#14-gestión-de-usuarios) |
 | `POST` | `/auth/login` · `/auth/login/2fa` · `/auth/refresh` · `/auth/logout` | — | [6](#6-autenticación-y-sesiones) |

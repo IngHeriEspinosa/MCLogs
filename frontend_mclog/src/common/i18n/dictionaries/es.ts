@@ -927,6 +927,16 @@ export const es = {
     pending: (count: number) => (count === 1 ? "1 cambio sin guardar" : `${count} cambios sin guardar`),
     saved: "Configuración guardada.",
     resetDone: "Valor predeterminado restablecido.",
+    history: {
+      title: "Historial de cambios",
+      description: "Quién cambió cada ajuste, cuándo y de qué valor a cuál. Incluye los que se restablecieron al predeterminado.",
+      loadError: "No pudimos cargar el historial",
+      empty: "Aún no hay cambios",
+      emptyHint: "Cada vez que guardes o restablezcas un ajuste, quedará anotado aquí.",
+      reset: "Restablecido",
+      by: (who: string, when: string) => `${who} · ${when}`,
+      more: "Ver más",
+    },
     envNote:
       "Los secretos, CORS, cookies y JWT se siguen configurando con variables de entorno: cambiarlos en caliente cerraría sesiones o abriría accesos.",
   },

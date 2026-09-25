@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert } from "@/components/atoms/Alert";
 import { Button } from "@/components/atoms/Button";
+import { EmptyState } from "@/components/atoms/EmptyState";
 import { Input } from "@/components/atoms/Input";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { Switch } from "@/components/atoms/Switch";
@@ -13,7 +14,14 @@ import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import type { Dictionary } from "@/common/i18n/dictionaries";
 import { useMe } from "@/hooks/useAuth";
-import { Setting, SettingCategory, useResetSetting, useSettings, useUpdateSettings } from "@/hooks/useSettings";
+import {
+  Setting,
+  SettingCategory,
+  useResetSetting,
+  useSettings,
+  useSettingsHistory,
+  useUpdateSettings,
+} from "@/hooks/useSettings";
 
 const CATEGORIES: SettingCategory[] = ["workspaces", "logs", "features", "security"];
 
@@ -119,6 +127,68 @@ const SettingRow: React.FC<{
   );
 };
 
+/** Quien cambio que y cuando, del mas reciente al mas antiguo. */
+const SettingsHistory: React.FC<{ byKey: Map<string, Setting> }> = ({ byKey }) => {
+  const { t, fmt } = useI18n();
+  const history = useSettingsHistory(true);
+  const changes = history.data?.pages.flatMap((page) => page.data) ?? [];
+
+  // Una clave que ya no esta en el catalogo se muestra tal cual: el historial no se reescribe.
+  const show = (key: string, value: number | boolean) => {
+    const setting = byKey.get(key);
+    return setting ? formatValue(setting, value, t) : String(value);
+  };
+
+  return (
+    <Card title={t.settings.history.title} description={t.settings.history.description} divider flush>
+      {history.isLoading ? (
+        <div className="flex flex-col gap-2 p-5">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : history.isError ? (
+        <div className="p-5">
+          <Alert variant="error">{errorMessage(history.error, t.settings.history.loadError)}</Alert>
+        </div>
+      ) : changes.length === 0 ? (
+        <EmptyState icon="clock" title={t.settings.history.empty} description={t.settings.history.emptyHint} />
+      ) : (
+        <>
+          <ul>
+            {changes.map((change) => (
+              <li
+                key={change.id}
+                className="flex flex-col gap-1 border-b border-line px-5 py-3 last:border-b-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-ink">{keyCopy(t, change.key)?.label ?? change.key}</span>
+                    {change.reset && <Tag>{t.settings.history.reset}</Tag>}
+                  </div>
+                  <p className="mt-0.5 text-sm text-ink-2">
+                    {show(change.key, change.from)} → <span className="font-medium text-ink">{show(change.key, change.to)}</span>
+                  </p>
+                </div>
+                <p className="shrink-0 text-xs text-ink-3" title={fmt.dateTime(change.at)}>
+                  {t.settings.history.by(change.by, fmt.relative(change.at))}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {history.hasNextPage && (
+            <div className="border-t border-line px-5 py-3">
+              <Button size="sm" variant="ghost" loading={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>
+                {t.settings.history.more}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+};
+
 /** Configuracion de la aplicacion. Solo la ve, y solo la cambia, la cuenta root. */
 export default function PlatformSettingsPage() {
   const { t } = useI18n();
@@ -197,6 +267,7 @@ export default function PlatformSettingsPage() {
               </Card>
             );
           })}
+          <SettingsHistory byKey={byKey} />
           <Alert variant="info">{t.settings.envNote}</Alert>
         </div>
       )}

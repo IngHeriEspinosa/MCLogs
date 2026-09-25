@@ -1,12 +1,14 @@
 import express, { Response } from "express";
-import { body, param, validationResult } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import logger from "../config/logger";
 import { AuthenticatedRequest, requireAuth } from "../middlewares/requireAuth";
 import { queryLimiter } from "../middlewares/rateLimiters";
 import { requireRoot } from "../middlewares/requireRoot";
 import {
+  HISTORY_PAGE_MAX,
   SettingsValidationError,
   getSetting,
+  listSettingChanges,
   listSettings,
   resetSetting,
   updateSettings,
@@ -58,6 +60,28 @@ router.get("/", async (_req: AuthenticatedRequest, res: Response) => {
   }
 });
 
+// Quien cambio que, cuando y de que valor a cual. Del mas reciente al mas antiguo.
+router.get(
+  "/history",
+  [
+    query("limit").optional().isInt({ min: 1, max: HISTORY_PAGE_MAX }).toInt(),
+    query("before").optional().isInt({ min: 1 }).toInt(),
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ status: "error", errors: errors.mapped() });
+      return;
+    }
+    try {
+      const { limit, before } = req.query as { limit?: number; before?: number };
+      res.json(await listSettingChanges({ limit: limit ?? 50, before }));
+    } catch (error) {
+      respondWithError(error, res, "Error listing settings history");
+    }
+  },
+);
+
 // Varios valores a la vez: se aplican todos o ninguno.
 router.patch(
   "/",
@@ -69,7 +93,7 @@ router.patch(
       return;
     }
     try {
-      const changes = await updateSettings(req.body.values, req.user!.id);
+      const changes = await updateSettings(req.body.values, req.user!);
       // Cada cambio queda en el log del servicio: quien, que y de que valor a cual.
       for (const change of changes) {
         logger.info("App setting changed", { ...change, by: req.user?.email });
@@ -83,7 +107,7 @@ router.patch(
 
 router.delete("/:key", [param("key").isString().isLength({ max: 64 })], async (req: AuthenticatedRequest, res: Response) => {
   try {
-    await resetSetting(req.params.key);
+    await resetSetting(req.params.key, req.user!);
     logger.info("App setting reset to default", { key: req.params.key, by: req.user?.email });
     res.json({ data: await listSettings() });
   } catch (error) {

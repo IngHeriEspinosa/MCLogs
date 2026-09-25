@@ -75,6 +75,7 @@ model AlertRule    { id, workspaceId → Workspace, name, type (threshold|new_er
                      lastTriggeredAt?, channels[], events[] }
 model AlertEvent   { id, ruleId → AlertRule (onDelete: Cascade), triggeredAt, count, sampleLogIds[], deliveries Json }
 model AppSetting   { key @id @db.VarChar(64), value Json, updatedAt, updatedById? → User (onDelete: SetNull) }
+model AppSettingChange { id, key @db.VarChar(64), fromValue Json, toValue Json, reset Boolean, changedById? → User (onDelete: SetNull), changedByEmail, createdAt }
 model Snapshot     { id, workspaceId → Workspace (onDelete: Cascade), token @unique @db.VarChar(64), title, kind (logs|errors|trace),
                      visibility (workspace|public), redacted, filters Json, summary Json, logs Json, totalMatched,
                      createdById? → User (onDelete: SetNull), createdAt, expiresAt?, viewCount, lastViewedAt? }
@@ -322,6 +323,7 @@ abiertas al stream en vivo). La ruta se etiqueta por su patrón
 | `GET/POST /api/workspaces/:id/members` | JWT **dueño** | Listar e invitar (`{ email, role }`). Devuelve `{ member, created, emailSent, invitePath? }` |
 | `PATCH/DELETE /api/workspaces/:id/members/:userId`, `POST …/resend` | JWT **dueño** (salir: el propio miembro) | Cambiar rol, quitar, reenviar enlace a un pendiente. Siempre queda un dueño (`409`) |
 | `GET/PATCH /api/settings`, `DELETE /api/settings/:key` | JWT **root** | Configuración de la plataforma. `PATCH` recibe `{ values: { clave: valor } }` y es atómico (`400` con `errors` por clave). `DELETE` vuelve al predeterminado. Catálogo en [FEATURES.md](FEATURES.md#22-configuración-de-la-plataforma) |
+| `GET /api/settings/history` | JWT **root** | Historial de cambios de la configuración, del más reciente al más antiguo: `{ data: [{ id, key, from, to, reset, by, at }], nextBefore }`. `limit` 1–100 (50 por defecto); `before=<nextBefore>` pide la página siguiente |
 | `GET /api/settings/public` | JWT | Banderas que necesita el panel: `labEnabled`, `mcpEnabled`, `canCreateWorkspace`, `maxWorkspaceMembers`, `invitationTtlDays`, `publicSnapshotsEnabled`, `maxSnapshotRows`, `maxSnapshotsPerWorkspace` |
 | `GET/POST /api/snapshots`, `DELETE /api/snapshots/:id` | JWT miembro (público: **dueño**) | Listar (sin datos), crear y borrar snapshots del espacio activo. `POST` recibe `{ title, kind (logs/errors/trace), visibility, expiresInDays (1/7/30/null), filters }` (para `trace`, `filters.traceId`) y captura en el momento: `403` si es público sin ser dueño o con `publicSnapshotsEnabled` apagado, `409` si el espacio llegó a `maxSnapshotsPerWorkspace`. Borra su autor o el dueño (`403`) |
 | `GET /api/share/:token/preview` | — | Vista previa para Open Graph: título, tipo, fecha, si va enmascarado y `stats`. Solo de los públicos vigentes (`404` para el resto) y sin contar visita |

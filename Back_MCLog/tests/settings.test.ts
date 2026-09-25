@@ -36,6 +36,7 @@ const setSettings = (values: Record<string, unknown>) =>
 
 const cleanup = async () => {
   await prisma.appSetting.deleteMany();
+  await prisma.appSettingChange.deleteMany();
   await refreshSettings();
   const workspaces = await prisma.workspace.findMany({ where: { name: { startsWith: WS_PREFIX } }, select: { id: true } });
   const ids = workspaces.map((w) => w.id);
@@ -65,9 +66,10 @@ beforeAll(async () => {
   ownerWs = (await request(app).get("/auth/me").set(bearer(ownerToken))).body.data.workspaces[0].id;
 });
 
-// Cada test parte de la configuracion predeterminada.
+// Cada test parte de la configuracion predeterminada y sin historial.
 afterEach(async () => {
   await prisma.appSetting.deleteMany();
+  await prisma.appSettingChange.deleteMany();
   await refreshSettings();
 });
 
@@ -114,6 +116,52 @@ describe("Validacion", () => {
 
     const reset = await request(app).delete("/api/settings/invitationTtlDays").set(bearer(rootToken));
     expect(reset.body.data.find((s: { key: string }) => s.key === "invitationTtlDays")).toMatchObject({ value: 7, overridden: false });
+  });
+});
+
+describe("Historial", () => {
+  const history = (query = "") => request(app).get(`/api/settings/history${query}`).set(bearer(rootToken));
+
+  it("solo lo ve la cuenta root", async () => {
+    expect((await request(app).get("/api/settings/history").set(bearer(adminToken))).status).toBe(403);
+    expect((await request(app).get("/api/settings/history").set(bearer(ownerToken))).status).toBe(403);
+    expect((await history("?limit=0")).status).toBe(400);
+  });
+
+  it("guarda quien cambio que y de que valor a cual, tambien al restablecer", async () => {
+    await setSettings({ invitationTtlDays: 3, labEnabled: false });
+    await setSettings({ invitationTtlDays: 5 });
+    await request(app).delete("/api/settings/invitationTtlDays").set(bearer(rootToken));
+
+    const res = await history();
+    expect(res.status).toBe(200);
+    const rows = res.body.data.map(({ key, from, to, reset, by }: Record<string, unknown>) => ({ key, from, to, reset, by }));
+    const by = process.env.ADMIN_EMAIL;
+    // Del mas reciente al mas antiguo; los de un mismo guardado, en el orden en que se enviaron.
+    expect(rows).toEqual([
+      { key: "invitationTtlDays", from: 5, to: 7, reset: true, by },
+      { key: "invitationTtlDays", from: 3, to: 5, reset: false, by },
+      { key: "labEnabled", from: true, to: false, reset: false, by },
+      { key: "invitationTtlDays", from: 7, to: 3, reset: false, by },
+    ]);
+    expect(res.body.nextBefore).toBeNull();
+  });
+
+  it("no apunta lo que no cambia", async () => {
+    await setSettings({ invitationTtlDays: 7 });
+    await request(app).delete("/api/settings/labEnabled").set(bearer(rootToken));
+    expect((await history()).body.data).toEqual([]);
+  });
+
+  it("pagina con before", async () => {
+    for (const days of [2, 3, 4]) await setSettings({ invitationTtlDays: days });
+    const first = await history("?limit=2");
+    expect(first.body.data.map((row: { to: number }) => row.to)).toEqual([4, 3]);
+    expect(first.body.nextBefore).toBe(first.body.data[1].id);
+
+    const second = await history(`?limit=2&before=${first.body.nextBefore}`);
+    expect(second.body.data.map((row: { to: number }) => row.to)).toEqual([2]);
+    expect(second.body.nextBefore).toBeNull();
   });
 });
 

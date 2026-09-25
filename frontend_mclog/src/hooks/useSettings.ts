@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import client from "@/common/api/client";
 
 export type SettingCategory = "workspaces" | "logs" | "features" | "security";
@@ -62,6 +62,31 @@ export const useSettings = (enabled: boolean) =>
     enabled,
   });
 
+/** Un cambio del historial. `from` y `to` son el valor vigente antes y despues. */
+export type SettingChange = {
+  id: number;
+  key: string;
+  from: number | boolean;
+  to: number | boolean;
+  /** Se volvio al predeterminado. */
+  reset: boolean;
+  by: string;
+  at: string;
+};
+
+type SettingChangePage = { data: SettingChange[]; nextBefore: number | null };
+
+/** Historial de cambios, del mas reciente al mas antiguo, por paginas. Solo responde a la cuenta root. */
+export const useSettingsHistory = (enabled: boolean) =>
+  useInfiniteQuery({
+    queryKey: ["settings", "history"],
+    queryFn: async ({ pageParam }) =>
+      (await client.get<SettingChangePage>("/api/settings/history", { params: { limit: 20, before: pageParam ?? undefined } })).data,
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => last.nextBefore,
+    enabled,
+  });
+
 export const useUpdateSettings = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -70,6 +95,7 @@ export const useUpdateSettings = () => {
     onSuccess: (data) => {
       qc.setQueryData(["settings", "all"], data);
       void qc.invalidateQueries({ queryKey: ["settings", "public"] });
+      void qc.invalidateQueries({ queryKey: ["settings", "history"] });
     },
   });
 };
@@ -81,6 +107,7 @@ export const useResetSetting = () => {
     onSuccess: (data) => {
       qc.setQueryData(["settings", "all"], data);
       void qc.invalidateQueries({ queryKey: ["settings", "public"] });
+      void qc.invalidateQueries({ queryKey: ["settings", "history"] });
     },
   });
 };

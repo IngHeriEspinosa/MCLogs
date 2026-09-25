@@ -913,6 +913,16 @@ export const en: Dictionary = {
     pending: (count: number) => (count === 1 ? "1 unsaved change" : `${count} unsaved changes`),
     saved: "Configuration saved.",
     resetDone: "Default value restored.",
+    history: {
+      title: "Change history",
+      description: "Who changed each setting, when, and from which value to which. Includes those reset to their default.",
+      loadError: "We couldn't load the history",
+      empty: "No changes yet",
+      emptyHint: "Every time you save or reset a setting, it will be recorded here.",
+      reset: "Reset",
+      by: (who: string, when: string) => `${who} · ${when}`,
+      more: "Show more",
+    },
     envNote:
       "Secrets, CORS, cookies and JWT are still configured with environment variables: changing them live would end sessions or open access.",
   },
