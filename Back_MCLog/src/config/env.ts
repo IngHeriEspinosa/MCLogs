@@ -54,7 +54,8 @@ export const config = {
   /** URL publica del dashboard, para construir enlaces en alertas y notificaciones. */
   publicDashboardUrl: process.env.PUBLIC_DASHBOARD_URL?.replace(/\/+$/, "") || "",
 
-  corsOrigins: process.env.CORS_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean),
+  // El navegador manda el Origin sin barra final: "https://app.com/" en la lista no coincidiria nunca.
+  corsOrigins: process.env.CORS_ORIGINS?.split(",").map((o) => o.trim().replace(/\/+$/, "")).filter(Boolean),
   trustProxy: bool(process.env.TRUST_PROXY),
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "dev-access-secret",
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "dev-refresh-secret",

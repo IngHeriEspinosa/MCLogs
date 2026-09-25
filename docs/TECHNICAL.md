@@ -442,7 +442,7 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 | `PORT` | `3000` | |
 | `API_KEY` | `change-me` | Clave heredada (`ingest` + `metrics`), **deprecada**. Con `change-me` queda desactivada |
 | `BODY_LIMIT` | `3mb` | |
-| `LOG_LEVEL` | `info` | `debug` registra también bodies redactados |
+| `LOG_LEVEL` | `info` | Con `info` salen las peticiones que fallan (4xx, salvo el 401 de `/auth/me` y `/auth/refresh` al cargar sin sesión), las lentas (≥ 1 s, en `warn`) y los 5xx (`error`); las normales quedan en `http`. `http` las muestra todas; `debug` añade bodies redactados |
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | 900000 / 600 | Consultas, `/auth`, administración y `/mcp` |
 | `INGEST_RATE_LIMIT_WINDOW_MS` / `INGEST_RATE_LIMIT_MAX` | 60000 / 2000 | Solo ingesta |
 | `MAX_BATCH_SIZE` | `500` | Valor inicial de `maxBatchSize` (tope de entradas por lote); la cuenta root lo cambia en caliente |

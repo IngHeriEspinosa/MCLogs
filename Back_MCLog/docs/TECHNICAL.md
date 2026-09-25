@@ -31,7 +31,7 @@ src/
     validateLogQuery.ts validateLogQuery, validateLogDelete, validateErrorGroups,
                         validateStatsQuery, validateApplications, validateTrace, validateLogContext
     requestContext.ts   requestId + traceId por petición
-    requestLogger.ts    Línea por request con status y duración; body solo en LOG_LEVEL=debug.
+    requestLogger.ts    Línea por request con status y duración; nivel según resultado (http/info/warn/error); body solo en LOG_LEVEL=debug.
                         Omite los /health correctos (el healthcheck llama cada 30 s)
     setAuthCookies.ts   Cookies httpOnly access_token / refresh_token
     enforceHttps.ts     Rechaza HTTP si FORCE_HTTPS=1 (salvo peticiones desde loopback)
@@ -272,7 +272,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 
 | Variable | Default | Notas |
 |---|---|---|
-| `LOG_LEVEL` | `info` | En `debug` registra bodies redactados |
+| `LOG_LEVEL` | `info` | Las peticiones normales van a `http` y no salen con `info`; las fallidas, lentas o 5xx sí. `http` las muestra todas; `debug` añade bodies redactados |
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | 15 min / 600 | Consultas, `/auth/*`, `/api/keys`, `/api/alerts`, `/api/snapshots`, `/api/share` y `/mcp` (no el stream) |
 | `INGEST_RATE_LIMIT_WINDOW_MS` / `INGEST_RATE_LIMIT_MAX` | 60 s / 2000 | Solo ingesta; se cuenta por clave |
 | `LOGIN_RATE_LIMIT_WINDOW_MS` / `LOGIN_RATE_LIMIT_MAX` | 15 min / 10 | Solo intentos **fallidos**, por IP, en login, `/login/2fa`, `DELETE /auth/me` y alta/baja del 2FA |

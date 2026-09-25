@@ -230,7 +230,7 @@ Un snapshot es una **copia**, no una consulta guardada: al crearlo, el backend e
 
 - `GET /health` verifica servidor y base de datos, e informa de versión y tiempo en marcha.
 - `GET /metrics` publica, además de las métricas del proceso, la duración de las peticiones por método, ruta y estado (etiquetada por **patrón** de ruta y no por URL, que generaría una serie por cada id), los logs ingeridos por aplicación y nivel, y las conexiones en vivo abiertas.
-- Logs propios: winston JSON a consola y `logs/app.log` (rotación 10 MB × 5). Una línea por petición; el body solo en `LOG_LEVEL=debug`, con secretos redactados.
+- Logs propios: winston JSON a consola y `logs/app.log` (rotación 10 MB × 5). Una línea `HTTP request` por petición, con nivel según el resultado: las normales en `http` (ocultas con el `LOG_LEVEL=info` por defecto), los 4xx en `info`, las lentas (≥ 1 s) en `warn` y los 5xx en `error`. El body solo en `LOG_LEVEL=debug`, con secretos redactados.
 - En producción, los 5xx responden un mensaje genérico: el detalle queda en el log, localizable por `requestId`.
 - `assertProductionConfig()` impide arrancar en producción con secretos por defecto, secretos JWT iguales o CORS abierto.
 - `FORCE_HTTPS` exime a las peticiones de loopback: el `HEALTHCHECK` del contenedor llama por HTTP plano desde dentro y, sin la exención, el orquestador lo reiniciaría en bucle.

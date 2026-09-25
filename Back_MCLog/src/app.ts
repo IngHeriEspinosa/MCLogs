@@ -1,6 +1,5 @@
 import express, { Request, Response } from "express";
 import helmet from "helmet";
-import cors from "cors";
 import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import { config } from "./config/env";
@@ -24,6 +23,7 @@ import authRoutes from "./routes/authRoutes";
 import { enforceHttps } from "./middlewares/enforceHttps";
 import { queryLimiter } from "./middlewares/rateLimiters";
 import { compressJson } from "./middlewares/compressJson";
+import { corsPolicy } from "./middlewares/corsPolicy";
 
 export const createApp = () => {
   const app = express();
@@ -31,19 +31,7 @@ export const createApp = () => {
   app.set("trust proxy", config.trustProxy);
   app.use(helmet());
 
-  const allowedOrigins = config.corsOrigins?.length ? config.corsOrigins : undefined;
-  const corsMiddleware = cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // allow non-browser tools/health checks
-      if (!allowedOrigins) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      const err = new Error("CORS origin not allowed");
-      (err as any).status = 403;
-      return callback(err, false);
-    },
-    credentials: true,
-  });
-  app.use(corsMiddleware);
+  app.use(corsPolicy(config.corsOrigins));
   app.use(cookieParser());
   app.use(express.json({ limit: config.bodyLimit }));
   app.use(compressJson);
