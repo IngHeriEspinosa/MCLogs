@@ -11,7 +11,8 @@ Sin librerías de componentes, iconos ni gráficos: selects, calendario, menús,
 ```
 src/
   app/
-    layout.tsx                 Server component: fuentes, script de tema, idioma desde cookie
+    layout.tsx                 Server component: fuentes, script de tema, idioma desde cookie, Open Graph genérico
+    opengraph-image.tsx        Imagen de la vista previa de cualquier enlace al panel (next/og, runtime edge)
     providers.tsx              QueryClient + ThemeProvider + I18nProvider + ToastProvider
     icon.svg                   Favicon (el mismo isotipo que el sitio público)
     page.tsx                   Acceso (SignIn); con sesión abierta redirige a /logs o a ?next=

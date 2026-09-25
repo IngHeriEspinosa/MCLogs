@@ -4,28 +4,13 @@ import React from "react";
 import { isLocale, LOCALE_COOKIE, localeFromAcceptLanguage, type Locale } from "@/common/i18n/config";
 import { dictionaries } from "@/common/i18n/dictionaries";
 import { createFormatter } from "@/common/i18n/format";
+import { requestOrigin } from "@/common/requestOrigin";
 import { describePreview, fetchSnapshotPreview } from "@/common/snapshots/preview";
 
 /** El idioma de quien pide la pagina: su cookie o, un robot de vista previa, su Accept-Language. */
 const requestLocale = (): Locale => {
   const stored = cookies().get(LOCALE_COOKIE)?.value;
   return isLocale(stored) ? stored : localeFromAcceptLanguage(headers().get("accept-language"));
-};
-
-/**
- * Origen publico del dashboard, para que la imagen de la vista previa vaya con
- * URL absoluta (Open Graph lo exige). Detras de un proxy manda X-Forwarded-*.
- */
-const requestOrigin = (): URL | undefined => {
-  const all = headers();
-  const host = all.get("x-forwarded-host") ?? all.get("host");
-  if (!host) return undefined;
-  const proto = all.get("x-forwarded-proto")?.split(",")[0] ?? (host.startsWith("localhost") ? "http" : "https");
-  try {
-    return new URL(`${proto}://${host}`);
-  } catch {
-    return undefined;
-  }
 };
 
 /**
