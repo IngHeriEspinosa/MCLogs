@@ -70,7 +70,7 @@ Con varias instancias, deja `SCHEDULER_ENABLED=1` en una sola: varias purgas a l
 
 ### Borrado manual
 
-Para una limpieza puntual (por ejemplo, vaciar una aplicación concreta) sigue existiendo el borrado manual. Requiere una **sesión de usuario admin**: una API key no puede purgar, por muchos permisos que tenga.
+Para una limpieza puntual (por ejemplo, vaciar una aplicación concreta) sigue existiendo el borrado manual. Requiere la **sesión del dueño del espacio** (el admin de plataforma lo es de todos): una API key no puede purgar, por muchos permisos que tenga.
 
 1. Inicia sesión y guarda la respuesta:
 
@@ -109,7 +109,7 @@ El planificador que ejecuta la retención evalúa también las **reglas de alert
 
 ## Acceso para asistentes de IA
 
-`POST /mcp` expone ocho herramientas de investigación por Model Context Protocol. Requiere una API key con permiso `read` y se desactiva con `MCP_ENABLED=0`. Ver [AI_INTEGRATION.md](../../docs/AI_INTEGRATION.md).
+`POST /mcp` expone ocho herramientas de investigación por Model Context Protocol. Requiere una API key con permiso `read`; la cuenta root lo enciende o apaga en **Plataforma → Configuración** (`MCP_ENABLED` solo da el valor inicial). Ver [AI_INTEGRATION.md](../../docs/AI_INTEGRATION.md).
 
 ## Monitoreo
 

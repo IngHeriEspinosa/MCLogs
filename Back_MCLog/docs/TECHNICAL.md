@@ -156,6 +156,7 @@ El `mfaToken` es un JWT de **5 minutos**, firmado con un secreto derivado (`${JW
 | POST | `/auth/login` | — | Primer paso del login: tokens, o `mfaRequired` si hay 2FA |
 | POST | `/auth/login/2fa` | — | Segundo paso: `{ mfaToken, code }` |
 | POST | `/auth/refresh` · `/auth/logout` | — | Rotación y cierre de sesión |
+| POST | `/auth/password/forgot` · `/auth/password/reset` | — | "Olvidé mi contraseña": enlace por correo (`503` sin SMTP o `PUBLIC_DASHBOARD_URL`) y nueva contraseña con el token |
 | GET | `/auth/me` | JWT | Usuario de la sesión: `id`, `email`, `role`, `isRoot`, `twoFactorEnabled`, `createdAt` |
 | PATCH | `/auth/me/password` | JWT | Cambio de contraseña propia (`newPassword` ≥ 8). Cierra **todas** las sesiones |
 | DELETE | `/auth/me` | JWT | Elimina la propia cuenta (contraseña + 2FA si está activo). La cuenta root no puede |
