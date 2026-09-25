@@ -9,6 +9,9 @@ Envía los logs y los errores de tus scripts de NetSuite (SuiteScript 2.1) a MCL
 - Los `SuiteScriptError` se agrupan por su código (`INVALID_FLD_VALUE`, `RCRD_DSNT_EXIST`…), así que cien fallos iguales son una fila en **Errores**.
 - Si MCLog no responde, tu script sigue: la librería nunca lanza excepciones.
 
+> [!TIP]
+> ¿Vas a integrar varios scripts de la misma cuenta? Mira [Integrar NetSuite con lib_mclog.js](integrar-netsuite-lib-mclog.md). Esa librería guarda la API key en un registro personalizado, no en el código, envía un solo lote por ejecución y registra sola las excepciones no controladas.
+
 ## Antes de empezar
 
 | Necesitas | Detalle |

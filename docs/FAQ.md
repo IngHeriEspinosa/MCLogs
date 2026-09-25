@@ -495,6 +495,7 @@ cd Back_MCLog && docker compose up -d db && npm test    # 238 tests en 19 suites
 cd frontend_mclog && npm test                           # 46 tests
 cd packages/mclog && npm test               # 95 tests
 node integrations/netsuite/test_mclog_client.js         # 40 comprobaciones
+node integrations/netsuite/test_lib_mclog.js            # 114 comprobaciones
 ```
 Los del backend necesitan la base real en `localhost:5435` y corren en serie porque la comparten.
 

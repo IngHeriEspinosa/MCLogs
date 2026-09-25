@@ -135,6 +135,9 @@ npm test
 
 # Cliente NetSuite — 40 comprobaciones, sin dependencias ni cuenta de NetSuite
 node integrations/netsuite/test_mclog_client.js
+
+# Librería central NetSuite (lib_mclog.js) — 114 comprobaciones, sin dependencias
+node integrations/netsuite/test_lib_mclog.js
 ```
 
 ## Licencia

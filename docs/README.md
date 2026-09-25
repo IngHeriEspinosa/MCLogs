@@ -26,6 +26,7 @@ Cada guía recorre un proceso de principio a fin: qué vas a conseguir, qué nec
 | [Primeros pasos](guias/primeros-pasos.md) | Instalar MCLog en tu equipo, entrar, crear una API key y enviar tu primer log |
 | [Integrar una aplicación Node.js](guias/integrar-node.md) | Enviar logs y excepciones desde Node con `@multicomputos-srl/mclog` |
 | [Integrar NetSuite](guias/integrar-netsuite.md) | Subir el cliente SuiteScript y registrar logs desde User Events y Map/Reduce |
+| [Integrar NetSuite con lib_mclog.js](guias/integrar-netsuite-lib-mclog.md) | Librería central descargable: configuración en un registro personalizado, un envío por ejecución y errores no controlados registrados solos |
 | [Investigar un incidente](guias/investigar-incidente.md) | Ir del aviso a la causa: Errores, ocurrencias, traza, contexto y brief para IA |
 | [Buscar registros](guias/buscar-registros.md) | Filtros, búsqueda avanzada por campo, compartir y exportar |
 | [Compartir un snapshot](guias/compartir-snapshots.md) | Enlace a una copia congelada de Logs, Errores o una Traza, para tu equipo o público con los datos enmascarados |

@@ -99,6 +99,9 @@ jobs:
       - name: Tests
         run: node integrations/netsuite/test_mclog_client.js
 
+      - name: Tests de lib_mclog.js
+        run: node integrations/netsuite/test_lib_mclog.js
+
   frontend:
     name: Dashboard
     runs-on: ubuntu-latest

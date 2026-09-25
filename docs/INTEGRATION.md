@@ -210,6 +210,8 @@ define(['/SuiteScripts/lib/mclog_client'], (mclog) => {
 
 Incluye automáticamente `scriptId`, `deploymentId`, `executionContext`, `accountId`, `userId`, `userRole` y governance restante en `metadata`. Instalación paso a paso en [Integrar NetSuite](guias/integrar-netsuite.md).
 
+Para centralizar varios scripts de una cuenta está [`lib_mclog.js`](guias/integrar-netsuite-lib-mclog.md): la configuración vive en un registro personalizado, envía un lote por ejecución y registra sola las excepciones no controladas.
+
 ## Buenas prácticas
 
 1. **Nunca bloquees tu app por el logging** — todos los clientes de esta guía capturan errores de red.

@@ -101,6 +101,13 @@ export const DOCS: DocMeta[] = [
     group: "guias",
   },
   {
+    slug: "integrar-netsuite-lib-mclog",
+    file: "guias/integrar-netsuite-lib-mclog.md",
+    title: "Integrar NetSuite con lib_mclog.js",
+    description: "Librería central descargable: configuración en un registro, un envío por ejecución y errores no controlados registrados solos.",
+    group: "guias",
+  },
+  {
     slug: "conectar-una-ia",
     file: "guias/conectar-ia.md",
     title: "Conectar una IA",

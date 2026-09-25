@@ -10,6 +10,10 @@ Envía los logs de todos tus scripts de NetSuite al servicio centralizado MCLog 
 | `ejemplo_user_event.js` | Ejemplo de uso en un User Event Script |
 | `ejemplo_map_reduce.js` | Ejemplo de uso en Map/Reduce con envío en lote |
 | `test_mclog_client.js` | Pruebas del módulo fuera de NetSuite (`node test_mclog_client.js`) |
+| `lib_mclog.js` | Librería central alternativa: configuración en un registro personalizado, un lote por ejecución, errores no controlados automáticos |
+| `test_lib_mclog.js` | Pruebas de `lib_mclog.js` fuera de NetSuite (`node test_lib_mclog.js`) |
+
+> **¿Varios scripts en la misma cuenta?** Usa `lib_mclog.js`: la API key vive en un registro de NetSuite y no en el código, cada ejecución envía un solo lote y basta con envolver los puntos de entrada (`return mcLog.wrapEntryPoints({ afterSubmit })`). Instalación, ejemplos por tipo de script y referencia completa en [Integrar NetSuite con lib_mclog.js](../../docs/guias/integrar-netsuite-lib-mclog.md). El resto de este README describe `mclog_client.js`.
 
 ## Instalación (5 minutos)
 

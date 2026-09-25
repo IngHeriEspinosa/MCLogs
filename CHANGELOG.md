@@ -8,7 +8,9 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
 
 ## [Sin publicar]
 
-Nada todavía.
+### Añadido
+- **NetSuite — `lib_mclog.js`, librería central descargable.** Lee la URL, la API key, la aplicación y el ambiente de un registro personalizado (`customrecord_mclog_config`), con 5 minutos de caché en `N/cache`. Acumula los logs y envía un solo lote al terminar cada punto de entrada. `wrapEntryPoints` pone el contexto (registro y traceId `<tipo>:<id>` en User Events, clave en Map/Reduce, método en Suitelets) y registra las excepciones no controladas sin duplicar las que ya se registraron a mano. Rechaza URL `http://`, oculta credenciales en la metadata y respeta la governance. Incluye 114 pruebas sin dependencias (`test_lib_mclog.js`), que corren en CI.
+- **Sitio:** guía "Integrar NetSuite con lib_mclog.js", con enlaces de descarga, creación del registro, ejemplos por tipo de script y solución de problemas.
 
 ## 2026-09-25
 
