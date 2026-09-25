@@ -52,6 +52,7 @@ Cada guía recorre un proceso de principio a fin: qué vas a conseguir, qué nec
 | [AI_INTEGRATION.md](AI_INTEGRATION.md) | **Conectar un asistente de IA** por MCP: claves, clientes, herramientas y buenas prácticas |
 | [GLOSSARY.md](GLOSSARY.md) | **Glosario** de todos los términos del proyecto |
 | [FAQ.md](FAQ.md) | **Preguntas frecuentes** y errores concretos con su solución |
+| [CHANGELOG.md](../CHANGELOG.md) | **Historial de cambios** por fecha, con lo que requiere acción al actualizar |
 
 ## Documentación por componente
 

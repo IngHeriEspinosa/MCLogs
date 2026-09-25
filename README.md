@@ -114,6 +114,7 @@ La ingesta se autentica con el header **`x-api-key`** y una clave con permiso `i
 | [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md) | Conectar Claude Code, Cursor o Claude Desktop por MCP |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Glosario de términos |
 | [docs/FAQ.md](docs/FAQ.md) | Preguntas frecuentes y errores concretos |
+| [CHANGELOG.md](CHANGELOG.md) | Historial de cambios por fecha, con lo que requiere acción al actualizar |
 | `http://localhost:3000/docs` | Swagger UI interactivo (OpenAPI 3) |
 
 ## Tests
