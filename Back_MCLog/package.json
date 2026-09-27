@@ -7,6 +7,7 @@
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "sync:skill": "node scripts/sync-skill.mjs",
+    "pack:deploy": "node scripts/pack-deploy.mjs",
     "test": "cross-env DATABASE_URL=postgresql://postgres:postgres@localhost:5435/mclog?schema=public vitest run"
   },
   "keywords": [],

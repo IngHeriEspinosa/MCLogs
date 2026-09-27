@@ -428,6 +428,11 @@ Hay dos caminos documentados en [DEPLOYMENT.md](DEPLOYMENT.md):
 - **Un VPS con Docker Compose y Caddy**: todo en un servidor y bajo un dominio. Es lo más simple.
 - **CapRover para la API y la base, y Railway para el dashboard**, cada uno en su dominio.
 
+### El build de CapRover falla con `"/skill": not found`
+El `.tar` que subiste no contiene esa carpeta, y el `Dockerfile` la copia. Casi siempre es un `deploy.tar` antiguo o hecho a mano.
+- **Con `.tar`:** genera uno nuevo con `cd Back_MCLog && npm run pack:deploy` y sube ese (`caprover deploy -t ./deploy.tar`). El script saca la lista de ficheros del propio `Dockerfile` y comprueba el paquete antes de terminar.
+- **Sin `.tar`:** `caprover deploy` sube el último commit, así que `Back_MCLog/skill/` tiene que estar commiteada.
+
 ### CapRover devuelve `502 Bad Gateway` pero la app está bien
 Casi siempre es el **Container HTTP Port** de la app en CapRover, que sigue en `80`. La API escucha en el `3000`: cámbialo en **HTTP Settings**. El síntoma inequívoco es que los logs de la app dicen `Server is running` y su healthcheck da 200, pero desde fuera hay 502.
 

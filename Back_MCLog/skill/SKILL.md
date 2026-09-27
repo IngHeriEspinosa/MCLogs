@@ -126,7 +126,9 @@ Guía completa: [Desplegar en un VPS](https://ingheriespinosa.github.io/MCLogs/d
    - `ADMIN_EMAIL`, `ADMIN_PASSWORD`;
    - `CORS_ORIGINS` y `PUBLIC_DASHBOARD_URL` con el origen exacto del dashboard;
    - `TRUST_PROXY=1`, `FORCE_HTTPS=1`, `COOKIE_SECURE=1`, `COOKIE_SAMESITE=lax`, `RETENTION_MONTHS=3`.
-4. **Despliega la API:** `cd Back_MCLog && caprover deploy`. Sube el **último commit**. Para cambios sin commitear, usa `caprover deploy -t ./deploy.tar`.
+4. **Despliega la API:** `cd Back_MCLog && caprover deploy`.
+   - Sube el **último commit**, así que `Back_MCLog/skill/` tiene que estar commiteada.
+   - Para cambios sin commitear, genera el paquete con `npm run pack:deploy` y súbelo con `caprover deploy -t ./deploy.tar`. El script empaqueta lo que copia el `Dockerfile` y verifica el `.tar`. No lo armes a mano: un `.tar` incompleto hace fallar el build con `"/<ruta>": not found`.
 5. **Dashboard en Railway:**
    - Root Directory `frontend_mclog`, dominio propio `mclog.tu-dominio.com`;
    - variable `NEXT_PUBLIC_API_URL=https://api-mclog.tu-dominio.com`, sin barra final. Se incrusta al compilar, así que tras cambiarla hay que **redesplegar**;

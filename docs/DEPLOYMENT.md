@@ -222,16 +222,25 @@ Navegador ──► https://mclog.tu-dominio.com            (Railway: frontend_m
    > [!IMPORTANT]
    > Dentro de un repositorio git, `caprover deploy` sube el **último commit** (`git archive HEAD`), no lo que tienes en disco: los cambios sin commitear no se despliegan. Si quieres desplegar sin commitear, usa un `.tar`, como se explica a continuación.
 
-   **Desplegar desde un `.tar`.** Empaqueta lo que usa el `Dockerfile` y súbelo. El `npx tsc` frena el empaquetado si el código no compila:
+   **Desplegar desde un `.tar`.** El script `pack:deploy` crea el paquete y lo comprueba:
 
    ```bash
    cd Back_MCLog
-   npx tsc --noEmit -p . && tar -cf deploy.tar ./.dockerignore ./Dockerfile ./captain-definition ./entrypoint.sh \
-     ./package-lock.json ./package.json ./prisma ./prisma.config.ts ./src ./tsconfig.json
+   npm run pack:deploy
    caprover deploy -t ./deploy.tar
    ```
 
-   En PowerShell, la misma orden con `tar.exe` (viene con Windows) y `if ($?) { … }` en lugar de `&&`. También se puede subir a mano en la app: **Deployment → Method 2: Tarball**. `deploy.tar` está en `.gitignore`.
+   En PowerShell es igual: `npm run pack:deploy; if ($?) { caprover deploy -t ./deploy.tar }`.
+
+   Qué hace el script ([scripts/pack-deploy.mjs](../Back_MCLog/scripts/pack-deploy.mjs)):
+   1. **Sincroniza el skill de IA** (`skill/`) desde `docs/skills/mclog/`.
+   2. **Comprueba los tipos**. Si el código no compila, no empaqueta.
+   3. **Empaqueta lo que copia el `Dockerfile`**, además de `captain-definition`, `Dockerfile` y `.dockerignore`. La lista sale de las instrucciones `COPY` del propio `Dockerfile`, no se escribe a mano: un `COPY` nuevo entra solo en el paquete.
+   4. **Relee el `.tar` y verifica que contiene todo.** Si falta algo, falla antes de que lo subas.
+
+   Termina con `✔ deploy.tar listo (…). Contiene todo lo que copia el Dockerfile.`. Sube **siempre el `.tar` recién generado**: uno de una ejecución anterior puede no llevar lo último, y el build falla con `"/<ruta>": not found`.
+
+   También se puede subir a mano en la app: **Deployment → Method 2: Tarball**. `deploy.tar` está en `.gitignore`.
 5. Comprueba:
 
    ```bash
@@ -344,6 +353,7 @@ Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nad
 | Síntoma | Causa habitual |
 |---|---|
 | Caddy no consigue certificado (A) | El DNS no apunta todavía al VPS, o el puerto 80 está cerrado. Mira `logs caddy` |
+| **El build de CapRover falla con `"/skill": not found`** (o con otra ruta) (B) | El `.tar` subido no contiene esa carpeta. Suele ser un `deploy.tar` antiguo, anterior a que el `Dockerfile` la copiara, o uno hecho a mano. Genéralo de nuevo con `npm run pack:deploy` y sube ese. Si despliegas con `caprover deploy` sin `.tar`, se sube el último commit: la carpeta tiene que estar commiteada (`Back_MCLog/skill/`) |
 | **`502 Bad Gateway` en CapRover con la app sana** (B) | **Container HTTP Port** sigue en `80`. Ponlo en `3000`. Síntoma típico: los logs de la app dicen `Server is running` y el healthcheck da 200, pero desde fuera hay 502 |
 | La API se reinicia en bucle y el log dice "Configuración insegura para producción" | Quedan secretos o contraseñas de ejemplo, los dos secretos JWT son iguales o `CORS_ORIGINS` está vacío. El mensaje lista cada problema |
 | El contenedor se reinicia en bucle con `FORCE_HTTPS=1` | Imagen antigua: el healthcheck interno recibía `400 HTTPS required`. Las versiones actuales eximen a las peticiones de loopback; actualiza |

@@ -87,7 +87,7 @@ caprover deploy
 Elige tu servidor y la app `mclog-api`.
 
 > [!IMPORTANT]
-> `caprover deploy` sube el **último commit**, no lo que tienes en disco. Para desplegar cambios sin commitear, empaqueta un `.tar` y súbelo con `caprover deploy -t ./deploy.tar` ([DEPLOYMENT.md § B.3](../DEPLOYMENT.md#b3-la-api-caprover), paso 4).
+> `caprover deploy` sube el **último commit**, no lo que tienes en disco. Para desplegar cambios sin commitear, genera el `.tar` con `npm run pack:deploy` (lo empaqueta y comprueba que no falta nada) y súbelo con `caprover deploy -t ./deploy.tar` ([DEPLOYMENT.md § B.3](../DEPLOYMENT.md#b3-la-api-caprover), paso 4).
 
 CapRover construye la imagen con el `Dockerfile` (lo indica `captain-definition`). Al arrancar, el contenedor:
 

@@ -111,7 +111,7 @@ El planificador que ejecuta la retención evalúa también las **reglas de alert
 
 `POST /mcp` expone ocho herramientas de investigación por Model Context Protocol. Requiere una API key con permiso `read`; la cuenta root lo enciende o apaga en **Plataforma → Configuración** (`MCP_ENABLED` solo da el valor inicial). Ver [AI_INTEGRATION.md](../../docs/AI_INTEGRATION.md).
 
-También entrega el skill de instalación e integración: recurso `mclog://skill/SKILL.md`, prompt `install_skill` y herramienta `get_integration_skill`. Además lo sirve `GET /api/skill`, que es público. La API lo lee de `skill/SKILL.md`, una copia de `docs/skills/mclog/SKILL.md` que entra en la imagen Docker. **Después de editar el skill, ejecuta `npm run sync:skill`**: si las dos copias difieren, fallan los tests y la CI.
+También entrega el skill de instalación e integración: recurso `mclog://skill/SKILL.md`, prompt `install_skill` y herramienta `get_integration_skill`. Además lo sirve `GET /api/skill`, que es público. La API lo lee de `skill/SKILL.md`, una copia de `docs/skills/mclog/SKILL.md` que entra en la imagen Docker. **Después de editar el skill, ejecuta `npm run sync:skill`**: si las dos copias difieren, fallan los tests y la CI. `npm run pack:deploy`, el script que genera el `deploy.tar` para CapRover, ya lo sincroniza antes de empaquetar.
 
 Cada uso por MCP con una API key anota `lastMcpUsedAt` en la clave. Lo ven el dueño del espacio (bajo **Último uso**) y el admin de plataforma en **Plataforma → Inventario de claves** (`GET /api/admin/keys`).
 
