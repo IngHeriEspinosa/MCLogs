@@ -11,6 +11,29 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
 ### Añadido
 - **NetSuite — `lib_mclog.js`, librería central descargable.** Lee la URL, la API key, la aplicación y el ambiente de un registro personalizado (`customrecord_mclog_config`), con 5 minutos de caché en `N/cache`. Acumula los logs y envía un solo lote al terminar cada punto de entrada. `wrapEntryPoints` pone el contexto (registro y traceId `<tipo>:<id>` en User Events, clave en Map/Reduce, método en Suitelets) y registra las excepciones no controladas sin duplicar las que ya se registraron a mano. Rechaza URL `http://`, oculta credenciales en la metadata y respeta la governance. Incluye 114 pruebas sin dependencias (`test_lib_mclog.js`), que corren en CI.
 - **Sitio:** guía "Integrar NetSuite con lib_mclog.js", con enlaces de descarga, creación del registro, ejemplos por tipo de script y solución de problemas.
+- **Skill de IA `mclog`** (`docs/skills/mclog/SKILL.md`). En un solo `.md` enseña a un asistente a:
+  - desplegar MCLog: VPS con Compose + Caddy, CapRover + Railway o local;
+  - preparar espacios y claves;
+  - integrar NetSuite (`lib_mclog.js`), Node.js y sistemas custom por HTTP, con contrato, especificación de adaptador y ejemplos en Python, C#, PHP, Java, Go y PowerShell;
+  - conectar MCP, Prometheus y webhooks, y verificar y resolver problemas.
+
+  Se distribuye por:
+  - **MCP**: recurso `mclog://skill/SKILL.md`, prompt `install_skill` (slash command en Claude Code) y herramienta `get_integration_skill`. Las `instructions` del servidor lo anuncian al conectar;
+  - **API**: `GET /api/skill`, pública, como descarga `mclog-SKILL.md`;
+  - **Dashboard**: panel "Conectar una IA" en **Espacio → API keys**;
+  - **Sitio**: página `/docs/skill-ia` con botón "Descargar .md".
+- **API:** copia del skill en `Back_MCLog/skill/`, que la imagen Docker incluye. Se regenera con `npm run sync:skill`, y la CI y un test fallan si difiere de `docs/`.
+
+- **Dashboard — Panel "Conectar una IA"** en **Espacio → API keys**, solo para el dueño del espacio. Muestra:
+  - el estado del MCP en la plataforma (`GET /api/settings/public`);
+  - la URL del endpoint `/mcp`;
+  - la configuración lista para copiar de Claude Code, Cursor, VS Code y Claude Desktop, con un marcador en lugar de la clave (el panel nunca vuelve a mostrar una);
+  - el comando `/mcp__mclog__install_skill` y la descarga del skill.
+
+  Si la cuenta root ha apagado el MCP, no ofrece la conexión y lo explica; a la root le da un acceso directo para activarlo.
+
+### Cambiado
+- **MCP:** `tools/list` devuelve 9 herramientas (se añade `get_integration_skill`) y el servidor declara capacidades de recursos y prompts.
 
 ## 2026-09-25
 

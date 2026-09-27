@@ -14,6 +14,7 @@ import alertRoutes from "./routes/alertRoutes";
 import workspaceRoutes from "./routes/workspaceRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
 import { snapshotRouter, snapshotViewRouter } from "./routes/snapshotRoutes";
+import skillRoutes from "./routes/skillRoutes";
 import mcpRouter from "./mcp/router";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
@@ -95,6 +96,9 @@ export const createApp = () => {
   // bajo /api para que el proxy la mande a la API en cualquier topologia.
   app.use("/api/snapshots", snapshotRouter);
   app.use("/api/share", snapshotViewRouter);
+
+  // Skill de IA en Markdown: publico, es la misma documentacion del sitio.
+  app.use("/api/skill", skillRoutes);
 
   // Auth y rate limiting se aplican por ruta dentro de logRoutes
   // (la ingesta usa API key + límite alto; las consultas usan JWT + límite estándar)

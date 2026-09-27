@@ -11,6 +11,7 @@ import {
   listApplications,
 } from "../services/analysisService";
 import { LogFilters, getLogById, getLogStats, listLogs } from "../services/logService";
+import { SKILL_MIME_TYPE, SKILL_URI, buildInstallInstructions, loadSkill } from "./skill";
 
 /**
  * Servidor MCP de MCLog.
@@ -123,6 +124,7 @@ export const buildMcpServer = (context: McpContext): McpServer => {
         applicationsIn
           ? `Esta conexion solo alcanza estas aplicaciones: ${applicationsIn.join(", ")}.`
           : "Esta conexion alcanza todas las aplicaciones de su espacio de trabajo.",
+        `Para instalar MCLog o integrar un sistema nuevo (NetSuite, Node.js, otros lenguajes, IA), lee el skill "mclog" (recurso ${SKILL_URI} o herramienta get_integration_skill) y ofrece instalarlo.`,
       ].join("\n"),
     },
   );
@@ -388,6 +390,65 @@ export const buildMcpServer = (context: McpContext): McpServer => {
         timeline: timeline.map((bucket) => ({ ...bucket, bucket: iso(bucket.bucket) })),
       });
     },
+  );
+
+  // --- Skill de instalacion e integracion ---
+  // Se publica por las tres vias del protocolo porque cada cliente soporta una
+  // distinta: recurso (lectura), prompt (slash command en Claude Code) y
+  // herramienta (clientes que solo usan tools, como Cursor o Copilot).
+
+  const skillDescription =
+    "Skill 'mclog': como instalar MCLog (VPS, CapRover + Railway, local) e integrar cada sistema (NetSuite, Node.js, lenguajes custom por HTTP, IA por MCP, Prometheus, webhooks) por el camino mas rapido y centralizado.";
+
+  server.registerResource(
+    "mclog-skill",
+    SKILL_URI,
+    { title: "Skill de instalacion e integracion de MCLog", description: skillDescription, mimeType: SKILL_MIME_TYPE },
+    async (uri) => ({ contents: [{ uri: uri.href, mimeType: SKILL_MIME_TYPE, text: loadSkill() }] }),
+  );
+
+  server.registerPrompt(
+    "install_skill",
+    {
+      title: "Instalar el skill de MCLog",
+      description: `Instala el skill 'mclog' en el equipo del usuario. ${skillDescription}`,
+      argsSchema: {
+        scope: z
+          .enum(["project", "user"])
+          .optional()
+          .describe("project: .claude/skills del proyecto (por defecto) · user: ~/.claude/skills"),
+      },
+    },
+    ({ scope }) => ({
+      description: "Instalar el skill de MCLog",
+      messages: [
+        { role: "user", content: { type: "text", text: buildInstallInstructions(scope) } },
+        {
+          role: "user",
+          content: { type: "resource", resource: { uri: SKILL_URI, mimeType: SKILL_MIME_TYPE, text: loadSkill() } },
+        },
+      ],
+    }),
+  );
+
+  server.registerTool(
+    "get_integration_skill",
+    {
+      title: "Skill de instalacion e integracion",
+      description: `${skillDescription} Usala antes de desplegar MCLog o de conectar un sistema. Devuelve el skill en Markdown y como instalarlo.`,
+      inputSchema: {
+        scope: z
+          .enum(["project", "user"])
+          .optional()
+          .describe("Donde proponer instalarlo: project (por defecto) o user"),
+      },
+    },
+    async ({ scope }) => ({
+      content: [
+        { type: "text" as const, text: buildInstallInstructions(scope) },
+        { type: "text" as const, text: loadSkill() },
+      ],
+    }),
   );
 
   return server;

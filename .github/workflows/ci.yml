@@ -53,6 +53,11 @@ jobs:
           cache: npm
           cache-dependency-path: Back_MCLog/package-lock.json
 
+      # La imagen Docker solo ve Back_MCLog/: el skill se copia desde docs/ con
+      # `npm run sync:skill`, y un olvido serviria por MCP una version vieja.
+      - name: Skill de IA sincronizado con docs/
+        run: cmp ../docs/skills/mclog/SKILL.md skill/SKILL.md
+
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma migrate deploy

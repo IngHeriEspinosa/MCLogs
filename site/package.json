@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "description": "Landing y documentacion publica de MCLog (sitio estatico para GitHub Pages)",
   "scripts": {
+    "predev": "node scripts/copy-skill.mjs",
     "dev": "next dev -p 3002",
+    "prebuild": "node scripts/copy-skill.mjs",
     "build": "next build",
     "start": "npx serve out -l 3002",
     "lint": "next lint"

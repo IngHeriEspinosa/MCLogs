@@ -4,6 +4,7 @@ import { DocsSidebar } from "@/components/DocsSidebar";
 import { DocsToc } from "@/components/DocsToc";
 import Link from "next/link";
 import { DOCS, DOC_GROUPS, getAdjacentDocs, getDoc, getDocMeta } from "@/lib/docs";
+import { asset } from "@/lib/site";
 
 interface PageProps {
   params: { slug: string };
@@ -56,6 +57,19 @@ export default function DocPage({ params }: PageProps) {
                 {doc.title}
               </h1>
               <p className="mt-3 text-lg leading-8 text-slate-600">{doc.description}</p>
+              {doc.download && (
+                <a
+                  href={asset(doc.download)}
+                  download
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <path d="m7 10 5 5 5-5M12 15V3" />
+                  </svg>
+                  Descargar .md
+                </a>
+              )}
             </header>
 
             {/* El HTML sale de los .md del propio repositorio, no de entrada de

@@ -28,6 +28,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/dist ./dist
+# Skill de IA que sirven /api/skill y el servidor MCP (copia de docs/skills/mclog).
+COPY skill ./skill
 COPY entrypoint.sh ./
 
 # El logger escribe en logs/app.log: el directorio debe pertenecer al usuario

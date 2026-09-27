@@ -113,7 +113,32 @@ Ocho herramientas, pensadas para el recorrido real de una investigación:
 | `get_log_context` | Lo ocurrido justo antes y después de un log |
 | `get_stats` | Totales y serie por hora, para ver cuándo empezó |
 
+Una novena, `get_integration_skill`, no investiga: devuelve el [skill de instalación e integración](#instalar-el-skill-de-mclog).
+
 La distinción que más rendimiento da: **`get_error_groups` responde "qué está fallando" y `search_logs` responde "qué ha pasado"**. Veintinueve timeouts del mismo fallo son un grupo con un 29 al lado, no veintinueve líneas. El asistente lo sabe porque está en la descripción de la herramienta.
+
+---
+
+### Instalar el skill de MCLog
+
+Además de consultar logs, un asistente puede **instalar MCLog e integrar sistemas** con el skill [`mclog`](skills/mclog/SKILL.md). Es un único Markdown con:
+- el despliegue (VPS, CapRover + Railway, local), y espacios y claves;
+- NetSuite, Node.js y sistemas custom (contrato HTTP y ejemplos en Python, C#, PHP, Java, Go y PowerShell);
+- MCP, Prometheus y webhooks;
+- verificación y solución de problemas.
+
+Hay cuatro formas de conseguirlo; todas sirven el mismo fichero:
+
+| Vía | Cómo |
+|---|---|
+| **Por MCP** (recomendada) | Al conectarse, el servidor avisa al asistente de que el skill existe. En Claude Code, `/mcp__mclog__install_skill` lo instala en `.claude/skills/mclog/SKILL.md` (o en `~/.claude/skills/…` con `scope: user`). Los clientes que solo usan herramientas (Cursor, Copilot) llaman a `get_integration_skill`, y los que leen recursos, a `mclog://skill/SKILL.md` |
+| **Desde la API** | `curl https://mclog.tu-dominio.com/api/skill -o .claude/skills/mclog/SKILL.md`. Es público: el contenido es esta misma documentación |
+| **Desde el dashboard** | **Espacio → API keys → Conectar una IA → Descargar skill (.md)** |
+| **Desde el sitio** | [Skill de IA](https://ingheriespinosa.github.io/MCLogs/docs/skill-ia/), con botón **Descargar .md** |
+
+El servidor MCP no escribe ficheros en tu equipo: le entrega el skill al asistente, y es el asistente quien lo guarda, tras pedirte confirmación.
+
+> Para editar el skill, cambia `docs/skills/mclog/SKILL.md` y ejecuta `npm run sync:skill` en `Back_MCLog`. La API sirve una copia en `Back_MCLog/skill/`, porque la imagen Docker no ve `docs/`. La CI falla si las dos difieren.
 
 ---
 
@@ -212,7 +237,7 @@ curl -s -X POST https://mclog.tu-dominio.com/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-Debe devolver las ocho herramientas.
+Debe devolver nueve herramientas: las ocho de investigación y `get_integration_skill`.
 
 ---
 

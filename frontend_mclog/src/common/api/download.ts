@@ -15,6 +15,18 @@ export const saveFile = (content: BlobPart, filename: string, type: string) => {
   setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 };
 
+const SKILL_FILENAME = "mclog-SKILL.md";
+
+/**
+ * Descarga el skill de IA de MCLog (instalacion e integracion). Lo sirve la API
+ * para que sea siempre la version de la instancia a la que esta conectado el panel.
+ */
+export const downloadSkill = async () => {
+  const response = await client.get("/api/skill", { responseType: "blob" });
+  saveFile(response.data, SKILL_FILENAME, "text/markdown;charset=utf-8");
+  return SKILL_FILENAME;
+};
+
 // Exporta aplicando los filtros activos del dashboard (hasta MAX_EXPORT_ROWS del backend)
 export const downloadLogs = async (format: "csv" | "ndjson", filters: Omit<LogsParams, "page" | "pageSize"> = {}) => {
   const params = Object.fromEntries(

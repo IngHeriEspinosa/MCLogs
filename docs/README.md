@@ -12,6 +12,7 @@
 | **Usuario del dashboard** | [USER_GUIDE.md § Parte A](USER_GUIDE.md#parte-a--consultar-logs-dashboard) — cómo buscar e investigar |
 | **Integrando una app** | [INTEGRATION.md](INTEGRATION.md) — contrato REST y ejemplos por lenguaje |
 | **Conectando una IA** | [AI_INTEGRATION.md](AI_INTEGRATION.md) — servidor MCP para Claude Code, Cursor y Claude Desktop |
+| **Una IA que instala o integra MCLog** | [Skill `mclog`](skills/mclog/SKILL.md) — despliegue e integración de cada sistema en un solo `.md` descargable |
 | **Desarrollando el sistema** | [TECHNICAL.md](TECHNICAL.md) y [ARCHITECTURE.md](ARCHITECTURE.md) |
 | **Desplegando en producción** | [DEPLOYMENT.md](DEPLOYMENT.md) — VPS con Docker Compose, o CapRover + Railway |
 | **Operando el servicio** | [USER_GUIDE.md § Parte C](USER_GUIDE.md#parte-c--administrar-el-servicio) — retención, usuarios, mantenimiento |
@@ -51,6 +52,7 @@ Cada guía recorre un proceso de principio a fin: qué vas a conseguir, qué nec
 | [USER_GUIDE.md](USER_GUIDE.md) | **Manual de usuario**: consultar (A), enviar logs (B), administrar (C) |
 | [INTEGRATION.md](INTEGRATION.md) | Guía de integración REST con ejemplos en curl, Node, Python y NetSuite |
 | [AI_INTEGRATION.md](AI_INTEGRATION.md) | **Conectar un asistente de IA** por MCP: claves, clientes, herramientas y buenas prácticas |
+| [skills/mclog/SKILL.md](skills/mclog/SKILL.md) | **Skill de IA**: instalación del servidor e integración de NetSuite, Node.js, sistemas custom (Python, C#, PHP, Java, Go, PowerShell), MCP, Prometheus y webhooks. Se sirve también por MCP, en `/api/skill`, en el dashboard y en el sitio |
 | [GLOSSARY.md](GLOSSARY.md) | **Glosario** de todos los términos del proyecto |
 | [FAQ.md](FAQ.md) | **Preguntas frecuentes** y errores concretos con su solución |
 | [CHANGELOG.md](../CHANGELOG.md) | **Historial de cambios** por fecha, con lo que requiere acción al actualizar |

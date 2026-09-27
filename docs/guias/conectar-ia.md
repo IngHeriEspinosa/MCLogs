@@ -32,6 +32,9 @@ Con solo `read`, el asistente no puede escribir logs, ni purgar, ni administrar 
 
 Sustituye la URL y `mclog_xxxxxxxx_tu-clave` por las tuyas.
 
+> [!TIP]
+> El panel **Conectar una IA**, al final de **Espacio → API keys**, ya trae tu URL y esta misma configuración lista para copiar, para cada asistente. También te dice si el MCP está activo: si la cuenta root lo ha apagado, el panel lo indica y no ofrece la conexión.
+
 ### Claude Code
 
 ```bash
@@ -94,7 +97,7 @@ Reinicia Claude Desktop después de guardar.
 ## Paso 3 — Comprueba la conexión
 
 - **Claude Code**: escribe `/mcp`. `mclog` debe aparecer como conectado.
-- **Cursor / VS Code**: en la configuración de MCP, `mclog` aparece con sus 8 herramientas.
+- **Cursor / VS Code**: en la configuración de MCP, `mclog` aparece con sus 9 herramientas.
 - **Claude Desktop**: el icono de herramientas muestra las de `mclog`.
 
 Luego pregunta algo sencillo: «¿Qué aplicaciones envían logs a MCLog?». Debe responder con la lista (usa `list_applications`).
@@ -120,6 +123,16 @@ Este proyecto envía sus logs a MCLog (servidor MCP `mclog`). Al investigar un f
 empieza por `get_error_groups`, usa `get_trace` si cruza servicios y `get_log_context`
 para ver qué pasó justo antes. La aplicación se llama `<nombre>`.
 ```
+
+## Paso 5 (opcional) — Instala el skill de MCLog
+
+El skill `mclog` enseña al asistente a **desplegar MCLog e integrar sistemas**: NetSuite, Node.js, otros lenguajes, Prometheus… Con él puedes pedirle «conecta este servicio .NET a MCLog» y lo hace por el camino recomendado.
+
+- **Claude Code**: escribe `/mcp__mclog__install_skill`. El asistente te pedirá confirmación y lo guardará en `.claude/skills/mclog/SKILL.md`.
+- **Cursor / VS Code**: pídele «instala el skill de MCLog». Usará la herramienta `get_integration_skill` y lo guardará como regla del proyecto.
+- **Sin MCP**: descárgalo en **Espacio → API keys → Conectar una IA**, o con `curl https://mclog.tu-dominio.com/api/skill -o .claude/skills/mclog/SKILL.md`.
+
+Detalle en [AI_INTEGRATION.md](../AI_INTEGRATION.md#instalar-el-skill-de-mclog).
 
 ## Sin MCP: el brief para IA
 

@@ -733,13 +733,26 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["status"],
           summary: "Servidor MCP para asistentes de IA (JSON-RPC 2.0)",
           description:
-            "Expone ocho herramientas de investigación de errores. Sin estado: cada petición se atiende y se cierra. Requiere API key con scope read o JWT. Guía en docs/AI_INTEGRATION.md.",
+            "Expone ocho herramientas de investigación de errores y el skill de instalación e integración (recurso mclog://skill/SKILL.md, prompt install_skill y herramienta get_integration_skill). Sin estado: cada petición se atiende y se cierra. Requiere API key con scope read o JWT. Guía en docs/AI_INTEGRATION.md.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           responses: {
             200: { description: "Respuesta JSON-RPC" },
             401: { description: "Sin credenciales" },
             403: { description: "La clave no tiene scope read" },
             405: { description: "GET y DELETE no se admiten: el endpoint es sin estado" },
+          },
+        },
+      },
+      "/api/skill": {
+        get: {
+          tags: ["status"],
+          summary: "Skill de IA de MCLog (instalación e integración) en Markdown",
+          description:
+            "Público: es la misma documentación del sitio. Se descarga como mclog-SKILL.md; para instalarlo en Claude Code: curl <URL>/api/skill -o .claude/skills/mclog/SKILL.md.",
+          security: [],
+          responses: {
+            200: { description: "SKILL.md", content: { "text/markdown": { schema: { type: "string" } } } },
+            429: { description: "Demasiadas peticiones" },
           },
         },
       },

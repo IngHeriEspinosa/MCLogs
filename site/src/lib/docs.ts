@@ -21,6 +21,11 @@ export interface DocMeta {
   title: string;
   description: string;
   group: DocGroup;
+  /**
+   * Fichero de public/ que se ofrece para descargar el .md tal cual (con
+   * `asset()`). Lo copia `scripts/copy-skill.mjs` antes de cada build.
+   */
+  download?: string;
 }
 
 export const DOC_GROUPS: { id: DocGroup; label: string }[] = [
@@ -176,6 +181,15 @@ export const DOCS: DocMeta[] = [
     title: "Conectar una IA (MCP)",
     description: "Que Claude Code, Cursor o Claude Desktop investiguen tus logs por su cuenta.",
     group: "integrar",
+  },
+  {
+    slug: "skill-ia",
+    file: "skills/mclog/SKILL.md",
+    title: "Skill de IA: instalar e integrar MCLog",
+    description:
+      "Un skill descargable para que un asistente de IA despliegue MCLog e integre NetSuite, Node.js y cualquier otro sistema por el camino más rápido.",
+    group: "integrar",
+    download: "/mclog-SKILL.md",
   },
   {
     slug: "despliegue",
@@ -405,9 +419,10 @@ export function getDoc(slug: string): RenderedDoc | null {
 
   const raw = fs.readFileSync(path.join(DOCS_DIR, meta.file), "utf8");
 
-  // El H1 del .md se muestra como cabecera de la pagina, asi que se quita del
-  // cuerpo para no repetirlo.
-  const body = raw.replace(/^#\s+.*\r?\n/, "");
+  // El frontmatter YAML (el de los skills) es para las IA, no para el lector.
+  // El H1 del .md se muestra como cabecera de la pagina, asi que tambien se
+  // quita del cuerpo para no repetirlo.
+  const body = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n\s*/, "").replace(/^#\s+.*\r?\n/, "");
 
   const { marked, headings } = createRenderer(meta.file);
   const html = marked.parse(body) as string;

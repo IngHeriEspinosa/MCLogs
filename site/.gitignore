@@ -2,3 +2,5 @@
 /.next
 /out
 /.eslintcache
+# Copia del skill de IA que genera scripts/copy-skill.mjs (la fuente es docs/)
+/public/mclog-SKILL.md

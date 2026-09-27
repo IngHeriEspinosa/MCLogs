@@ -122,15 +122,20 @@ describe("Protocolo MCP", () => {
     expect(res.status).toBe(200);
     expect(res.body.result.serverInfo.name).toBe("mclog");
     expect(res.body.result.instructions).toContain("get_error_groups");
+    // Al conectar, el asistente ya sabe que puede leer e instalar el skill.
+    expect(res.body.result.instructions).toContain("mclog://skill/SKILL.md");
+    expect(res.body.result.capabilities).toHaveProperty("resources");
+    expect(res.body.result.capabilities).toHaveProperty("prompts");
   });
 
-  it("publica las ocho herramientas con su descripcion", async () => {
+  it("publica las nueve herramientas con su descripcion", async () => {
     const res = await callMcp(readKey, rpc("tools/list"));
     expect(res.status).toBe(200);
 
     const nombres = res.body.result.tools.map((tool: { name: string }) => tool.name).sort();
     expect(nombres).toEqual([
       "get_error_groups",
+      "get_integration_skill",
       "get_log",
       "get_log_context",
       "get_recent_errors",
@@ -143,6 +148,55 @@ describe("Protocolo MCP", () => {
     const grupos = res.body.result.tools.find((tool: { name: string }) => tool.name === "get_error_groups");
     expect(grupos.description).toBeTruthy();
     expect(grupos.inputSchema.properties).toHaveProperty("hours");
+  });
+});
+
+describe("Skill de instalacion e integracion por MCP", () => {
+  const SKILL_URI = "mclog://skill/SKILL.md";
+
+  it("lo publica como recurso Markdown", async () => {
+    const list = await callMcp(readKey, rpc("resources/list"));
+    expect(list.status).toBe(200);
+    const recurso = list.body.result.resources.find((r: { uri: string }) => r.uri === SKILL_URI);
+    expect(recurso).toMatchObject({ name: "mclog-skill", mimeType: "text/markdown" });
+
+    const read = await callMcp(readKey, rpc("resources/read", { uri: SKILL_URI }));
+    expect(read.status).toBe(200);
+    const [contenido] = read.body.result.contents;
+    expect(contenido.mimeType).toBe("text/markdown");
+    expect(contenido.text).toMatch(/^---\r?\nname: mclog\r?\n/);
+  });
+
+  it("ofrece un prompt que lo instala en el proyecto o en el usuario", async () => {
+    const list = await callMcp(readKey, rpc("prompts/list"));
+    expect(list.status).toBe(200);
+    expect(list.body.result.prompts.map((p: { name: string }) => p.name)).toContain("install_skill");
+
+    const proyecto = await callMcp(readKey, rpc("prompts/get", { name: "install_skill", arguments: {} }));
+    expect(proyecto.status).toBe(200);
+    const [instrucciones, skill] = proyecto.body.result.messages;
+    expect(instrucciones.content.text).toContain(".claude/skills/mclog/SKILL.md");
+    expect(skill.content.type).toBe("resource");
+    expect(skill.content.resource.uri).toBe(SKILL_URI);
+    expect(skill.content.resource.text).toContain("name: mclog");
+
+    const usuario = await callMcp(readKey, rpc("prompts/get", { name: "install_skill", arguments: { scope: "user" } }));
+    expect(usuario.body.result.messages[0].content.text).toContain("`~/.claude/skills/mclog/SKILL.md`");
+  });
+
+  it("get_integration_skill devuelve el skill para clientes que solo usan herramientas", async () => {
+    const res = await callMcp(readKey, rpc("tools/call", { name: "get_integration_skill", arguments: {} }));
+    expect(res.status).toBe(200);
+    expect(res.body.result.isError).toBeFalsy();
+    const [instrucciones, skill] = res.body.result.content;
+    expect(instrucciones.text).toContain(".claude/skills/mclog/SKILL.md");
+    expect(skill.text).toContain("# MCLog: instalación e integración");
+  });
+
+  it("una clave acotada por aplicacion tambien puede leerlo", async () => {
+    const res = await callMcp(scopedKey, rpc("resources/read", { uri: SKILL_URI }));
+    expect(res.status).toBe(200);
+    expect(res.body.result.contents[0].text).toContain("name: mclog");
   });
 });
 

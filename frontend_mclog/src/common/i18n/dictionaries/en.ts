@@ -701,6 +701,31 @@ export const en: Dictionary = {
     confirmRevoke: "Yes, revoke",
     revokeNote: "Revoking is immediate and cannot be undone: the key stops working on the next request.",
     never: "Never",
+    ai: {
+      title: "Connect an AI",
+      description:
+        "Claude Code, Cursor, VS Code or Claude Desktop can query this workspace's logs over MCP. They need a key with the “read” scope: create it above and restrict it to the applications they should see.",
+      enabled: "MCP on",
+      disabled: "MCP off",
+      disabledTitle: "AI access is turned off on this platform",
+      disabledText:
+        "The root account turned it off, so /mcp does not respond. Ask them to turn it on if you need it. The setup skill is still available.",
+      disabledTextRoot: "It is turned off in the platform settings, so /mcp does not respond.",
+      enableAction: "Turn it on",
+      url: "MCP server URL",
+      client: "Assistant",
+      clients: { "claude-code": "Claude Code", cursor: "Cursor", vscode: "VS Code", "claude-desktop": "Claude Desktop" },
+      keyPlaceholder: "mclog_xxxxxxxx_your-key",
+      keyHint: (placeholder: string) =>
+        `Replace ${placeholder} with your “read” key: for security, the dashboard never shows a key again after it is created. Do not store it in a versioned file.`,
+      skillTitle: "Setup and integration skill",
+      skillDescription:
+        "Teaches the assistant to deploy MCLog and integrate NetSuite, Node.js and other languages the fastest way.",
+      skillCommand: "With Claude Code connected, install it with:",
+      skillManual: "Or download it and save it as .claude/skills/mclog/SKILL.md.",
+      download: "Download skill (.md)",
+      downloadFailed: "Could not download the skill",
+    },
   },
 
   snapshots: {

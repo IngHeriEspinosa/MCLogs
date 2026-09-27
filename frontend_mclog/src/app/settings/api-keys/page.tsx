@@ -14,6 +14,7 @@ import { CopyButton } from "@/components/molecules/CopyButton";
 import { DatePicker } from "@/components/molecules/DatePicker";
 import { Dialog } from "@/components/molecules/Dialog";
 import { addDays, fromDateValue, startOfDay } from "@/components/molecules/Calendar";
+import { AiConnectPanel } from "@/components/organisms/AiConnectPanel";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
@@ -260,6 +261,7 @@ export default function ApiKeysPage() {
         <CreateKeyForm onCreated={setCreated} />
         <KeysTable />
       </div>
+      <AiConnectPanel className="mt-4 3xl:mt-5" />
       <NewKeyDialog created={created} onClose={() => setCreated(null)} />
     </DashboardLayout>
   );

@@ -366,7 +366,7 @@ Sí, eligiendo **Producción** en **Entorno de destino**. La pantalla te avisa: 
 Creas una API key con permiso `read` y la registras como servidor MCP. Los pasos, con la configuración de cada cliente, están en [AI_INTEGRATION.md](AI_INTEGRATION.md).
 
 ### ¿Qué puede hacer la IA con mis logs?
-Solo leer, y solo lo que alcance su clave. Dispone de ocho herramientas: inventario de aplicaciones, errores agrupados por causa, búsqueda con filtros, detalle de un log, errores recientes, traza completa, contexto alrededor de un log y estadísticas.
+Solo leer, y solo lo que alcance su clave. Dispone de ocho herramientas de investigación: inventario de aplicaciones, errores agrupados por causa, búsqueda con filtros, detalle de un log, errores recientes, traza completa, contexto alrededor de un log y estadísticas. Una novena, `get_integration_skill`, solo devuelve el skill de instalación e integración.
 
 ### ¿Puede escribir o borrar algo?
 No. Una clave con permiso `read` no puede escribir logs ni purgar nada, y el endpoint MCP nunca asigna rol de administrador, así que las operaciones de administración le quedan fuera aunque las pidiera.

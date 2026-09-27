@@ -714,6 +714,31 @@ export const es = {
     confirmRevoke: "Sí, revocar",
     revokeNote: "Revocar es inmediato y no se puede deshacer: la clave deja de servir en la siguiente petición.",
     never: "Nunca",
+    ai: {
+      title: "Conectar una IA",
+      description:
+        "Claude Code, Cursor, VS Code o Claude Desktop pueden consultar los logs de este espacio por MCP. Necesitan una clave con permiso «read»: créala arriba y acótala a las aplicaciones que deban ver.",
+      enabled: "MCP activo",
+      disabled: "MCP desactivado",
+      disabledTitle: "El acceso para IA está desactivado en esta plataforma",
+      disabledText:
+        "La cuenta root lo ha apagado, así que /mcp no responde. Pídele que lo active si lo necesitas. El skill de instalación sigue disponible.",
+      disabledTextRoot: "Está apagado en la configuración de la plataforma, así que /mcp no responde.",
+      enableAction: "Activarlo",
+      url: "URL del servidor MCP",
+      client: "Asistente",
+      clients: { "claude-code": "Claude Code", cursor: "Cursor", vscode: "VS Code", "claude-desktop": "Claude Desktop" },
+      keyPlaceholder: "mclog_xxxxxxxx_tu-clave",
+      keyHint: (placeholder: string) =>
+        `Sustituye ${placeholder} por tu clave «read»: por seguridad, el panel no vuelve a mostrar una clave después de crearla. No la guardes en un fichero que se versione.`,
+      skillTitle: "Skill de instalación e integración",
+      skillDescription:
+        "Enseña al asistente a desplegar MCLog e integrar NetSuite, Node.js y otros lenguajes por el camino más rápido.",
+      skillCommand: "Con Claude Code conectado, instálalo con:",
+      skillManual: "O descárgalo y guárdalo en .claude/skills/mclog/SKILL.md.",
+      download: "Descargar skill (.md)",
+      downloadFailed: "No se pudo descargar el skill",
+    },
   },
 
   snapshots: {

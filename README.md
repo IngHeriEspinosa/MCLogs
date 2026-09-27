@@ -90,6 +90,8 @@ claude mcp add --transport http mclog https://mclog.tu-dominio.com/mcp   --heade
 
 A partir de ahí puedes preguntar «¿qué está fallando en producción hoy?» y el asistente lo averigua solo: agrupa las repeticiones, sigue la traza entre sistemas y mira qué pasó justo antes del error. Configuración para Cursor, VS Code y Claude Desktop en [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md).
 
+¿Quieres que la IA **instale MCLog o integre tus sistemas**? Usa el skill [`mclog`](docs/skills/mclog/SKILL.md). En Claude Code, conectado por MCP, basta con `/mcp__mclog__install_skill`. Sin MCP, descárgalo con `curl https://mclog.tu-dominio.com/api/skill -o .claude/skills/mclog/SKILL.md`, desde **Espacio → API keys** o desde el [sitio](https://ingheriespinosa.github.io/MCLogs/docs/skill-ia/).
+
 ## Cómo integrar tus aplicaciones
 
 - **Cualquier lenguaje (API REST)** → [docs/INTEGRATION.md](docs/INTEGRATION.md) — ejemplos con curl, Node.js y Python.
@@ -112,6 +114,7 @@ La ingesta se autentica con el header **`x-api-key`** y una clave con permiso `i
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Despliegue en producción: VPS con Docker Compose y Caddy, o CapRover + Railway |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Guía de integración REST para cualquier aplicación |
 | [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md) | Conectar Claude Code, Cursor o Claude Desktop por MCP |
+| [docs/skills/mclog/SKILL.md](docs/skills/mclog/SKILL.md) | Skill de IA descargable: instalación e integración de cada sistema |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Glosario de términos |
 | [docs/FAQ.md](docs/FAQ.md) | Preguntas frecuentes y errores concretos |
 | [CHANGELOG.md](CHANGELOG.md) | Historial de cambios por fecha, con lo que requiere acción al actualizar |
