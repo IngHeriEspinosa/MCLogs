@@ -165,7 +165,7 @@ Alrededor de eso: traza completa por `traceId`, contexto temporal alrededor de u
 
 ## Servidor MCP
 
-`POST /mcp` habla Model Context Protocol sobre HTTP y expone ocho herramientas que llaman a los servicios **en proceso**, sin dar la vuelta por HTTP.
+`POST /mcp` habla Model Context Protocol sobre HTTP y expone ocho herramientas de investigación que llaman a los servicios **en proceso**, sin dar la vuelta por HTTP. Además publica el skill de instalación e integración por las tres vías del protocolo: recurso, prompt y una novena herramienta (`get_integration_skill`). Así lo recibe cualquier cliente, soporte lo que soporte.
 
 Dos decisiones gobiernan las respuestas:
 
@@ -173,6 +173,10 @@ Dos decisiones gobiernan las respuestas:
 - **Cuando hay más resultados de los devueltos se dice explícitamente**, para que el modelo no concluya que ya lo ha visto todo.
 
 El endpoint es **sin estado**: cada petición crea su servidor y su transporte y los destruye al cerrar la respuesta. Cuesta poco y a cambio el backend sigue escalando horizontalmente sin sesiones pegadas a una instancia.
+
+**Una sola fuente para el skill.** Vive en `docs/skills/mclog/SKILL.md`, que es lo que publica el sitio. Pero el contexto de la imagen Docker de la API es `Back_MCLog/` y no alcanza `docs/`, así que la imagen lleva una copia (`Back_MCLog/skill/`). Esa copia la sirven el MCP y `GET /api/skill`, y el dashboard la descarga de ahí: cada instancia entrega la versión con la que se desplegó. La duplicación está vigilada: `npm run sync:skill` la regenera, y un test y un paso de la CI fallan si las dos difieren.
+
+**Uso por MCP en la clave.** Al entrar por `/mcp` con una API key se anota `lastMcpUsedAt`, con el mismo throttling de 5 minutos que `lastUsedAt` (como mucho un `UPDATE` cada 5 minutos por clave, sin esperar a que termine). Es lo que permite al inventario de claves de la plataforma contar qué asistentes usan el MCP antes de apagarlo.
 
 ## Alertas
 

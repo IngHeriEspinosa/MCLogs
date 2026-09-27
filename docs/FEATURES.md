@@ -496,6 +496,31 @@ Dos decisiones gobiernan las respuestas: los listados van **recortados y sin met
 
 El endpoint es **sin estado**: cada petición se atiende y se cierra, así que el servicio sigue escalando horizontalmente. Los límites de la clave se aplican dentro: una clave acotada no ve otras aplicaciones en ninguna herramienta. Se apaga desde la configuración (`mcpEnabled`, cuya opción inicial da `MCP_ENABLED`).
 
+**Cada uso por MCP queda anotado en la clave** (`lastMcpUsedAt`), aparte de su último uso general. Así el dueño y el [inventario de claves](#inventario-de-claves-admin-de-plataforma) distinguen a un asistente de IA de un script.
+
+### Skill de instalación e integración
+
+El servidor MCP también distribuye el **skill `mclog`** ([docs/skills/mclog/SKILL.md](skills/mclog/SKILL.md)): un Markdown que enseña a un asistente a desplegar MCLog e integrar cada sistema (NetSuite, Node.js, sistemas custom por HTTP, MCP, Prometheus y webhooks) por el camino más rápido y centralizado. **Código:** [mcp/skill.ts](../Back_MCLog/src/mcp/skill.ts) · [skillRoutes.ts](../Back_MCLog/src/routes/skillRoutes.ts)
+
+| Vía | Qué es |
+|---|---|
+| `instructions` del servidor | Al conectarse, el asistente ya sabe que el skill existe y cómo pedirlo |
+| Recurso `mclog://skill/SKILL.md` | Lectura, para los clientes que usan recursos |
+| Prompt `install_skill` (`scope`: `project` o `user`) | En Claude Code, `/mcp__mclog__install_skill`: pide al asistente guardarlo en `.claude/skills/mclog/SKILL.md` o `~/.claude/skills/…`, tras confirmarlo con el usuario |
+| Herramienta `get_integration_skill` | Lo mismo, para clientes que solo usan herramientas (Cursor, Copilot) |
+| `GET /api/skill` | Descarga pública `mclog-SKILL.md`. Es la misma documentación del sitio y no expone datos de la instancia |
+
+El servidor MCP no escribe ficheros en el equipo del usuario: entrega el skill y es el asistente quien lo guarda. La fuente es `docs/skills/mclog/SKILL.md`, y la API sirve una copia en `Back_MCLog/skill/`, porque la imagen Docker no ve `docs/`. La copia se regenera con `npm run sync:skill`, y la CI y un test fallan si difieren.
+
+### Panel «Conectar una IA»
+
+Al final de **Espacio → API keys**, para el dueño del espacio. **Código:** [AiConnectPanel.tsx](../frontend_mclog/src/components/organisms/AiConnectPanel.tsx)
+
+- **Estado del MCP** en la plataforma (`GET /api/settings/public`). Si la cuenta root lo ha apagado, lo dice y no ofrece una conexión que no va a responder; a la root le da un acceso directo a **Configuración**.
+- **URL del endpoint** `/mcp` lista para copiar. Sale del origen de la API, nunca de lo que escriba el usuario.
+- **Configuración lista para copiar** de Claude Code, Cursor, VS Code y Claude Desktop, con un marcador en lugar de la clave. El panel nunca vuelve a mostrar una clave: en la base de datos solo queda su hash.
+- **El skill:** el comando `/mcp__mclog__install_skill` y la descarga del `.md`.
+
 ---
 
 ## 17. Mantenimiento automático
@@ -699,6 +724,7 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/channels/:id/test` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **dueño** | [13](#13-api-keys-con-permisos) |
 | `GET`/`DELETE` | `/api/admin/keys` · `/:id` | JWT **admin de plataforma** | [13](#inventario-de-claves-admin-de-plataforma) |
+| `GET` | `/api/skill` | — | [16](#skill-de-instalación-e-integración) |
 | `GET`/`POST`/`DELETE` | `/api/snapshots` · `/:id` | JWT (dueño para los públicos) | [23](#23-snapshots-compartibles) |
 | `GET` | `/api/share/:token` | — (JWT de miembro si es de equipo) | [23](#23-snapshots-compartibles) |
 | `GET` | `/api/share/:token/preview` | — (solo públicos) | [23](#23-snapshots-compartibles) |

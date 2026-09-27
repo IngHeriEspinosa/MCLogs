@@ -42,6 +42,8 @@ src/
     snapshots/preview.ts       Vista previa del enlace: petición al backend (servidor) y textos
     errors/summary.ts          Totales de los errores agrupados (ocurrencias, app más afectada, concentración)
     lab/                       scenarios (los 7 escenarios y el prefijo lab-), run (envío y purga)
+    mcp/snippets.ts            URL del endpoint /mcp y configuración de cada asistente (Claude Code, Cursor, VS Code, Claude Desktop)
+    keys/inventory.ts          Tipos del inventario de claves, gravedad de cada aviso, filtros, orden y contadores
     clipboard.ts               Copiar con respaldo para contextos sin HTTPS
   hooks/
     useAuth.ts                 Sesión, login en dos pasos, 2FA, borrar cuenta, logs y estadísticas + tipos
@@ -54,6 +56,7 @@ src/
     usePreference.ts           Preferencias en localStorage y media queries
     useSnapshots.ts            Crear, listar, borrar y abrir snapshots (401 = pedir sesión, 404/400 = no existe)
     useSettings.ts             Configuración de la plataforma y banderas públicas (Lab, MCP, snapshots…)
+    useKeyInventory.ts         Inventario de claves de la plataforma y revocar cualquiera (admin de plataforma)
     useApiKeys / useUsers / useAlerts / useLogStream / useDebounce
   components/
     atoms/                     Button, Input, Field, Checkbox, Switch, Segmented, Icon,
@@ -64,7 +67,8 @@ src/
     organisms/                 Sidebar, Topbar, SignIn, LogFilterBar, LogOverview, LogTable, LogInspector,
                                AdvancedLogSearch, ShareSnapshotDialog, SnapshotOverview,
                                ErrorGroups (tarjetas y tabla de Errores), TraceTimeline (métricas y cascada de una traza),
-                               LabScenarioCard, LabComposer, TwoFactorCard, DeleteAccountCard
+                               LabScenarioCard, LabComposer, TwoFactorCard, DeleteAccountCard,
+                               AiConnectPanel (estado del MCP, configuración por asistente y skill)
     templates/                 DashboardLayout, AuthLayout
   config/api.ts                API_BASE desde NEXT_PUBLIC_API_URL
 ```

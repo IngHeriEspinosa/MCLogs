@@ -20,7 +20,7 @@ A la izquierda está el menú:
 - **Observabilidad**: **Logs**, **Registros**, **Errores**, **Reportes** y **Snapshots**.
 - **Selector de espacio** (arriba): el espacio de trabajo activo y tu rol en él; desde aquí cambias de espacio, creas uno o sales del actual.
 - **Espacio** (solo si eres dueño del espacio activo): **Miembros**, **Alertas**, **API keys** y **Lab**.
-- **Plataforma** (solo admin de plataforma): **Cuentas**.
+- **Plataforma** (solo admin de plataforma): **Cuentas** e **Inventario de claves**; la cuenta root ve además **Configuración**.
 - Abajo, **Mi cuenta** y el botón para contraer el menú a solo iconos.
 
 En el móvil, el menú se abre con el botón ☰ de arriba a la izquierda.
@@ -197,12 +197,13 @@ Arriba: **Descargar .md** guarda la traza como documento, y **Copiar para IA** c
 
 ## Secciones de administración
 
-**Alertas**, **API keys** y **Lab** solo los ve el dueño del espacio activo; **Usuarios** (Cuentas), los admins de plataforma. El procedimiento completo está en [docs/USER_GUIDE.md § Parte C](../../docs/USER_GUIDE.md#parte-c--administrar-el-servicio).
+**Alertas**, **API keys** y **Lab** solo los ve el dueño del espacio activo; **Usuarios** (Cuentas) e **Inventario de claves**, los admins de plataforma. El procedimiento completo está en [docs/USER_GUIDE.md § Parte C](../../docs/USER_GUIDE.md#parte-c--administrar-el-servicio).
 
 | Sección | Para qué |
 |---|---|
 | **Alertas** | Canales (webhook, correo, Telegram) con envío de prueba y edición (los secretos guardados se conservan si dejas el campo vacío), reglas (umbral de repeticiones o error nuevo) e historial de avisos. Los interruptores activan y desactivan sin borrar |
-| **API keys** | Crear claves para que las máquinas envíen o consulten, con permisos, alcance por aplicación y caducidad. El secreto se muestra **una sola vez**, en una ventana que no se cierra hasta que confirmas que lo guardaste |
+| **API keys** | Crear claves para que las máquinas envíen o consulten, con permisos, alcance por aplicación y caducidad. El secreto se muestra **una sola vez**, en una ventana que no se cierra hasta que confirmas que lo guardaste. **Último uso** indica también, en una segunda línea, si la clave la usa un asistente de IA por MCP. Al final, el panel **Conectar una IA** muestra si el MCP está activo, su URL, la configuración lista para copiar de cada asistente y el skill de instalación para descargar |
+| **Inventario de claves** | Las claves de **todos** los espacios, con su espacio, creador, último uso (general y por IA), estado y avisos: lee todo el espacio, abandonada, nunca usada, caduca pronto… Se filtra por vista, permiso, espacio o texto, y se puede revocar cualquiera. Nunca muestra el secreto, solo el prefijo |
 | **Usuarios** | Alta, cambio de rol, reseteo de contraseña y baja. Las etiquetas **Root** y **2FA** marcan la cuenta root (no se puede degradar ni eliminar) y quién tiene la verificación en dos pasos activa |
 | **Lab** | Escenarios de prueba que envían logs de verdad para ver cada pantalla en acción, y un compositor para enviar un log a medida |
 

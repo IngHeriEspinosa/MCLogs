@@ -107,6 +107,14 @@ Máquina o instancia que generó el log. Si la aplicación no lo envía, el serv
 ### Ingesta
 La acción de **recibir y almacenar** logs: `POST /api/log` y `POST /api/logs/batch`. Se autentica con [API key](#api-key) (o JWT). Tiene su propio [rate limit](#rate-limit), independiente del de consulta, para que un dashboard intensivo no pueda frenar la entrada de logs.
 
+### Inventario de claves
+Pantalla del [admin de plataforma](#admin) (**Plataforma → Inventario de claves**) con las [API keys](#api-key) de todos los espacios juntas. Muestra de cada una:
+- su espacio y quién la creó;
+- su estado y su último uso, general y por [MCP](#mcp-model-context-protocol);
+- sus **avisos**: lee todo el espacio, abandonada, nunca usada, caduca pronto, escribe como cualquiera o lectura sin caducidad.
+
+Desde ahí se puede revocar cualquiera. Nunca muestra el secreto de una clave, solo su prefijo: el secreto no se guarda. → [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md#revisar-las-claves-de-toda-la-plataforma-admin-de-plataforma)
+
 ### JSONB
 Tipo de PostgreSQL para almacenar JSON de forma binaria y consultable. Es lo que hay detrás de [`metadata`](#metadata). Permite que cada aplicación adjunte su propia estructura sin migrar la base de datos.
 
@@ -120,7 +128,7 @@ Token firmado que transporta la identidad del usuario (id, email, [rol](#rol)) y
 Pantalla de administración con **escenarios de prueba** que envían logs reales a MCLog (tráfico normal, error agrupado, traza distribuida, pico de incidente, error nuevo, datos sensibles y stream en vivo) y enlazan a la pantalla donde se ve el resultado. Todo va a aplicaciones con prefijo `lab-`, por defecto al entorno `development`, y se borra de una vez con **Borrar datos del lab**. Incluye un compositor de logs a medida que muestra la petición en JSON y cURL.
 
 ### MCP *(Model Context Protocol)*
-Protocolo que permite a un asistente de IA usar herramientas externas. MCLog expone un servidor MCP en `POST /mcp` con ocho herramientas de investigación, de modo que Claude Code, Cursor o Claude Desktop consulten los logs por su cuenta en lugar de que se les peguen fragmentos.
+Protocolo que permite a un asistente de IA usar herramientas externas. MCLog expone un servidor MCP en `POST /mcp` con ocho herramientas de investigación, de modo que Claude Code, Cursor o Claude Desktop consulten los logs por su cuenta en lugar de que se les peguen fragmentos. También entrega el [skill](#skill) de instalación e integración.
 
 Requiere una [API key](#api-key) con permiso `read`, y respeta todas sus restricciones. → [AI_INTEGRATION.md](AI_INTEGRATION.md)
 
@@ -224,6 +232,15 @@ Práctica de invalidar el [refresh token](#refresh-token) anterior cada vez que 
 
 ### Servicio (`service`)
 Subcomponente dentro de una [aplicación](#aplicación-application): un worker, un script concreto, un módulo. Si no se envía, el servidor copia el valor de `application`. Máximo 120 caracteres.
+
+### Skill
+Fichero Markdown con instrucciones que un asistente de IA (Claude Code y compatibles) carga cuando la tarea lo requiere. El skill **`mclog`** le enseña a desplegar MCLog e integrar cada sistema (NetSuite, Node.js, sistemas custom por HTTP, MCP, Prometheus, webhooks) por el camino más rápido y centralizado. Se instala en `.claude/skills/mclog/SKILL.md`. Se puede obtener:
+- por [MCP](#mcp-model-context-protocol): recurso, prompt `install_skill` o herramienta `get_integration_skill`;
+- en `GET /api/skill`;
+- en **Espacio → API keys → Conectar una IA**;
+- en el sitio de la documentación.
+
+→ [SKILL.md](skills/mclog/SKILL.md) · [AI_INTEGRATION.md](AI_INTEGRATION.md#instalar-el-skill-de-mclog)
 
 ### Snapshot
 Copia congelada de Logs, Registros, Errores o una Traza con un enlace propio `/s/<token>`: el resumen y hasta 500 logs, los fallos agrupados con un ejemplo de cada uno, o la operación completa. Puede ser **de equipo** (solo miembros del espacio, con sesión) o **pública** (cualquiera con el enlace, con los datos sensibles [enmascarados](#enmascarado)). No cambia con los logs nuevos ni lo borra la [retención](#retención): tiene su propia caducidad. → [Compartir un snapshot](guias/compartir-snapshots.md)

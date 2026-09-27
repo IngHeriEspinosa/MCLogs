@@ -198,6 +198,16 @@ curl -s -X POST $BASE/api/keys -H "Authorization: Bearer $TOKEN" -H "X-Workspace
 # → 201 { "key": "mclog_xxxxxxxx_...", "apiKey": { ... } }   ← "key" solo aparece aquí
 ```
 
+**Revisar las claves de todos los espacios.** El admin de plataforma, la root incluida, las ve juntas en **Plataforma → Inventario de claves** (`GET /api/admin/keys`). Cada clave aparece con sus avisos:
+- lee todo el espacio;
+- abandonada (sin uso en 90 días);
+- nunca usada;
+- caduca pronto;
+- escribe como cualquiera;
+- lectura sin caducidad.
+
+Desde ahí se revoca cualquiera (`DELETE /api/admin/keys/:id`). Ante una filtración, busca la clave por su prefijo (`mclog_xxxxxxxx`) y revócala.
+
 **Rotar una clave sin cortar el servicio:**
 1. crea la nueva con los mismos permisos;
 2. despliega el emisor con la nueva;
@@ -579,6 +589,8 @@ Para probar una petición sin escribir código: **Espacio → Lab → Log a medi
 
 1. Crea una clave **`read`**, acotada a las aplicaciones que deba ver y, si se reparte, con caducidad.
 2. Conecta el cliente a `{BASE}/mcp`. El transporte es HTTP sin estado y acepta solo POST.
+   - El panel **Espacio → API keys → Conectar una IA** del dashboard dice si el MCP está activo y da la URL exacta y la configuración de cada cliente, lista para copiar.
+   - Cada uso por MCP queda anotado en la clave como "IA (MCP)" bajo **Último uso**.
 
 ```bash
 # Claude Code
@@ -685,7 +697,8 @@ curl -s -X POST {BASE}/mcp -H "Authorization: Bearer $MCLOG_READ_KEY" -H "Conten
   - la clave de ingesta, en el gestor de secretos de cada plataforma.
 - **Claves:**
   - con permiso mínimo, acotadas por aplicación, con caducidad si se reparten;
-  - se rotan sin corte (§3) y, si se filtran, se revocan primero.
+  - se rotan sin corte (§3) y, si se filtran, se revocan primero;
+  - revisa de vez en cuando el **Inventario de claves** (§3) y revoca las abandonadas o las que nunca se usaron.
 - **Red:**
   - la base de datos nunca se expone a Internet, y solo el proxy (Caddy o nginx de CapRover) publica puertos;
   - los logs no se envían desde el navegador (CORS), sino desde el servidor.
