@@ -12,6 +12,8 @@ export type ApiKey = {
   createdAt: string;
   expiresAt: string | null;
   lastUsedAt: string | null;
+  /** Ultimo uso contra el servidor MCP: la usa un asistente de IA. */
+  lastMcpUsedAt: string | null;
   revokedAt: string | null;
 };
 

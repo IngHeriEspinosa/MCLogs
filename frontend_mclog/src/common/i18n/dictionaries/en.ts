@@ -62,6 +62,7 @@ export const en: Dictionary = {
     platform: "Platform",
     members: "Members",
     accounts: "Accounts",
+    keyInventory: "Key inventory",
     configuration: "Configuration",
     logs: "Logs",
     records: "Records",
@@ -701,6 +702,7 @@ export const en: Dictionary = {
     confirmRevoke: "Yes, revoke",
     revokeNote: "Revoking is immediate and cannot be undone: the key stops working on the next request.",
     never: "Never",
+    mcpUsed: (when: string) => `AI (MCP): ${when}`,
     ai: {
       title: "Connect an AI",
       description:
@@ -726,6 +728,89 @@ export const en: Dictionary = {
       download: "Download skill (.md)",
       downloadFailed: "Could not download the skill",
     },
+  },
+
+  keyInventory: {
+    eyebrow: "Platform",
+    title: "Key inventory",
+    description:
+      "Every API key in every workspace, with what is worth reviewing. Each workspace only sees its own; here they are together, to spot keys that are too open, abandoned or about to expire.",
+    loadError: "We couldn't load the inventory",
+    tiles: {
+      active: "Active keys",
+      activeHint: (inactive: number) => (inactive === 1 ? "1 revoked or expired" : `${inactive} revoked or expired`),
+      read: "Read access",
+      readHint: "Can query logs",
+      risks: "With warnings",
+      risksHint: "Active keys to review",
+      mcp: "Used by AI",
+      mcpHint: (days: number) => `Over MCP in the last ${days} days`,
+      workspaces: "Workspaces",
+      workspacesHint: "With at least one active key",
+    },
+    legacy:
+      "The server's legacy API_KEY is also active (send logs and metrics, in the root account's default workspace). It is not listed because it does not live in the database: it has no last use and cannot be revoked from here. Move its senders to their own keys.",
+    filters: {
+      label: "Filter keys",
+      search: "Search",
+      searchPlaceholder: "Name, prefix, workspace, application or creator",
+      view: "View",
+      views: { attention: "With warnings", active: "Active", inactive: "Inactive", all: "All" },
+      scope: "Scope",
+      allScopes: "All scopes",
+      workspace: "Workspace",
+      allWorkspaces: "All workspaces",
+      clear: "Clear filters",
+    },
+    columns: {
+      key: "Key",
+      workspace: "Workspace",
+      access: "Access",
+      applications: "Applications",
+      lastUsed: "Last used",
+      status: "Status",
+      risks: "Warnings",
+    },
+    createdBy: (email: string) => `Created by ${email}`,
+    createdBySystem: "Unknown creator",
+    openWorkspace: (name: string) => `Open the API keys of ${name}`,
+    noRisks: "Nothing to review",
+    empty: "No keys yet",
+    emptyHint: "They will show up here as soon as a workspace owner creates the first one.",
+    noMatches: "No key matches the filters",
+    shown: (shown: number, total: number) => `${shown} of ${total}`,
+    revoke: "Revoke",
+    confirmRevoke: "Yes, revoke",
+    revoked: (name: string) => `Key revoked: ${name}`,
+    revokeNote:
+      "Revoking is immediate and cannot be undone: whoever uses the key stops working on the next request. If the key has leaked, revoke it first and create the replacement afterwards.",
+    risks: {
+      "read-unrestricted": {
+        label: "Reads the whole workspace",
+        help: "It has read access and no applications assigned: it sees every log in its workspace. Restrict it to the applications it needs.",
+      },
+      stale: {
+        label: "Abandoned",
+        help: (days: number) => `It was used, but not in the last ${days} days. If its sender no longer exists, revoke it.`,
+      },
+      "never-used": {
+        label: "Never used",
+        help: (days: number) => `Created more than ${days} days ago and never used. It is probably not needed.`,
+      },
+      "expiring-soon": {
+        label: "Expires soon",
+        help: (days: number) => `It expires in less than ${days} days. Create the replacement first or its sender will stop.`,
+      },
+      "ingest-unrestricted": {
+        label: "Writes as anyone",
+        help: "It can send logs on behalf of any application in the workspace. Restrict it to its own.",
+      },
+      "read-no-expiry": {
+        label: "Read without expiry",
+        help: "A read key with no expiry date. If it is handed out (to an assistant, to a team), give it one.",
+      },
+    },
+    legendTitle: "What each warning means",
   },
 
   snapshots: {
@@ -900,6 +985,13 @@ export const en: Dictionary = {
       "How MCLog behaves for every account and workspace. Only the root account sees this page. Changes apply immediately, without a restart.",
     rootOnly: "This section is only visible to the service's root account.",
     loadError: "We couldn't load the configuration",
+    mcpUsage: {
+      used: (count: number, days: number) =>
+        count === 1 ? `1 key has used MCP in the last ${days} days.` : `${count} keys have used MCP in the last ${days} days.`,
+      unused: (days: number) => `No key has used MCP in the last ${days} days.`,
+      turningOff: "When you save, those assistants will no longer be able to query the logs.",
+      link: "See them in the inventory",
+    },
     categories: {
       workspaces: { title: "Workspaces and invitations", description: "How many people fit in a workspace, who can create them and how people are invited." },
       logs: { title: "Logs", description: "Retention, exports, batch ingestion, live connections and snapshots." },

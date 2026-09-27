@@ -149,7 +149,7 @@ Entrégala a quien la vaya a usar por un canal seguro, y que la guarde en una va
 |---|---|
 | **Prefijo** | El principio de la clave, para identificarla sin revelarla |
 | **Permisos** / **Aplicaciones** | Lo que puede hacer y dónde |
-| **Último uso** | Cuándo se usó por última vez. Una clave que lleva meses sin uso es candidata a revocarse |
+| **Último uso** | Cuándo se usó por última vez. Una clave que lleva meses sin uso es candidata a revocarse. Si la usa un asistente de IA, debajo aparece **IA (MCP)** con su último uso por ese canal |
 | **Estado** | **Activa**, **Revocada** o **Caducada**. Si tiene fecha de caducidad, aparece bajo el nombre |
 
 ### Rotar una clave sin cortar el servicio
@@ -167,6 +167,29 @@ Durante ese rato funcionan las dos. Revocar es **inmediato** y no se puede desha
 ### La clave heredada `API_KEY`
 
 La variable `API_KEY` del backend es una clave única, anterior a este sistema, con permisos de ingesta y métricas. Escribe en el espacio de la cuenta root (**Principal**). Está **deprecada**: no se puede acotar por aplicación ni rotar sin cortar a todos los que la usen. Migra esos emisores a claves creadas aquí.
+
+### Revisar las claves de toda la plataforma (admin de plataforma)
+
+Cada espacio solo ve sus claves. El admin de plataforma, la cuenta root incluida, las ve todas juntas en **Plataforma → Inventario de claves**:
+
+1. Mira los números de arriba:
+   - **Claves activas**;
+   - **De lectura** (las que pueden consultar logs);
+   - **Con avisos**;
+   - **Usadas por IA** (por MCP en los últimos 30 días);
+   - **Espacios**.
+2. Pulsa la vista **Con avisos**: la lista se ordena de lo más grave a lo menos. Pasa el ratón por un aviso para ver qué significa, o lee la leyenda **Qué significa cada aviso** al final.
+3. Para cada clave con avisos, decide:
+   - **Lee todo el espacio**: pide a su dueño que la sustituya por una acotada a sus aplicaciones. Pulsa el nombre del espacio para abrir sus API keys.
+   - **Abandonada** o **Nunca usada**: si su emisor ya no existe, **Revocar** → **Sí, revocar**.
+   - **Caduca pronto**: avisa al dueño para que cree la sustituta antes de la fecha.
+   - **Escribe como cualquiera** o **Lectura sin caducidad**: buenas prácticas; revísalas cuando puedas.
+4. **Ante una filtración**, escribe el prefijo de la clave (`mclog_ab12cd34`) en el buscador, con la vista **Todas**, y revócala al momento, sin necesidad de saber en qué espacio estaba.
+
+> [!NOTE]
+> La clave heredada `API_KEY` no aparece en la lista, porque no vive en la base de datos. Si está activa, una nota lo recuerda.
+
+Antes de apagar **Acceso para IA (MCP)** en **Plataforma → Configuración**, mira la línea bajo el interruptor: dice cuántas claves lo han usado en los últimos 30 días, y a quién cortarías.
 
 ## Parte 4 — Configuración de la plataforma (solo root)
 

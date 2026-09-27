@@ -385,6 +385,34 @@ Una clave puede llevar varios permisos, acotarse a una lista de aplicaciones, ca
 
 **Ninguna clave administra nada.** Purgar logs o administrar un espacio requiere la sesión de su dueño.
 
+**Último uso, general y por IA.** `lastUsedAt` se anota en cualquier uso y `lastMcpUsedAt` solo cuando la clave se usa contra `/mcp`, así que se distingue a un asistente de IA de un script que usa la misma clave contra la API REST. Los dos se escriben como mucho cada 5 minutos por clave, para no hacer un `UPDATE` por petición. En la tabla del espacio aparece como una segunda línea bajo **Último uso**.
+
+### Inventario de claves (admin de plataforma)
+
+**Plataforma → Inventario de claves** reúne las claves de todos los espacios. Lo ve el admin de plataforma, la cuenta root incluida, igual que **Cuentas**. **Código:** [apiKeyInventoryService.ts](../Back_MCLog/src/services/apiKeyInventoryService.ts) · [adminKeyRoutes.ts](../Back_MCLog/src/routes/adminKeyRoutes.ts) · [key-inventory/page.tsx](../frontend_mclog/src/app/settings/key-inventory/page.tsx)
+
+Cada clave lleva su espacio, quién la creó, su estado y sus **avisos**. Solo tiene avisos una clave activa: una revocada o caducada ya no puede hacer nada.
+
+| Aviso | Cuándo | Gravedad |
+|---|---|---|
+| `read-unrestricted` · Lee todo el espacio | Permiso `read` sin aplicaciones asignadas | Alta |
+| `stale` · Abandonada | Se usó, pero no en los últimos 90 días | Media |
+| `never-used` · Nunca usada | Lleva más de 7 días creada y nunca se ha usado | Media |
+| `expiring-soon` · Caduca pronto | Caduca en 14 días o menos: su emisor se cortará | Media |
+| `ingest-unrestricted` · Escribe como cualquiera | Permiso `ingest` sin aplicaciones: puede escribir en nombre de cualquiera | Baja |
+| `read-no-expiry` · Lectura sin caducidad | Permiso `read` sin fecha de caducidad | Baja |
+
+Una clave solo de `metrics` no tiene aplicaciones que acotar, y una de ingesta sin caducidad es lo normal (NetSuite, un servicio): ninguna de las dos genera aviso por eso.
+
+- **Resumen:** claves activas e inactivas, activas de lectura, activas con avisos, usadas por MCP en los últimos 30 días y espacios con alguna clave activa.
+- **Orden:** activas primero, luego por el aviso más grave, luego por número de avisos y, a igualdad, la más reciente.
+- **Filtros:** vista (con avisos, activas, inactivas, todas), permiso, espacio y búsqueda por nombre, prefijo, espacio, aplicación o creador, sin distinguir mayúsculas ni tildes.
+- **Revocar** cualquier clave desde la lista. Queda en el log del servidor como `API key revoked by platform admin`, con quién lo hizo.
+- **Abrir el espacio** de una clave lleva a sus API keys: el admin es dueño implícito de todos los espacios.
+- **Claves de espacios borrados:** no aparecen. Se revocaron con el espacio y el planificador las elimina al purgarlo.
+- **La clave heredada `API_KEY` no aparece en la lista,** porque no vive en la base de datos. Si está activa, una nota lo indica.
+- **En Configuración, bajo *Acceso para IA (MCP)*:** la cuenta root ve cuántas claves lo han usado en 30 días. Si lo apaga sin guardar todavía, la nota avisa de que esos asistentes dejarán de funcionar.
+
 > La clave única de la variable `API_KEY` sigue funcionando con permisos `ingest` y `metrics` en el espacio de la cuenta root, para no romper los emisores ya desplegados. Está deprecada: no se puede rotar sin cortar el servicio ni acotar por aplicación.
 
 ---
@@ -670,6 +698,7 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 | `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/channels/:id/test` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **dueño** | [13](#13-api-keys-con-permisos) |
+| `GET`/`DELETE` | `/api/admin/keys` · `/:id` | JWT **admin de plataforma** | [13](#inventario-de-claves-admin-de-plataforma) |
 | `GET`/`POST`/`DELETE` | `/api/snapshots` · `/:id` | JWT (dueño para los públicos) | [23](#23-snapshots-compartibles) |
 | `GET` | `/api/share/:token` | — (JWT de miembro si es de equipo) | [23](#23-snapshots-compartibles) |
 | `GET` | `/api/share/:token/preview` | — (solo públicos) | [23](#23-snapshots-compartibles) |

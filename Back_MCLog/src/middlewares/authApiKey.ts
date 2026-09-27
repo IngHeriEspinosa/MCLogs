@@ -4,6 +4,7 @@ import { config } from "../config/env";
 import {
   ApiKeyPrincipal,
   ApiKeyScope,
+  isLegacyApiKeyEnabled,
   looksLikeApiKey,
   verifyApiKey,
 } from "../services/apiKeyService";
@@ -38,10 +39,9 @@ const presentedKey = (req: Request): string | undefined => {
  * @deprecated Crear claves con scopes desde /api/keys.
  */
 const legacyPrincipal = async (raw: string): Promise<ApiKeyPrincipal | null> => {
-  const configured = config.apiKey;
-  if (!configured || configured === "change-me") return null;
+  if (!isLegacyApiKeyEnabled()) return null;
 
-  const expected = Buffer.from(configured, "utf8");
+  const expected = Buffer.from(config.apiKey, "utf8");
   const received = Buffer.from(raw, "utf8");
   if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
 

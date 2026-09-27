@@ -67,6 +67,7 @@ export const es = {
     platform: "Plataforma",
     members: "Miembros",
     accounts: "Cuentas",
+    keyInventory: "Inventario de claves",
     configuration: "Configuración",
     logs: "Logs",
     records: "Registros",
@@ -714,6 +715,7 @@ export const es = {
     confirmRevoke: "Sí, revocar",
     revokeNote: "Revocar es inmediato y no se puede deshacer: la clave deja de servir en la siguiente petición.",
     never: "Nunca",
+    mcpUsed: (when: string) => `IA (MCP): ${when}`,
     ai: {
       title: "Conectar una IA",
       description:
@@ -739,6 +741,89 @@ export const es = {
       download: "Descargar skill (.md)",
       downloadFailed: "No se pudo descargar el skill",
     },
+  },
+
+  keyInventory: {
+    eyebrow: "Plataforma",
+    title: "Inventario de claves",
+    description:
+      "Todas las API keys de todos los espacios, con lo que conviene revisar. Cada espacio solo ve las suyas; aquí se ven juntas para detectar claves demasiado abiertas, abandonadas o a punto de caducar.",
+    loadError: "No pudimos cargar el inventario",
+    tiles: {
+      active: "Claves activas",
+      activeHint: (inactive: number) => (inactive === 1 ? "1 revocada o caducada" : `${inactive} revocadas o caducadas`),
+      read: "De lectura",
+      readHint: "Pueden consultar logs",
+      risks: "Con avisos",
+      risksHint: "Activas con algo que revisar",
+      mcp: "Usadas por IA",
+      mcpHint: (days: number) => `Por MCP en los últimos ${days} días`,
+      workspaces: "Espacios",
+      workspacesHint: "Con al menos una clave activa",
+    },
+    legacy:
+      "La clave heredada API_KEY del servidor también está activa (enviar logs y métricas, en el espacio por defecto de la cuenta root). No aparece en la lista porque no vive en la base de datos: no tiene último uso ni se puede revocar desde aquí. Migra sus emisores a claves propias.",
+    filters: {
+      label: "Filtrar claves",
+      search: "Buscar",
+      searchPlaceholder: "Nombre, prefijo, espacio, aplicación o creador",
+      view: "Vista",
+      views: { attention: "Con avisos", active: "Activas", inactive: "Inactivas", all: "Todas" },
+      scope: "Permiso",
+      allScopes: "Todos los permisos",
+      workspace: "Espacio",
+      allWorkspaces: "Todos los espacios",
+      clear: "Quitar filtros",
+    },
+    columns: {
+      key: "Clave",
+      workspace: "Espacio",
+      access: "Acceso",
+      applications: "Aplicaciones",
+      lastUsed: "Último uso",
+      status: "Estado",
+      risks: "Avisos",
+    },
+    createdBy: (email: string) => `Creada por ${email}`,
+    createdBySystem: "Creador desconocido",
+    openWorkspace: (name: string) => `Abrir las API keys de ${name}`,
+    noRisks: "Nada que revisar",
+    empty: "Todavía no hay claves",
+    emptyHint: "Aparecerán aquí en cuanto el dueño de un espacio cree la primera.",
+    noMatches: "Ninguna clave coincide con los filtros",
+    shown: (shown: number, total: number) => `${shown} de ${total}`,
+    revoke: "Revocar",
+    confirmRevoke: "Sí, revocar",
+    revoked: (name: string) => `Clave revocada: ${name}`,
+    revokeNote:
+      "Revocar es inmediato y no se puede deshacer: el emisor que la use deja de funcionar en la siguiente petición. Si la clave se ha filtrado, revócala primero y crea la sustituta después.",
+    risks: {
+      "read-unrestricted": {
+        label: "Lee todo el espacio",
+        help: "Tiene permiso de lectura y ninguna aplicación asignada: ve todos los logs de su espacio. Acótala a las aplicaciones que necesite.",
+      },
+      stale: {
+        label: "Abandonada",
+        help: (days: number) => `Se usó, pero no en los últimos ${days} días. Si su emisor ya no existe, revócala.`,
+      },
+      "never-used": {
+        label: "Nunca usada",
+        help: (days: number) => `Lleva más de ${days} días creada y nunca se ha usado. Probablemente sobra.`,
+      },
+      "expiring-soon": {
+        label: "Caduca pronto",
+        help: (days: number) => `Caduca en menos de ${days} días. Crea la sustituta antes o su emisor se cortará.`,
+      },
+      "ingest-unrestricted": {
+        label: "Escribe como cualquiera",
+        help: "Puede enviar logs en nombre de cualquier aplicación del espacio. Acótala a la suya.",
+      },
+      "read-no-expiry": {
+        label: "Lectura sin caducidad",
+        help: "Una clave de lectura sin fecha de caducidad. Si se reparte (a un asistente, a un equipo), ponle una.",
+      },
+    },
+    legendTitle: "Qué significa cada aviso",
   },
 
   snapshots: {
@@ -914,6 +999,15 @@ export const es = {
       "Cómo se comporta MCLog para todas las cuentas y espacios. Solo la cuenta root ve esta página. Los cambios se aplican al momento, sin reiniciar.",
     rootOnly: "Esta sección solo la ve la cuenta root del servicio.",
     loadError: "No pudimos cargar la configuración",
+    mcpUsage: {
+      used: (count: number, days: number) =>
+        count === 1
+          ? `1 clave ha usado el MCP en los últimos ${days} días.`
+          : `${count} claves han usado el MCP en los últimos ${days} días.`,
+      unused: (days: number) => `Ninguna clave ha usado el MCP en los últimos ${days} días.`,
+      turningOff: "Al guardar, esos asistentes dejarán de poder consultar los logs.",
+      link: "Ver en el inventario",
+    },
     categories: {
       workspaces: { title: "Espacios e invitaciones", description: "Cuánta gente cabe en un espacio, quién puede crearlos y cómo se invita." },
       logs: { title: "Logs", description: "Retención, exportación, ingesta por lotes, conexiones en vivo y snapshots." },

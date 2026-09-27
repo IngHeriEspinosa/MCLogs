@@ -15,7 +15,7 @@ import { useWorkspace } from "@/hooks/useWorkspaces";
 import { usePublicSettings } from "@/hooks/useSettings";
 
 /** Paginas que no dependen de un espacio: la cuenta propia y la administracion de la plataforma. */
-const WORKSPACE_FREE = ["/settings/password", "/settings/users", "/settings/platform"];
+const WORKSPACE_FREE = ["/settings/password", "/settings/users", "/settings/key-inventory", "/settings/platform"];
 
 /** Lo que ve quien aun no pertenece a ningun espacio, en lugar de vistas vacias. */
 const NoWorkspace: React.FC = () => {

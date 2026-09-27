@@ -209,8 +209,15 @@ const KeysTable: React.FC = () => {
                       <td className="border-b border-line px-4 py-3 font-mono text-xs text-ink-2">
                         {key.applications.length > 0 ? key.applications.join(", ") : t.apiKeys.allApps}
                       </td>
-                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-xs text-ink-2" title={key.lastUsedAt ? fmt.dateTime(key.lastUsedAt) : undefined}>
-                        {key.lastUsedAt ? fmt.relative(key.lastUsedAt) : t.apiKeys.never}
+                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-xs text-ink-2">
+                        <span title={key.lastUsedAt ? fmt.dateTime(key.lastUsedAt) : undefined}>
+                          {key.lastUsedAt ? fmt.relative(key.lastUsedAt) : t.apiKeys.never}
+                        </span>
+                        {key.lastMcpUsedAt && (
+                          <span className="mt-0.5 block text-ink-3" title={fmt.dateTime(key.lastMcpUsedAt)}>
+                            {t.apiKeys.mcpUsed(fmt.relative(key.lastMcpUsedAt))}
+                          </span>
+                        )}
                       </td>
                       <td className="border-b border-line px-4 py-3">
                         <Tag tone={key.revokedAt ? "danger" : expired ? "warning" : "success"}>

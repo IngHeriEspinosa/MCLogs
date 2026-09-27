@@ -32,6 +32,15 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
 
   Si la cuenta root ha apagado el MCP, no ofrece la conexión y lo explica; a la root le da un acceso directo para activarlo.
 
+- **Inventario de claves de la plataforma** (**Plataforma → Inventario de claves**, admin de plataforma):
+  - todas las API keys de todos los espacios, con su espacio, su creador, su estado, su último uso general y por IA, y sus avisos (`read-unrestricted`, `stale`, `never-used`, `expiring-soon`, `ingest-unrestricted`, `read-no-expiry`);
+  - resumen, filtros por vista, permiso, espacio y búsqueda, y orden por gravedad;
+  - revocar cualquier clave, y abrir el espacio de cada una.
+
+  API: `GET /api/admin/keys` y `DELETE /api/admin/keys/:id`. La clave heredada `API_KEY` no aparece, pero una nota indica si está activa.
+- **API — Último uso por MCP:** columna `lastMcpUsedAt` en `ApiKey` (migración `0016_api_key_last_mcp_use`), con el mismo throttling de 5 minutos que `lastUsedAt`. La tabla de claves del espacio la muestra como "IA (MCP)" bajo **Último uso**.
+- **Dashboard — Configuración:** bajo **Acceso para IA (MCP)**, cuántas claves lo han usado en los últimos 30 días. Si se apaga sin guardar, avisa de que esos asistentes se cortarán.
+
 ### Cambiado
 - **MCP:** `tools/list` devuelve 9 herramientas (se añade `get_integration_skill`) y el servidor declara capacidades de recursos y prompts.
 

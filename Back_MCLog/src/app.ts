@@ -15,6 +15,7 @@ import workspaceRoutes from "./routes/workspaceRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
 import { snapshotRouter, snapshotViewRouter } from "./routes/snapshotRoutes";
 import skillRoutes from "./routes/skillRoutes";
+import adminKeyRoutes from "./routes/adminKeyRoutes";
 import mcpRouter from "./mcp/router";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
@@ -87,6 +88,9 @@ export const createApp = () => {
 
   // API keys del espacio activo: solo su dueño.
   app.use("/api/keys", apiKeyRoutes);
+
+  // Inventario de las claves de todos los espacios: solo el admin de plataforma.
+  app.use("/api/admin/keys", adminKeyRoutes);
 
   // Alertas del espacio activo (canales, reglas e historial): solo su dueño.
   app.use("/api/alerts", alertRoutes);

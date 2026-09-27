@@ -28,6 +28,7 @@ src/
     lab/page.tsx               Lab: escenarios de prueba y compositor de logs (dueño del espacio)
     settings/api-keys/page.tsx Claves con permisos (dueño del espacio)
     settings/users/page.tsx    Cuentas de la plataforma (admin)
+    settings/key-inventory/page.tsx  Inventario de las claves de todos los espacios, con avisos (admin)
     settings/alerts/page.tsx   Canales, reglas e historial de avisos (dueño del espacio)
     settings/password/page.tsx Mi cuenta: sesión, preferencias, contraseña, 2FA y zona de peligro
     (auth)/login/page.tsx      Alias de "/" para enlaces antiguos: monta el mismo SignIn

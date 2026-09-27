@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import type { ApiKey } from '@prisma/client';
+import { config } from '../config/env';
 import { prisma } from '../config/prisma';
 
 export const API_KEY_SCOPES = ['ingest', 'read', 'metrics'] as const;
@@ -24,8 +25,21 @@ export type PublicApiKey = Omit<ApiKey, 'keyHash'>;
 const KEY_NAMESPACE = 'mclog';
 const LAST_USED_THROTTLE_MS = 5 * 60 * 1000;
 
-/** Marcas de tiempo del ultimo `lastUsedAt` escrito, por id de clave. */
-const lastUsedWrites = new Map<number, number>();
+/** Columnas de "ultimo uso" que se actualizan con throttling. */
+type UsageField = 'lastUsedAt' | 'lastMcpUsedAt';
+
+/** Marcas de tiempo de la ultima escritura de cada campo, por id de clave. */
+const usageWrites: Record<UsageField, Map<number, number>> = {
+    lastUsedAt: new Map(),
+    lastMcpUsedAt: new Map()
+};
+
+/**
+ * La clave heredada de la variable API_KEY esta activa si tiene un valor real.
+ * No vive en base de datos, asi que no tiene fila, ni ultimo uso, ni se revoca
+ * desde el panel.
+ */
+export const isLegacyApiKeyEnabled = () => Boolean(config.apiKey) && config.apiKey !== 'change-me';
 
 const sha256 = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 
@@ -97,31 +111,52 @@ export const listApiKeys = async (workspaceId: number): Promise<PublicApiKey[]> 
     return keys.map(toPublicApiKey);
 };
 
-/**
- * Revoca una clave del espacio. Idempotente: revocarla de nuevo no cambia la
- * fecha original. Una clave de otro espacio se trata como inexistente.
- */
-export const revokeApiKey = async (id: number, workspaceId: number): Promise<PublicApiKey | null> => {
-    const existing = await prisma.apiKey.findFirst({ where: { id, workspaceId } });
-    if (!existing) return null;
+/** Idempotente: revocar de nuevo no cambia la fecha original. */
+const revokeExisting = async (existing: ApiKey): Promise<PublicApiKey> => {
     if (existing.revokedAt) return toPublicApiKey(existing);
-    const updated = await prisma.apiKey.update({ where: { id }, data: { revokedAt: new Date() } });
+    const updated = await prisma.apiKey.update({ where: { id: existing.id }, data: { revokedAt: new Date() } });
     return toPublicApiKey(updated);
 };
 
 /**
- * Registra el uso de una clave como mucho una vez cada 5 minutos: `lastUsedAt`
- * es informativo y no justifica un UPDATE por cada log ingerido.
+ * Revoca una clave del espacio. Una clave de otro espacio se trata como
+ * inexistente.
  */
-const touchLastUsed = (id: number) => {
-    const now = Date.now();
-    const previous = lastUsedWrites.get(id) ?? 0;
-    if (now - previous < LAST_USED_THROTTLE_MS) return;
-    lastUsedWrites.set(id, now);
-    prisma.apiKey
-        .update({ where: { id }, data: { lastUsedAt: new Date(now) } })
-        .catch(() => lastUsedWrites.delete(id));
+export const revokeApiKey = async (id: number, workspaceId: number): Promise<PublicApiKey | null> => {
+    const existing = await prisma.apiKey.findFirst({ where: { id, workspaceId } });
+    return existing ? revokeExisting(existing) : null;
 };
+
+/**
+ * Revoca cualquier clave de la plataforma, sea cual sea su espacio: lo usa el
+ * admin de plataforma desde el inventario. Las claves de un espacio borrado ya
+ * se revocaron con el y se tratan como inexistentes.
+ */
+export const revokeAnyApiKey = async (id: number): Promise<PublicApiKey | null> => {
+    const existing = await prisma.apiKey.findFirst({ where: { id, workspace: { deletedAt: null } } });
+    return existing ? revokeExisting(existing) : null;
+};
+
+/**
+ * Registra el uso de una clave como mucho una vez cada 5 minutos por campo:
+ * el ultimo uso es informativo y no justifica un UPDATE por cada peticion.
+ */
+const touchUsage = (id: number, field: UsageField) => {
+    const writes = usageWrites[field];
+    const now = Date.now();
+    const previous = writes.get(id) ?? 0;
+    if (now - previous < LAST_USED_THROTTLE_MS) return;
+    writes.set(id, now);
+    prisma.apiKey
+        .update({ where: { id }, data: { [field]: new Date(now) } })
+        .catch(() => writes.delete(id));
+};
+
+/**
+ * Anota que la clave se uso contra el servidor MCP. `lastUsedAt` ya lo anota
+ * la verificacion; este campo aparte distingue a un asistente de IA.
+ */
+export const touchLastMcpUsed = (id: number) => touchUsage(id, 'lastMcpUsedAt');
 
 /**
  * Valida una clave en claro. Devuelve su identidad, o null si no existe,
@@ -137,7 +172,7 @@ export const verifyApiKey = async (raw: string): Promise<ApiKeyPrincipal | null>
     if (apiKey.revokedAt) return null;
     if (apiKey.expiresAt && apiKey.expiresAt.getTime() <= Date.now()) return null;
 
-    touchLastUsed(apiKey.id);
+    touchUsage(apiKey.id, 'lastUsedAt');
 
     return {
         id: apiKey.id,
@@ -149,5 +184,5 @@ export const verifyApiKey = async (raw: string): Promise<ApiKeyPrincipal | null>
     };
 };
 
-/** Solo para tests: limpia el estado en memoria del throttling de `lastUsedAt`. */
-export const resetApiKeyCaches = () => lastUsedWrites.clear();
+/** Solo para tests: limpia el estado en memoria del throttling del ultimo uso. */
+export const resetApiKeyCaches = () => Object.values(usageWrites).forEach((writes) => writes.clear());

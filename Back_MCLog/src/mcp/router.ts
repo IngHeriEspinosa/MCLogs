@@ -7,6 +7,7 @@ import { queryLimiter } from "../middlewares/rateLimiters";
 import { requireWorkspace, workspaceIdOf } from "../middlewares/workspaceContext";
 import { buildMcpServer } from "./server";
 import { getSetting } from "../services/settingsService";
+import { touchLastMcpUsed } from "../services/apiKeyService";
 
 /**
  * Endpoint MCP sobre HTTP (transporte Streamable HTTP).
@@ -39,8 +40,12 @@ const jsonRpcError = (res: Response, status: number, code: number, message: stri
 };
 
 router.post("/", queryLimiter, requireAuthOrReadKey, requireWorkspace, async (req: Request, res: Response) => {
-  const applications = (req as AuthenticatedRequest).apiKey?.applications;
-  const server = buildMcpServer({ workspaceId: workspaceIdOf(req), applications });
+  const apiKey = (req as AuthenticatedRequest).apiKey;
+  // Para el inventario de claves: distingue a un asistente de IA de un script
+  // que usa la misma clave contra la API REST. Con JWT no hay clave que anotar.
+  if (apiKey && !apiKey.legacy) touchLastMcpUsed(apiKey.id);
+
+  const server = buildMcpServer({ workspaceId: workspaceIdOf(req), applications: apiKey?.applications });
 
   const transport = new StreamableHTTPServerTransport({
     // Sin generador de sesion: modo sin estado, una peticion y fuera.

@@ -79,7 +79,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.nav.platform,
       visible: isPlatformAdmin || isRoot,
       items: [
-        ...(isPlatformAdmin ? [{ href: "/settings/users", label: t.nav.accounts, icon: "shield" as const }] : []),
+        ...(isPlatformAdmin
+          ? [
+              { href: "/settings/users", label: t.nav.accounts, icon: "shield" as const },
+              { href: "/settings/key-inventory", label: t.nav.keyInventory, icon: "key" as const },
+            ]
+          : []),
         ...(isRoot ? [{ href: "/settings/platform", label: t.nav.configuration, icon: "sliders" as const }] : []),
       ],
     },

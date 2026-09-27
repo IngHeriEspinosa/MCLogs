@@ -67,7 +67,9 @@ model User         { id, email @unique, passwordHash, role @default("user"), cre
                      refreshTokens[], apiKeys[], memberships[] }
 model RefreshToken { id, token @unique, userId → User (onDelete: Cascade), expiresAt, createdAt, revokedAt? }
 model ApiKey       { id, workspaceId → Workspace, name, prefix @unique, keyHash @unique, scopes[], applications[],
-                     createdById? → User (onDelete: SetNull), createdAt, expiresAt?, lastUsedAt?, revokedAt? }
+                     createdById? → User (onDelete: SetNull), createdAt, expiresAt?, lastUsedAt?,
+                     lastMcpUsedAt?,                               // último uso contra /mcp (asistentes de IA)
+                     revokedAt? }
 
 model AlertChannel { id, workspaceId → Workspace, name, type (webhook|email|telegram), config Json, enabled, createdAt, rules[] }
 model AlertRule    { id, workspaceId → Workspace, name, type (threshold|new_error_group), enabled, application?, service?,
@@ -317,6 +319,8 @@ abiertas al stream en vivo). La ruta se etiqueta por su patrón
 | Endpoint | Auth | Qué hace |
 |---|---|---|
 | `GET/POST /api/keys`, `DELETE /api/keys/:id` | JWT **dueño** del espacio | Listar, crear y revocar las API keys del espacio activo. El secreto se devuelve una única vez al crear |
+| `GET /api/admin/keys` | JWT **admin de plataforma** | Inventario de las claves de todos los espacios vigentes (nunca el hash): espacio, creador, `status` (`active`, `revoked`, `expired`), `lastUsedAt`, `lastMcpUsedAt` y `risks`. Añade un resumen (`summary`), los umbrales (`thresholds`) y si la clave heredada `API_KEY` está activa (`legacyKey.enabled`). Detalle en [FEATURES § 13](FEATURES.md#13-api-keys-con-permisos) |
+| `DELETE /api/admin/keys/:id` | JWT **admin de plataforma** | Revoca cualquier clave, de cualquier espacio. Idempotente; `404` si no existe o su espacio está borrado |
 | `/api/alerts/channels`, `/api/alerts/rules`, `/api/alerts/events` | JWT **dueño** del espacio | Canales, reglas e historial de avisos del espacio. `POST /channels/:id/test` envía un aviso de prueba. Una regla solo puede enlazar canales de su espacio (`400`) |
 | `GET/POST /api/workspaces` | JWT | Mis espacios con mi rol y nº de miembros; crear uno (quedo como dueño) |
 | `PATCH/DELETE /api/workspaces/:id` | JWT **dueño** | Renombrar; borrar exige `confirmName` igual al nombre (borrado lógico: claves revocadas, reglas desactivadas, logs purgados después) |
@@ -405,7 +409,7 @@ El **margen de 30 segundos** existe porque, al abrir el dashboard con el access 
 | `helmet` | Defaults |
 | CORS | Lista blanca `CORS_ORIGINS`, `credentials: true`. Sin `Origin` → permitido (curl, health checks) |
 | Body limit | `BODY_LIMIT` (3 MB) |
-| Rate limit consulta | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` (600 / 15 min). Aplica a `/auth/*`, `/api/logs*` (salvo el stream), `/api/keys`, `/api/alerts`, `/api/snapshots`, `/api/share`, `/api/workspaces`, `/api/settings` y `/mcp`. Cuenta por clave si la hay, si no por IP |
+| Rate limit consulta | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` (600 / 15 min). Aplica a `/auth/*`, `/api/logs*` (salvo el stream), `/api/keys`, `/api/admin/keys`, `/api/skill`, `/api/alerts`, `/api/snapshots`, `/api/share`, `/api/workspaces`, `/api/settings` y `/mcp`. Cuenta por clave si la hay, si no por IP |
 | Rate limit ingesta | `INGEST_RATE_LIMIT_MAX` / `..._WINDOW_MS` (2000 / 60 s), independiente del anterior. Cuenta por clave: una integración ruidosa no gasta la cuota de las demás |
 | Rate limit login | `LOGIN_RATE_LIMIT_MAX` / `..._WINDOW_MS` (10 / 15 min), por IP (IPv6 por `/64`). Solo cuenta los **fallos**. Cubre `POST /auth/login`, `/auth/login/2fa`, `/auth/password/reset`, `DELETE /auth/me` y `/auth/me/2fa/enable` y `/disable` |
 | Rate limit "olvidé mi contraseña" | `PASSWORD_RESET_RATE_LIMIT_MAX` / `..._WINDOW_MS` (5 / 15 min), por IP. Cuenta **todas** las peticiones a `POST /auth/password/forgot`, no solo las fallidas, porque la respuesta es siempre la misma |

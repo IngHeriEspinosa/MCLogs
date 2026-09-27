@@ -460,6 +460,8 @@ En **Espacio → API keys**. Cada clave lleva permisos, y conviene dar los justo
 
 **Rotar una clave no corta el servicio:** creas la nueva, actualizas al emisor y revocas la vieja. Durante ese rato las dos funcionan.
 
+**Inventario de toda la plataforma.** El admin de plataforma ve las claves de todos los espacios en **Plataforma → Inventario de claves**. Cada clave aparece con su espacio, su creador, su último uso (también por IA) y sus avisos: lee todo el espacio, abandonada, nunca usada, caduca pronto… Desde ahí puede revocar cualquiera. Paso a paso en [Administrar espacios, usuarios y claves](guias/administrar-usuarios-y-claves.md#revisar-las-claves-de-toda-la-plataforma-admin-de-plataforma).
+
 > La clave única de la variable `API_KEY` sigue funcionando por compatibilidad con emisores antiguos, con permisos de ingesta y métricas. Está deprecada: no se puede rotar sin cortar ni acotar por aplicación. Migra a claves del dashboard cuando puedas.
 
 ## C.5 Alertas

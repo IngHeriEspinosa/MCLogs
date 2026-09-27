@@ -38,6 +38,7 @@ src/
     errorHandler.ts     Handler central de errores
     compressJson.ts     Comprime con brotli o gzip las respuestas de res.json de más de 1 KB (sin dependencias: zlib)
   routes/               authRoutes (/auth/*), logRoutes (/api/*), apiKeyRoutes (/api/keys),
+                        adminKeyRoutes (/api/admin/keys), skillRoutes (/api/skill),
                         alertRoutes (/api/alerts), workspaceRoutes (/api/workspaces),
                         settingsRoutes (/api/settings), snapshotRoutes (/api/snapshots y /api/share/:token)
   controllers/          logController (parseo HTTP, formatos json/csv/ndjson),
@@ -138,6 +139,9 @@ El `mfaToken` es un JWT de **5 minutos**, firmado con un secreto derivado (`${JW
 | DELETE | `/api/logs?before=ISO[&application=X]` | JWT dueño del espacio | Purga logs anteriores a la fecha → `{ deleted }` |
 | GET · POST | `/api/keys` | JWT dueño del espacio | Lista y crea API keys con scopes y alcance por aplicación. La clave se muestra una sola vez |
 | DELETE | `/api/keys/:id` | JWT dueño del espacio | Revoca una API key |
+| GET | `/api/admin/keys` | JWT admin de plataforma | Inventario de las claves de todos los espacios, con estado, último uso (general y por MCP), avisos, resumen y umbrales |
+| DELETE | `/api/admin/keys/:id` | JWT admin de plataforma | Revoca cualquier API key (idempotente) |
+| GET | `/api/skill` | — | Skill de IA de MCLog en Markdown, como descarga |
 | GET · POST | `/api/alerts/channels` | JWT dueño del espacio | Canales de aviso (webhook, correo, Telegram) |
 | PATCH · DELETE | `/api/alerts/channels/:id` | JWT dueño del espacio | Edita o elimina un canal |
 | POST | `/api/alerts/channels/:id/test` | JWT dueño del espacio | Envía un aviso de prueba |
@@ -273,7 +277,7 @@ Ver `.env.example` comentado. Resumen de las no obvias:
 | Variable | Default | Notas |
 |---|---|---|
 | `LOG_LEVEL` | `info` | Las peticiones normales van a `http` y no salen con `info`; las fallidas, lentas o 5xx sí. `http` las muestra todas; `debug` añade bodies redactados |
-| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | 15 min / 600 | Consultas, `/auth/*`, `/api/keys`, `/api/alerts`, `/api/snapshots`, `/api/share` y `/mcp` (no el stream) |
+| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | 15 min / 600 | Consultas, `/auth/*`, `/api/keys`, `/api/admin/keys`, `/api/skill`, `/api/alerts`, `/api/snapshots`, `/api/share` y `/mcp` (no el stream) |
 | `INGEST_RATE_LIMIT_WINDOW_MS` / `INGEST_RATE_LIMIT_MAX` | 60 s / 2000 | Solo ingesta; se cuenta por clave |
 | `LOGIN_RATE_LIMIT_WINDOW_MS` / `LOGIN_RATE_LIMIT_MAX` | 15 min / 10 | Solo intentos **fallidos**, por IP, en login, `/login/2fa`, `DELETE /auth/me` y alta/baja del 2FA |
 | `MAX_BATCH_SIZE` | 500 | Tope de logs por petición batch |

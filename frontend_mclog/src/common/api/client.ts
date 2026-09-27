@@ -8,11 +8,11 @@ const client = axios.create({
 });
 
 // Datos de un espacio: logs, claves, alertas... La gestion de espacios lleva
-// el id en la ruta y la configuracion es de toda la plataforma: ninguna de las
-// dos necesita cabecera ni esperar a saber el espacio.
+// el id en la ruta, y la configuracion y la administracion (/api/admin) son de
+// toda la plataforma: ninguna necesita cabecera ni esperar a saber el espacio.
 // /api/share (los enlaces de los snapshots) tampoco: el enlace ya dice de que
 // espacio es, y quien lo abre puede no tener ninguno.
-const WORKSPACE_SCOPED = /^\/(api\/(?!(workspaces|settings|share)(\/|$))|mcp(\/|$))/;
+const WORKSPACE_SCOPED = /^\/(api\/(?!(workspaces|settings|share|admin)(\/|$))|mcp(\/|$))/;
 
 // Las peticiones de datos esperan a saber el espacio activo y lo mandan en
 // X-Workspace-Id. Asi el panel nunca pide datos de un espacio equivocado.

@@ -1,5 +1,6 @@
 "use client";
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import { Alert } from "@/components/atoms/Alert";
 import { Button } from "@/components/atoms/Button";
 import { EmptyState } from "@/components/atoms/EmptyState";
@@ -14,6 +15,7 @@ import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import type { Dictionary } from "@/common/i18n/dictionaries";
 import { useMe } from "@/hooks/useAuth";
+import { useKeyInventory } from "@/hooks/useKeyInventory";
 import {
   Setting,
   SettingCategory,
@@ -52,11 +54,44 @@ const formatValue = (setting: Setting, value: number | boolean, t: Dictionary) =
   return unit ? `${value} ${unit}` : String(value);
 };
 
+/**
+ * Quien usa el MCP ahora mismo, bajo su interruptor: antes de apagarlo, la
+ * cuenta root sabe a cuantos asistentes va a cortar. La root es admin de
+ * plataforma, asi que puede leer el inventario de claves.
+ */
+const McpUsageNote: React.FC<{ turningOff: boolean }> = ({ turningOff }) => {
+  const { t } = useI18n();
+  const inventory = useKeyInventory(true);
+  if (!inventory.data) return null;
+
+  const count = inventory.data.summary.mcpActive;
+  const days = inventory.data.thresholds.mcpActiveDays;
+  const warn = turningOff && count > 0;
+  const copy = t.settings.mcpUsage;
+
+  return (
+    <p className={`mt-1.5 text-xs ${warn ? "font-medium text-warning" : "text-ink-3"}`} role={warn ? "status" : undefined}>
+      {count > 0 ? copy.used(count, days) : copy.unused(days)}
+      {warn && <> {copy.turningOff}</>}
+      {count > 0 && (
+        <>
+          {" "}
+          <Link href="/settings/key-inventory" className="font-medium text-brand-ink underline-offset-2 hover:underline">
+            {copy.link}
+          </Link>
+        </>
+      )}
+    </p>
+  );
+};
+
 const SettingRow: React.FC<{
   setting: Setting;
   draft: string | boolean | undefined;
   onChange: (value: string | boolean) => void;
-}> = ({ setting, draft, onChange }) => {
+  /** Contexto extra bajo la descripcion, propio de una clave concreta. */
+  note?: React.ReactNode;
+}> = ({ setting, draft, onChange, note }) => {
   const { t, fmt } = useI18n();
   const notify = useToast();
   const reset = useResetSetting();
@@ -81,6 +116,7 @@ const SettingRow: React.FC<{
             <> · {t.settings.updatedBy(setting.updatedBy, fmt.relative(setting.updatedAt))}</>
           )}
         </p>
+        {note}
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
@@ -261,6 +297,11 @@ export default function PlatformSettingsPage() {
                       setting={setting}
                       draft={draft[setting.key]}
                       onChange={(value) => change(setting, value)}
+                      note={
+                        setting.key === "mcpEnabled" ? (
+                          <McpUsageNote turningOff={setting.value === true && draft[setting.key] === false} />
+                        ) : undefined
+                      }
                     />
                   ))}
                 </ul>

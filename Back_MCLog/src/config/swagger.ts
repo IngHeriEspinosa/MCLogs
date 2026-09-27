@@ -290,6 +290,34 @@ export const swaggerSpec = swaggerJSDoc({
           responses: { 200: { description: "Revocada" }, 404: { description: "No existe" } },
         },
       },
+      "/api/admin/keys": {
+        get: {
+          tags: ["administración"],
+          summary: "Inventario de las API keys de todos los espacios (admin de plataforma)",
+          description:
+            "Todas las claves de los espacios vigentes, nunca con su secreto. Cada una lleva su espacio, quién la creó, `status` (active, revoked, expired), `lastUsedAt`, `lastMcpUsedAt` y `risks`: motivos de revisión de una clave activa (read-unrestricted, stale, never-used, expiring-soon, ingest-unrestricted, read-no-expiry). Incluye un resumen, los umbrales aplicados y si la clave heredada API_KEY está activa (no aparece en la lista: no vive en base de datos).",
+          security: [{ BearerAuth: [] }],
+          responses: {
+            200: { description: "Inventario, resumen y umbrales" },
+            401: { description: "Sin sesión" },
+            403: { description: "Requiere rol admin" },
+          },
+        },
+      },
+      "/api/admin/keys/{id}": {
+        delete: {
+          tags: ["administración"],
+          summary: "Revocar cualquier API key de la plataforma (inmediato e irreversible)",
+          description: "Idempotente. Una clave de un espacio borrado se trata como inexistente.",
+          security: [{ BearerAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
+          responses: {
+            200: { description: "Revocada" },
+            403: { description: "Requiere rol admin" },
+            404: { description: "No existe" },
+          },
+        },
+      },
       "/api/snapshots": {
         get: {
           tags: ["snapshots"],
