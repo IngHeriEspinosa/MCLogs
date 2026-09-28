@@ -1,9 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildReport, occurrencesUrl, trendOf } from "@/common/reports/build";
+import { buildGroupBrief, buildLogBrief, buildReport, buildTraceBrief, occurrencesUrl, trendOf } from "@/common/reports/build";
 import type { ReportData } from "@/common/reports/collect";
 import { DEFAULT_SECTIONS, REPORT_SECTIONS, type ReportOptions } from "@/common/reports/options";
-import type { ErrorGroup } from "@/hooks/useErrors";
+import type { LogEntry } from "@/hooks/useAuth";
+import type { ErrorGroup, FailureOccurrences, FailureOccurrencesResponse } from "@/hooks/useErrors";
 
 const HOUR = 3_600_000;
 const FROM = "2026-09-22T00:00:00.000Z";
@@ -180,5 +181,119 @@ describe("buildReport", () => {
     const open = content.indexOf("<mclog_data>");
     assert.ok(open > 0 && content.indexOf("</mclog_data>") > open);
     assert.ok(content.indexOf("### comparison") > open);
+  });
+});
+
+const logEntry = (id: number, extra: Partial<LogEntry> = {}): LogEntry => ({
+  id,
+  timestamp: "2026-09-28T06:59:33.981Z",
+  application: "mcsupport-production",
+  service: "next-server",
+  level: "error",
+  environment: "production",
+  message: `message ${id}`,
+  ...extra,
+});
+
+const noExtras = { context: [], occurrences: null };
+
+const occurrences = (environments: FailureOccurrences["environments"]): FailureOccurrencesResponse => ({
+  retentionMonths: 3,
+  data: {
+    fingerprint: "f1",
+    total: environments.reduce((sum, row) => sum + row.total, 0),
+    last24h: environments.reduce((sum, row) => sum + row.last24h, 0),
+    last7d: environments.reduce((sum, row) => sum + row.last7d, 0),
+    firstSeen: FROM,
+    lastSeen: TO,
+    environments,
+  },
+});
+
+const envRow = (environment: LogEntry["environment"], total: number) => ({
+  environment,
+  total,
+  last24h: 1,
+  last7d: 2,
+  firstSeen: FROM,
+  lastSeen: TO,
+});
+
+/** Los datos del brief: lo que va entre <mclog_data> y </mclog_data>. */
+const briefData = (brief: string) => brief.slice(brief.indexOf("<mclog_data>"), brief.indexOf("</mclog_data>"));
+
+describe("briefs rápidos", () => {
+  it("el brief de un log no repite el propio log en su contexto", () => {
+    const target = logEntry(10);
+    const brief = buildLogBrief(target, { context: [logEntry(9, { level: "warn", errorName: "Timeout" }), target], occurrences: null }, "es");
+    const csv = briefData(brief).split("### Contexto")[1];
+    assert.match(csv, /^-?\d+,9,warn,Timeout,message 9$/m);
+    assert.ok(!/^\d+,10,/m.test(csv));
+  });
+
+  it("distingue contexto vacío de contexto sin cargar", () => {
+    const target = logEntry(10);
+    assert.ok(buildLogBrief(target, { context: [target], occurrences: null }, "es").includes("No hay otros registros"));
+    const missing = buildLogBrief(target, { context: null, occurrences: null }, "es");
+    assert.ok(missing.includes("`get_log_context` (id 10)"));
+  });
+
+  it("avisa cuántas líneas del stack se recortaron", () => {
+    const stack = Array.from({ length: 70 }, (_, index) => `    at f${index} (src/app.ts:${index}:1)`).join("\n");
+    const payload = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(buildLogBrief(logEntry(1, { errorStack: stack }), noExtras, "es"))![1]);
+    assert.equal(payload.stack.length, 60);
+    assert.equal(payload.stack_lines_omitted, 10);
+  });
+
+  it("solo incluye las reglas que aplican a sus datos", () => {
+    const plain = buildLogBrief(logEntry(1), noExtras, "es");
+    assert.ok(!plain.includes("first_seen_in_window"));
+    assert.ok(!plain.includes("minificado"));
+    assert.ok(buildLogBrief(logEntry(1, { errorStack: "Error\n    at N (chunk.js:1:1)" }), noExtras, "es").includes("minificado"));
+  });
+
+  it("incluye cuántas veces ha ocurrido el fallo y lo acota a la retención", () => {
+    const failing = logEntry(1, { fingerprint: "f1" });
+    const brief = buildLogBrief(failing, { context: [], occurrences: occurrences([envRow("production", 40)]) }, "es");
+    assert.match(brief, /^last_24h: 1$/m);
+    assert.match(brief, /^total_retained: 40$/m);
+    assert.match(brief, /^retention_months: 3$/m);
+    assert.match(brief, /^environments: \["production"\]$/m);
+    assert.ok(brief.includes("`total_retained` y `first_seen` solo abarcan"));
+    // Con un solo entorno, el desglose sobra.
+    assert.ok(!brief.includes("Por entorno"));
+  });
+
+  it("desglosa las ocurrencias por entorno cuando hay varios", () => {
+    const failing = logEntry(1, { fingerprint: "f1" });
+    const data = occurrences([envRow("production", 40), envRow("development", 3)]);
+    const brief = buildLogBrief(failing, { context: [], occurrences: data }, "es");
+    assert.match(brief, /^total_retained: 43$/m);
+    assert.match(brief, new RegExp(`^development,1,2,3,${FROM},${TO}$`, "m"));
+  });
+
+  it("dice si las ocurrencias no estaban cargadas, y las omite si el log no tiene huella", () => {
+    const pending = buildLogBrief(logEntry(1, { fingerprint: "f1" }), noExtras, "es");
+    assert.ok(pending.includes("pídelas con `search_logs`"));
+    assert.ok(!pending.includes("total_retained` y"));
+    assert.ok(!buildLogBrief(logEntry(1), noExtras, "es").includes("Ocurrencias del fallo"));
+  });
+
+  it("el brief de un fallo agrupado lleva su ventana y no duplica el mensaje", () => {
+    const sample = logEntry(12, { message: "failed for ana@example.com" });
+    const brief = buildGroupBrief(group("a", 12), sample, { from: FROM, to: TO }, "es");
+    assert.ok(brief.startsWith("# Fallo agrupado"));
+    assert.ok(brief.includes(`"window_from": "${FROM}"`));
+    assert.ok(brief.includes("first_seen_in_window"));
+    assert.ok(!brief.includes("sample_message"));
+    assert.ok(!brief.includes("ana@example.com"));
+    assert.ok(buildGroupBrief(group("a", 12), null, null, "es").includes('"sample_message"'));
+  });
+
+  it("el brief de una traza dice cuántos errores muestra de cuántos", () => {
+    const logs = Array.from({ length: 12 }, (_, index) => logEntry(index + 1, { errorName: "TypeError" }));
+    const brief = buildTraceBrief("trace-1", logs, "es");
+    assert.ok(brief.includes("### Errores de la traza (10/12)"));
+    assert.match(brief, /^0,1,error,mcsupport-production,next-server,,TypeError,message 1$/m);
   });
 });

@@ -217,6 +217,31 @@ describe("Restriccion por aplicacion", () => {
     const detalle = await request(app).get(`/api/logs/${ajeno.body.id}`).set("x-api-key", key);
     expect(detalle.status).toBe(404);
   });
+
+  it("las ocurrencias de un fallo solo cuentan las aplicaciones permitidas", async () => {
+    // Una huella propia del emisor puede repetirse en varias aplicaciones.
+    const send = (application: string) =>
+      request(app)
+        .post("/api/log")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ ...sampleLog(application), fingerprint: "huella-compartida" });
+    const propio = await send("facturacion");
+    await send("ventas");
+    const ajeno = await send("ventas");
+
+    const { key } = await createKeyViaApi({
+      name: "ocurrencias facturacion",
+      scopes: ["read"],
+      applications: ["facturacion"],
+    });
+
+    const res = await request(app).get(`/api/logs/${propio.body.id}/occurrences`).set("x-api-key", key);
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(1);
+
+    const fuera = await request(app).get(`/api/logs/${ajeno.body.id}/occurrences`).set("x-api-key", key);
+    expect(fuera.status).toBe(404);
+  });
 });
 
 describe("Ciclo de vida de las claves", () => {

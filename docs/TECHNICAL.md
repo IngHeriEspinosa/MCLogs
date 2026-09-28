@@ -221,7 +221,29 @@ Para bajar a las ocurrencias: `GET /api/logs?fingerprint=<huella>`.
 Todos los logs de una traza en orden cronológico, máximo 1000. `404` si no hay ninguno.
 
 #### `GET /api/logs/:id/context`
-Lo ocurrido alrededor de un log, en su misma aplicación y servicio. Query: `before` y `after` en segundos (1–3600, default 60) y `limit` (1–200, default 50). Devuelve `{ target, from, to, data, total }`.
+Lo ocurrido alrededor de un log, en su misma aplicación, servicio y entorno. Query: `before` y `after` en segundos (1–3600, default 60) y `limit` (1–200, default 50). Devuelve `{ target, from, to, data, total }`, con el propio log dentro de `data`.
+
+Va en dos consultas, hacia atrás y hacia delante desde el log (los empates de `timestamp` se deshacen por `id`). `limit` se reparte entre ambos lados: lo anterior se lleva la mitad mayor, porque suele ser lo que explica un error, y si un lado no llena su parte el otro usa el hueco. Antes era una sola consulta ascendente desde `from`: con tráfico, el límite se llenaba con lo más antiguo de la ventana y el log podía quedarse fuera.
+
+#### `GET /api/logs/:id/occurrences`
+Cuántas veces ha ocurrido el fallo de un log (su huella): en las últimas 24 h, en 7 días y en todo lo que conserva la retención, con primera y última aparición, en total y por entorno. La huella no incluye el entorno, así que el mismo fallo en desarrollo y en producción cuenta en ambos; el desglose lo separa. Una sola consulta sobre el índice `(workspaceId, fingerprint, timestamp)`.
+
+```json
+{
+  "retentionMonths": 3,
+  "data": {
+    "fingerprint": "c6caa3b09384…",
+    "total": 43, "last24h": 3, "last7d": 12,
+    "firstSeen": "…", "lastSeen": "…",
+    "environments": [
+      { "environment": "production", "total": 40, "last24h": 2, "last7d": 10, "firstSeen": "…", "lastSeen": "…" },
+      { "environment": "development", "total": 3, "last24h": 1, "last7d": 2, "firstSeen": "…", "lastSeen": "…" }
+    ]
+  }
+}
+```
+
+`data` es `null` si el log no tiene huella. Como el contexto, responde `404` si el log no existe o queda fuera del alcance de la clave, y con una clave acotada solo cuenta sus aplicaciones (una huella propia del emisor puede repetirse en varias).
 
 #### `GET /api/logs/applications`
 Inventario: por aplicación, sus servicios, entornos, logs en la ventana, última actividad y errores de las últimas 24 h. Query opcional: `hours` (24–744, default 168 = una semana). Solo aparecen las aplicaciones con logs en la ventana; sin ella la consulta recorría la tabla entera en cada llamada. Devuelve `{ data, from, to }`.

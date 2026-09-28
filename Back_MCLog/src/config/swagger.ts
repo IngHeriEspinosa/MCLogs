@@ -203,7 +203,9 @@ export const swaggerSpec = swaggerJSDoc({
       "/api/logs/{id}/context": {
         get: {
           tags: ["análisis"],
-          summary: "Lo ocurrido alrededor de un log, en su misma aplicación y servicio",
+          summary: "Lo ocurrido alrededor de un log, en su misma aplicación, servicio y entorno",
+          description:
+            "Reparte `limit` entre lo anterior y lo posterior al log (la mitad mayor para lo anterior) e incluye el propio log en `data`.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [
             { in: "path", name: "id", required: true, schema: { type: "integer" } },
@@ -221,6 +223,20 @@ export const swaggerSpec = swaggerJSDoc({
             },
             { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 200, default: 50 } },
           ],
+          responses: {
+            200: { description: "OK" },
+            404: { description: "No existe, o queda fuera del alcance de la clave" },
+          },
+        },
+      },
+      "/api/logs/{id}/occurrences": {
+        get: {
+          tags: ["análisis"],
+          summary: "Cuántas veces ha ocurrido el fallo de un log (su huella), por entorno",
+          description:
+            "Ocurrencias en las últimas 24 h, en 7 días y en todo lo que conserva la retención (`retentionMonths`), con primera y última aparición. `data` es null si el log no tiene huella.",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
           responses: {
             200: { description: "OK" },
             404: { description: "No existe, o queda fuera del alcance de la clave" },

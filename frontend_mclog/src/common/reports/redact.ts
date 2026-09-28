@@ -38,8 +38,14 @@ const RULES: Rule[] = [
     replace: "[REDACTED:ip]",
   },
   { pattern: /\b(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}\b/g, replace: "[REDACTED:ip]" },
-  // Claves, tokens y hashes sueltos: 32+ caracteres seguidos sin espacios.
-  { pattern: /\b[A-Za-z0-9_-]{32,}\b/g, replace: (match) => (UUID.test(match) ? match : "[REDACTED:key]") },
+  // Claves, tokens y hashes sueltos: 32+ caracteres seguidos sin espacios. Se
+  // conservan los que llevan delante una etiqueta de identificador publico: el
+  // id de una Server Action de Next.js va en el bundle del cliente y es justo
+  // lo que hace falta para cruzarlo con el build; un commit tampoco es secreto.
+  {
+    pattern: /(\b(?:Server Action|commit)\s+["']?)?\b([A-Za-z0-9_-]{32,})\b/gi,
+    replace: (match, label, value) => (label || UUID.test(value) ? match : "[REDACTED:key]"),
+  },
 ];
 
 const SENSITIVE_KEY = /^(password|passwd|pwd|secret|token|api[_-]?key|apikey|authorization|cookie|set-cookie|access[_-]?key|client[_-]?secret|private[_-]?key|refresh[_-]?token)$/i;

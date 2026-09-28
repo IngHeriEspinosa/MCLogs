@@ -234,6 +234,103 @@ describe("Contexto de un log", () => {
     const res = await request(app).get("/api/logs/999999/context").set(auth());
     expect(res.status).toBe(404);
   });
+
+  /**
+   * Antes era una sola consulta ascendente desde `from`: con trafico, el limite
+   * se llenaba con lo mas antiguo de la ventana y el log se quedaba fuera.
+   */
+  describe("con mas registros que el limite", () => {
+    const base = { application: "contexto-denso", service: "api", level: "info", environment: "production" };
+    const at = Date.parse("2026-09-20T12:00:00.000Z");
+    const stamp = (offsetSeconds: number) => new Date(at + offsetSeconds * 1000).toISOString();
+    let targetId: number;
+
+    beforeAll(async () => {
+      for (let index = 30; index >= 1; index -= 1) {
+        await ingest({ ...base, message: `antes ${index}`, timestamp: stamp(-index * 2) });
+      }
+      const target = await ingest({ ...base, level: "error", message: "el fallo", timestamp: stamp(0) });
+      targetId = target.body.id;
+      for (let index = 1; index <= 3; index += 1) {
+        await ingest({ ...base, message: `despues ${index}`, timestamp: stamp(index * 2) });
+      }
+      // Mismo segundo, otro entorno u otro servicio: no son su contexto.
+      await ingest({ ...base, environment: "staging", message: "otro entorno", timestamp: stamp(-1) });
+      await ingest({ ...base, service: "worker", message: "otro servicio", timestamp: stamp(-1) });
+    });
+
+    const messages = (res: request.Response) => res.body.data.map((row: { message: string }) => row.message);
+
+    it("incluye el log y lo inmediatamente anterior, no lo mas antiguo de la ventana", async () => {
+      const res = await request(app).get(`/api/logs/${targetId}/context?before=120&after=120&limit=11`).set(auth());
+      expect(res.status).toBe(200);
+      // 10 huecos: 3 posteriores (no hay mas) y los 7 anteriores mas cercanos.
+      expect(messages(res)).toEqual([
+        "antes 7", "antes 6", "antes 5", "antes 4", "antes 3", "antes 2", "antes 1",
+        "el fallo",
+        "despues 1", "despues 2", "despues 3",
+      ]);
+      expect(res.body.data[7].id).toBe(targetId);
+    });
+
+    it("da a lo anterior la mitad mayor cuando ambos lados sobran", async () => {
+      const res = await request(app).get(`/api/logs/${targetId}/context?before=120&after=120&limit=4`).set(auth());
+      expect(messages(res)).toEqual(["antes 2", "antes 1", "el fallo", "despues 1"]);
+    });
+
+    it("no mezcla otros entornos ni otros servicios", async () => {
+      const res = await request(app).get(`/api/logs/${targetId}/context?before=120&after=120&limit=200`).set(auth());
+      expect(messages(res)).not.toContain("otro entorno");
+      expect(messages(res)).not.toContain("otro servicio");
+      expect(res.body.total).toBe(34);
+    });
+  });
+});
+
+describe("Ocurrencias de un fallo", () => {
+  const failure = {
+    application: "ocurrencias",
+    service: "cobros",
+    level: "error",
+    message: "Pasarela caida",
+    errorStack: STACK,
+  };
+  let latestId: number;
+
+  beforeAll(async () => {
+    const hace10Dias = new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString();
+    await ingest({ ...failure, environment: "production", timestamp: hace10Dias });
+    await ingest({ ...failure, environment: "staging" });
+    await ingest({ ...failure, environment: "production" });
+    latestId = (await ingest({ ...failure, environment: "production" })).body.id;
+  });
+
+  it("cuenta 24 h, 7 dias y el total conservado, por entorno", async () => {
+    const res = await request(app).get(`/api/logs/${latestId}/occurrences`).set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.retentionMonths).toBeGreaterThan(0);
+
+    const data = res.body.data;
+    expect(data.fingerprint).toMatch(/^[0-9a-f]{32}$/);
+    expect(data).toMatchObject({ total: 4, last24h: 3, last7d: 3 });
+    expect(Date.now() - new Date(data.firstSeen).getTime()).toBeGreaterThan(9 * 24 * 3600 * 1000);
+    expect(data.environments).toEqual([
+      expect.objectContaining({ environment: "production", total: 3, last24h: 2, last7d: 2 }),
+      expect.objectContaining({ environment: "staging", total: 1, last24h: 1, last7d: 1 }),
+    ]);
+  });
+
+  it("devuelve data null si el log no tiene huella", async () => {
+    const info = await ingest({ application: "ocurrencias", level: "info", environment: "production", message: "ok" });
+    const res = await request(app).get(`/api/logs/${info.body.id}/occurrences`).set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeNull();
+  });
+
+  it("devuelve 404 para un log inexistente y 400 para un id invalido", async () => {
+    expect((await request(app).get("/api/logs/999999/occurrences").set(auth())).status).toBe(404);
+    expect((await request(app).get("/api/logs/abc/occurrences").set(auth())).status).toBe(400);
+  });
 });
 
 describe("Inventario de aplicaciones", () => {

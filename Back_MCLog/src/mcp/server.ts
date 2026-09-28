@@ -342,7 +342,7 @@ export const buildMcpServer = (context: McpContext): McpServer => {
     {
       title: "Contexto de un log",
       description:
-        "Lo que ocurrio justo antes y despues de un log, en la misma aplicacion y servicio. Un error aislado rara vez se explica solo: lo que suele explicarlo son las lineas anteriores.",
+        "Lo que ocurrio justo antes y despues de un log, en la misma aplicacion, servicio y entorno. Un error aislado rara vez se explica solo: lo que suele explicarlo son las lineas anteriores.",
       inputSchema: {
         id: z.number().int().min(1).describe("Id del log alrededor del cual mirar"),
         beforeSeconds: z.number().int().min(1).max(3600).optional().describe("Por defecto 60"),

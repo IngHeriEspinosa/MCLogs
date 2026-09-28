@@ -1,6 +1,6 @@
 import express from 'express';
 import { getLog, getLogs, log, logBatch, purgeLogs, stats } from '../controllers/logController';
-import { applications, errorGroups, logContext, trace } from '../controllers/analysisController';
+import { applications, errorGroups, logContext, occurrences, trace } from '../controllers/analysisController';
 import { streamLogs } from '../controllers/streamController';
 import { validateLog, validateLogBatch } from '../middlewares/validateLog';
 import {
@@ -8,6 +8,7 @@ import {
     validateErrorGroups,
     validateLogContext,
     validateLogDelete,
+    validateLogId,
     validateLogQuery,
     validateStatsQuery,
     validateTrace
@@ -37,6 +38,7 @@ router.get('/logs/stream', requireAuthOrReadKey, requireWorkspace, streamLogs);
 router.get('/logs/errors/groups', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateErrorGroups, errorGroups);
 router.get('/logs/trace/:traceId', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateTrace, trace);
 router.get('/logs/:id/context', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateLogContext, logContext);
+router.get('/logs/:id/occurrences', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateLogId, occurrences);
 
 router.get('/logs', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateLogQuery, getLogs);
 router.get('/logs/:id', queryLimiter, requireAuthOrReadKey, requireWorkspace, getLog);

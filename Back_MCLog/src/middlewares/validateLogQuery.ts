@@ -80,6 +80,11 @@ export const validateLogContext: Array<ValidationChain | RequestHandler> = [
   handle
 ];
 
+export const validateLogId: Array<ValidationChain | RequestHandler> = [
+  param("id").isInt({ min: 1 }).withMessage("id must be a positive integer").toInt(),
+  handle
+];
+
 export const validateLogDelete: Array<ValidationChain | RequestHandler> = [
   query("before").notEmpty().withMessage("before is required").isISO8601().withMessage("before must be ISO-8601").toDate(),
   query("application").optional().isString().isLength({ max: 120 }),

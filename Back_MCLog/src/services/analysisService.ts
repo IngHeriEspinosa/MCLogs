@@ -107,10 +107,34 @@ export const getTrace = async (traceId: string, filters: Pick<LogFilters, "works
   });
 };
 
+/** Un log del espacio, o null si no existe o queda fuera del alcance de la clave. */
+const findScopedLog = async (id: number, filters: Pick<LogFilters, "workspaceId" | "applicationsIn">) => {
+  const target = await prisma.log.findFirst({ where: { id, workspaceId: filters.workspaceId } });
+  if (!target) return null;
+  const applications = filters.applicationsIn;
+  return applications?.length && !applications.includes(target.application) ? null : target;
+};
+
 /**
- * Lo que ocurrio alrededor de un log concreto, en la misma aplicacion y
- * servicio. Un error aislado dice poco; lo que suele explicarlo son las lineas
- * inmediatamente anteriores.
+ * Reparte los huecos del contexto entre lo anterior y lo posterior. Lo
+ * anterior se lleva la mitad mayor, porque es lo que suele explicar un error;
+ * si un lado no llena su parte, el otro aprovecha el hueco.
+ */
+export const splitContextSlots = (slots: number, available: { before: number; after: number }) => {
+  const after = Math.min(available.after, Math.max(Math.floor(slots / 2), slots - available.before));
+  const before = Math.min(available.before, slots - after);
+  return { before, after };
+};
+
+/**
+ * Lo que ocurrio alrededor de un log concreto, en la misma aplicacion,
+ * servicio y entorno. Un error aislado dice poco; lo que suele explicarlo son
+ * las lineas inmediatamente anteriores.
+ *
+ * Va en dos consultas, hacia atras y hacia delante desde el log. Con una sola
+ * en orden ascendente desde `from`, una aplicacion con trafico llenaba el
+ * limite con lo mas antiguo de la ventana y el log, y lo que lo precedia,
+ * podian quedarse fuera.
  */
 export const getLogContext = async (
   id: number,
@@ -119,28 +143,135 @@ export const getLogContext = async (
 ) => {
   const { beforeSeconds = 60, afterSeconds = 60, limit = 50 } = options;
 
-  const target = await prisma.log.findFirst({ where: { id, workspaceId: filters.workspaceId } });
+  const target = await findScopedLog(id, filters);
   if (!target) return null;
-
-  const applications = filters.applicationsIn;
-  if (applications?.length && !applications.includes(target.application)) return null;
 
   const from = new Date(target.timestamp.getTime() - beforeSeconds * 1000);
   const to = new Date(target.timestamp.getTime() + afterSeconds * 1000);
+  const scope: Prisma.LogWhereInput = {
+    workspaceId: target.workspaceId,
+    application: target.application,
+    environment: target.environment,
+    // Solo se acota por servicio si el log lo tiene: si no, se veria vacio.
+    ...(target.service ? { service: target.service } : {}),
+  };
+  // Los empates de timestamp se deshacen por id, que crece con la llegada.
+  const at = target.timestamp;
+  const slots = limit - 1;
 
-  const logs = await prisma.log.findMany({
-    where: {
-      workspaceId: target.workspaceId,
-      application: target.application,
-      // Solo se acota por servicio si el log lo tiene: si no, se veria vacio.
-      ...(target.service ? { service: target.service } : {}),
-      timestamp: { gte: from, lte: to },
-    },
-    orderBy: { timestamp: "asc" },
-    take: limit,
-  });
+  const [previous, next] = await Promise.all([
+    prisma.log.findMany({
+      where: {
+        ...scope,
+        timestamp: { gte: from, lte: at },
+        OR: [{ timestamp: { lt: at } }, { id: { lt: target.id } }],
+      },
+      orderBy: [{ timestamp: "desc" }, { id: "desc" }],
+      take: slots,
+    }),
+    prisma.log.findMany({
+      where: {
+        ...scope,
+        timestamp: { gte: at, lte: to },
+        OR: [{ timestamp: { gt: at } }, { id: { gt: target.id } }],
+      },
+      orderBy: [{ timestamp: "asc" }, { id: "asc" }],
+      take: slots,
+    }),
+  ]);
+
+  const shares = splitContextSlots(slots, { before: previous.length, after: next.length });
+  const logs = [...previous.slice(0, shares.before).reverse(), target, ...next.slice(0, shares.after)];
 
   return { target, from, to, logs };
+};
+
+export type EnvironmentOccurrences = {
+  environment: string;
+  total: number;
+  last24h: number;
+  last7d: number;
+  firstSeen: Date;
+  lastSeen: Date;
+};
+
+export type FailureOccurrences = {
+  fingerprint: string;
+  total: number;
+  last24h: number;
+  last7d: number;
+  firstSeen: Date;
+  lastSeen: Date;
+  /** Del entorno con mas ocurrencias al que menos. */
+  environments: EnvironmentOccurrences[];
+};
+
+/**
+ * Cuantas veces ha ocurrido el fallo de un log: en las ultimas 24 h, en 7 dias
+ * y en todo lo que conserva la retencion, por entorno. Es lo que dice si un
+ * error es aislado o cronico, y si pasa solo en produccion.
+ *
+ * La huella no incluye el entorno, asi que el mismo fallo en desarrollo y en
+ * produccion comparte grupo; por eso el desglose. Una sola consulta sobre el
+ * indice (workspaceId, fingerprint, timestamp).
+ *
+ * Devuelve null si el log no existe o queda fuera de alcance, y
+ * `occurrences: null` si el log no tiene huella.
+ */
+export const getFailureOccurrences = async (
+  id: number,
+  filters: Pick<LogFilters, "workspaceId" | "applicationsIn">,
+  now = new Date(),
+): Promise<{ occurrences: FailureOccurrences | null } | null> => {
+  const target = await findScopedLog(id, filters);
+  if (!target) return null;
+  if (!target.fingerprint) return { occurrences: null };
+
+  const day = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const week = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Una huella propia del emisor puede repetirse en varias aplicaciones: la
+  // clave acotada solo cuenta las suyas.
+  const scope = filters.applicationsIn?.length
+    ? Prisma.sql`AND "application" = ANY(${filters.applicationsIn})`
+    : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<
+    Array<{ environment: string; total: number; last24h: number; last7d: number; firstSeen: Date; lastSeen: Date }>
+  >`
+    SELECT
+      "environment"::text AS "environment",
+      COUNT(*)::int AS "total",
+      COUNT(*) FILTER (WHERE "timestamp" >= ${day})::int AS "last24h",
+      COUNT(*) FILTER (WHERE "timestamp" >= ${week})::int AS "last7d",
+      MIN("timestamp") AS "firstSeen",
+      MAX("timestamp") AS "lastSeen"
+    FROM "Log"
+    WHERE "workspaceId" = ${filters.workspaceId} AND "fingerprint" = ${target.fingerprint} ${scope}
+    GROUP BY "environment"
+    ORDER BY "total" DESC
+  `;
+
+  const environments = rows.map((row) => ({
+    ...row,
+    total: Number(row.total),
+    last24h: Number(row.last24h),
+    last7d: Number(row.last7d),
+  }));
+  // Solo vacia si la retencion borro el log entre las dos consultas.
+  if (environments.length === 0) return { occurrences: null };
+  const sum = (key: "total" | "last24h" | "last7d") => environments.reduce((acc, row) => acc + row[key], 0);
+
+  return {
+    occurrences: {
+      fingerprint: target.fingerprint,
+      total: sum("total"),
+      last24h: sum("last24h"),
+      last7d: sum("last7d"),
+      firstSeen: new Date(Math.min(...environments.map((row) => row.firstSeen.getTime()))),
+      lastSeen: new Date(Math.max(...environments.map((row) => row.lastSeen.getTime()))),
+      environments,
+    },
+  };
 };
 
 export type ApplicationSummary = {

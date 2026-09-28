@@ -90,7 +90,8 @@ function ErrorsView() {
       .get<LogEntry>(`/api/logs/${group.lastLogId}`)
       .then((response) => response.data)
       .catch(() => null);
-    return buildGroupBrief(group, sample, locale);
+    const groupWindow = groups.data ? { from: groups.data.from, to: groups.data.to } : null;
+    return buildGroupBrief(group, sample, groupWindow, locale);
   };
 
   return (

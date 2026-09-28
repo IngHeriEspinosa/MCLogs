@@ -89,7 +89,8 @@ Cada fila es un evento: hora con milisegundos, nivel, aplicación y servicio, en
 - **Propiedades**: aplicación, servicio, host, traceId, error y código, huella e ID
 - **Stack trace**, con las líneas de tu propio código resaltadas y las de librerías atenuadas
 - **Metadata**: el contexto en JSON que envió la aplicación
-- **Contexto**: lo que pasó en la misma aplicación dos minutos antes y después
+- **Ocurrencias de este fallo**: cuántas veces ha pasado en 24 h, en 7 días y en lo que conserva la retención, cuándo fue la primera y la última vez y, si ocurre en más de un entorno, el desglose. Dice si es algo aislado o crónico, y si pasa solo en producción
+- **Contexto**: lo que pasó en la misma aplicación, servicio y entorno dos minutos antes y después
 
 Y cuatro accesos directos:
 
@@ -98,7 +99,7 @@ Y cuatro accesos directos:
 | **Ver traza** | Abre la operación entera, de todos los sistemas por los que pasó |
 | **Fallos iguales** | Filtra a las demás ocurrencias de este mismo fallo |
 | **Copiar JSON** | Copia el registro entero al portapapeles, para pegarlo en un ticket |
-| **Copiar para IA** | Copia un brief con el log y su contexto, listo para un agente de IA, con los datos sensibles enmascarados |
+| **Copiar para IA** | Copia un brief con el log, sus ocurrencias y su contexto, listo para un agente de IA, con los datos sensibles enmascarados |
 
 ### Exportar
 

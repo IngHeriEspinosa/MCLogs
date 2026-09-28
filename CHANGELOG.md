@@ -40,9 +40,21 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
   API: `GET /api/admin/keys` y `DELETE /api/admin/keys/:id`. La clave heredada `API_KEY` no aparece, pero una nota indica si está activa.
 - **API — Último uso por MCP:** columna `lastMcpUsedAt` en `ApiKey` (migración `0016_api_key_last_mcp_use`), con el mismo throttling de 5 minutos que `lastUsedAt`. La tabla de claves del espacio la muestra como "IA (MCP)" bajo **Último uso**.
 - **Dashboard — Configuración:** bajo **Acceso para IA (MCP)**, cuántas claves lo han usado en los últimos 30 días. Si se apaga sin guardar, avisa de que esos asistentes se cortarán.
+- **API — `GET /api/logs/:id/occurrences`:** cuántas veces ha ocurrido el fallo de un log (su huella) en 24 h, en 7 días y en lo que conserva la retención, con primera y última vez, en total y por entorno. Respeta el alcance de las claves acotadas.
+- **Dashboard — Ocurrencias en el detalle del log:** nueva sección con esas cifras y el desglose por entorno. "Copiar para IA" las incluye, con una regla que aclara que el total y la primera vez solo abarcan la retención.
 
 ### Cambiado
 - **MCP:** `tools/list` devuelve 9 herramientas (se añade `get_integration_skill`) y el servidor declara capacidades de recursos y prompts.
+- **Dashboard — "Copiar para IA" más preciso:**
+  - **Log:** el contexto ya no repite el propio log y lleva la columna `error_name`. Si no había registros cerca, o si el contexto no había cargado al copiar, el brief lo dice (en el segundo caso, con la llamada `get_log_context` que lo resuelve).
+  - **Log y traza:** si el stack se recorta, se indica con `stack_lines_omitted`. Cuando hay stack, se añade una regla para no inventar el origen de frames minificados.
+  - **Fallo agrupado:** tiene su propio título y objetivo (antes usaba los del log), lleva la ventana (`window_from`/`window_to`) y no repite el mensaje cuando va el ejemplo completo.
+  - **Traza:** la cronología lleva `error_name` y los errores dicen cuántos se muestran del total (`10/23`).
+  - La regla de `first_seen_in_window` solo aparece donde existe ese campo (reporte y fallo agrupado).
+
+### Corregido
+- **API — Contexto de un log:** con más registros que `limit` en la ventana, devolvía los más antiguos y el log, y lo que lo precedía, podían quedar fuera. Ahora va en dos consultas desde el log hacia atrás y hacia delante (la mitad mayor para lo anterior) y se acota también por entorno.
+- **Enmascarado:** el id de una Server Action de Next.js y los hashes de commit ya no salen como `[REDACTED:key]`. Son públicos y hacen falta para diagnosticar el fallo.
 
 ## 2026-09-25
 

@@ -29,6 +29,15 @@ describe("redactText", () => {
     assert.equal(redactText(text), text);
   });
 
+  it("conserva ids públicos con etiqueta: Server Action de Next.js y commits", () => {
+    const action = 'Server Action "404c12529d81015dea5eced24c57651ae2a8ea828b" was not found on the server.';
+    assert.equal(redactText(action), action);
+    const commit = "deployed commit 3f2a9c1e5b7d4a8f9e0c1b2a3d4e5f6a7b8c9d0e";
+    assert.equal(redactText(commit), commit);
+    // Sin la etiqueta, el mismo valor sigue pareciendo una clave.
+    assert.equal(redactText("value 404c12529d81015dea5eced24c57651ae2a8ea828b"), "value [REDACTED:key]");
+  });
+
   it("no toca texto sin datos sensibles", () => {
     const text = "TypeError: Cannot read properties of undefined (reading 'id') at handler (src/app.ts:42:7)";
     assert.equal(redactText(text), text);

@@ -5,10 +5,12 @@ import { workspaceIdOf } from "../middlewares/workspaceContext";
 import {
   DEFAULT_APPLICATIONS_HOURS,
   getErrorGroups,
+  getFailureOccurrences,
   getLogContext,
   getTrace,
   listApplications,
 } from "../services/analysisService";
+import { getSetting } from "../services/settingsService";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -111,6 +113,42 @@ export const logContext = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error retrieving log context", { error, id });
     res.status(500).json({ error: "Error retrieving log context" });
+  }
+};
+
+export const occurrences = async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  try {
+    const result = await getFailureOccurrences(id, {
+      workspaceId: workspaceIdOf(req),
+      applicationsIn: allowedApplications(req),
+    });
+    // Igual que el contexto: fuera de alcance es 404, como si no existiera.
+    if (!result) {
+      res.status(404).json({ error: "Log not found" });
+      return;
+    }
+
+    const data = result.occurrences;
+    res.json({
+      // El total solo abarca lo que conserva la retencion: quien lo lea tiene
+      // que saber desde cuando cuenta.
+      retentionMonths: getSetting("retentionMonths"),
+      data: data && {
+        ...data,
+        firstSeen: data.firstSeen.toISOString(),
+        lastSeen: data.lastSeen.toISOString(),
+        environments: data.environments.map((row) => ({
+          ...row,
+          firstSeen: row.firstSeen.toISOString(),
+          lastSeen: row.lastSeen.toISOString(),
+        })),
+      },
+    });
+  } catch (error) {
+    logger.error("Error retrieving failure occurrences", { error, id });
+    res.status(500).json({ error: "Error retrieving failure occurrences" });
   }
 };
 

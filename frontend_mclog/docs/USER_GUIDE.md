@@ -92,16 +92,16 @@ Cada fila lleva a la izquierda una barra del color de su nivel (rojo error, ámb
 
 En la cabecera de la tabla eliges el **orden**, la **densidad** (cómoda o compacta) y el **tamaño de página**.
 
-**Haz clic en una fila** (o muévete con las flechas y pulsa Intro) para abrir su detalle, en una ventana casi a pantalla completa: a la izquierda el mensaje, las acciones, el stack y la metadata; a la derecha las propiedades y el contexto. <kbd>←</kbd> <kbd>→</kbd> (o los botones de arriba) pasan al registro anterior o siguiente sin cerrarla; <kbd>Esc</kbd> o un clic fuera la cierran.
+**Haz clic en una fila** (o muévete con las flechas y pulsa Intro) para abrir su detalle, en una ventana casi a pantalla completa: a la izquierda el mensaje, las acciones, el stack y la metadata; a la derecha las propiedades, las ocurrencias del fallo y el contexto. <kbd>←</kbd> <kbd>→</kbd> (o los botones de arriba) pasan al registro anterior o siguiente sin cerrarla; <kbd>Esc</kbd> o un clic fuera la cierran.
 
 | En el detalle | Qué hace |
 |---|---|
 | **Ver traza** | Abre la operación entera, de todos los sistemas por los que pasó |
 | **Fallos iguales** | Filtra a las demás ocurrencias de este mismo fallo |
 | **Copiar JSON** | Copia el registro entero al portapapeles |
-| **Copiar para IA** | Copia un brief en Markdown con el log, su stack y su contexto, con los datos sensibles enmascarados |
+| **Copiar para IA** | Copia un brief en Markdown con el log, su stack, sus ocurrencias y su contexto, con los datos sensibles enmascarados |
 
-Debajo tienes las propiedades (con botón de copiar en trace ID, huella e ID), el **stack trace** con las líneas de tu propio código resaltadas, la **metadata** y el **contexto**: lo que pasó en la misma aplicación dos minutos antes y después.
+Debajo tienes las propiedades (con botón de copiar en trace ID, huella e ID), el **stack trace** con las líneas de tu propio código resaltadas, la **metadata**, las **ocurrencias de este fallo** (cuántas veces en 24 h, en 7 días y en lo que conserva la retención, con primera y última vez y desglose por entorno si hay varios) y el **contexto**: lo que pasó en la misma aplicación, servicio y entorno dos minutos antes y después.
 
 ### Exportar
 

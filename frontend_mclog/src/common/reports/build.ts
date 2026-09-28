@@ -4,7 +4,7 @@ import { dictionaries, type Dictionary } from "@/common/i18n/dictionaries";
 import { createFormatter, type Formatter } from "@/common/i18n/format";
 import { binTimeline, HOUR_MS, peakBin, type TimelineBin } from "@/common/time/timeline";
 import type { LogEntry } from "@/hooks/useAuth";
-import type { ErrorGroup } from "@/hooks/useErrors";
+import type { ErrorGroup, FailureOccurrences, FailureOccurrencesResponse } from "@/hooks/useErrors";
 import type { PreviousWindow, ReportData, ReportOptions, ReportSection } from "./collect";
 import { clip, mdCode, mdFence, mdQuote, mdTable, stackHead, textBar, toCsv, utcMinute, yamlScalar } from "./markdown";
 import { createRedactor, redactText, redactValue } from "./redact";
@@ -43,6 +43,9 @@ export type BuiltReport = {
 const fileStamp = (iso: string) => iso.slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
 
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
+
+/** Errores de una traza que van completos en su brief; el resto solo en la cronologia. */
+const TRACE_ERRORS = 10;
 
 // ---------------------------------------------------------------------------
 // Comparacion con el periodo anterior
@@ -659,6 +662,7 @@ const instructions = (ctx: Context) => {
     rules: [
       a.untrustedRule,
       ...a.ruleList,
+      a.windowRule,
       ...(ctx.comparison ? [a.comparisonRule] : []),
       ...(ctx.options.redact ? [a.redactedRule] : []),
     ],
@@ -815,9 +819,10 @@ export const buildReport = (data: ReportData, options: ReportOptions): BuiltRepo
 // copian con un clic y es facil pegarlos donde no se debe.
 // ---------------------------------------------------------------------------
 
-const briefHeader = (title: string, task: string, locale: Locale) => {
+/** `extraRules`: solo las que aplican a los datos del brief, para no confundir al agente. */
+const briefHeader = (title: string, task: string, locale: Locale, extraRules: string[] = []) => {
   const d = dictionaries[locale].reportDoc;
-  const rules = [d.agent.untrustedRule, ...d.agent.ruleList, d.agent.redactedRule];
+  const rules = [d.agent.untrustedRule, ...d.agent.ruleList, ...extraRules, d.agent.redactedRule];
   return [
     `# ${title}`,
     `> ${d.generated}: ${new Date().toISOString()} · ${d.redacted}`,
@@ -825,6 +830,12 @@ const briefHeader = (title: string, task: string, locale: Locale) => {
     `## ${d.agent.rules}\n\n${rules.map((rule) => `- ${rule}`).join("\n")}`,
     `${d.agent.respondIn}`,
   ];
+};
+
+/** Stack enmascarado y recortado; si se recorta, el agente sabe cuanto falta. */
+const stackForAgent = (stack: string, lines: number) => {
+  const head = stackHead(redactText(stack), lines);
+  return { stack: head.lines, ...(head.omitted ? { stack_lines_omitted: head.omitted } : {}) };
 };
 
 const logForAgent = (log: LogEntry, stackLines = 60) => ({
@@ -841,34 +852,82 @@ const logForAgent = (log: LogEntry, stackLines = 60) => ({
   error_name: log.errorName ?? null,
   error_code: log.errorCode ?? null,
   message: redactText(log.message),
-  ...(log.errorStack ? { stack: stackHead(redactText(log.errorStack), stackLines).lines } : {}),
+  ...(log.errorStack ? stackForAgent(log.errorStack, stackLines) : {}),
   ...(log.metadata ? { metadata: redactValue(log.metadata) } : {}),
 });
 
-export const buildLogBrief = (log: LogEntry, contextLogs: LogEntry[], locale: Locale): string => {
+/** Frecuencia del fallo: resumen en YAML y, si hay varios entornos, su desglose. */
+const occurrencesBlock = (data: FailureOccurrences, retentionMonths: number, a: Dictionary["reportDoc"]["agent"]) => {
+  const summary = mdFence(
+    [
+      `last_24h: ${data.last24h}`,
+      `last_7d: ${data.last7d}`,
+      `total_retained: ${data.total}`,
+      `retention_months: ${retentionMonths}`,
+      `first_seen: ${yamlScalar(data.firstSeen)}`,
+      `last_seen: ${yamlScalar(data.lastSeen)}`,
+      `environments: [${data.environments.map((row) => yamlScalar(row.environment)).join(", ")}]`,
+    ].join("\n"),
+    "yaml",
+  );
+  if (data.environments.length < 2) return summary;
+  const byEnvironment = mdFence(
+    toCsv(
+      ["environment", "last_24h", "last_7d", "total_retained", "first_seen", "last_seen"],
+      data.environments.map((row) => [row.environment, row.last24h, row.last7d, row.total, row.firstSeen, row.lastSeen]),
+    ),
+    "csv",
+  );
+  return `${summary}\n\n${a.occurrencesByEnvironment}:\n\n${byEnvironment}`;
+};
+
+type LogBriefExtras = {
+  /** Null: no se cargo (en curso, con error o en un snapshot). */
+  context: LogEntry[] | null;
+  /** Null: no se cargo. Con `data` null, el log no tiene huella. */
+  occurrences: FailureOccurrencesResponse | null;
+};
+
+/**
+ * Un contexto o unas ocurrencias sin cargar no se omiten: el brief lo dice,
+ * para que el agente no confunda "no lo tengo" con "no hubo nada".
+ */
+export const buildLogBrief = (log: LogEntry, extras: LogBriefExtras, locale: Locale): string => {
   const a = dictionaries[locale].reportDoc.agent;
   const origin = new Date(log.timestamp).getTime();
-  const out = briefHeader(a.logTitle, a.logTask, locale);
+  const frequency = extras.occurrences?.data ?? null;
+  const rules = [...(frequency ? [a.occurrencesRule] : []), ...(log.errorStack ? [a.minifiedRule] : [])];
+  const out = briefHeader(a.logTitle, a.logTask, locale, rules);
   out.push("<mclog_data>");
   out.push(`### log\n\n${json(logForAgent(log))}`);
-  if (contextLogs.length > 0) {
-    out.push(
-      `### ${a.context}\n\n${mdFence(
-        toCsv(
-          ["offset_ms", "id", "level", "application", "service", "message"],
-          contextLogs.map((entry) => [
-            new Date(entry.timestamp).getTime() - origin,
-            entry.id,
-            entry.level,
-            entry.application,
-            entry.service ?? "",
-            clip(redactText(oneLine(entry.message)), 240),
-          ]),
-        ),
-        "csv",
-      )}`,
-    );
+  // Sin huella no hay fallo que contar.
+  if (log.fingerprint) {
+    const body =
+      extras.occurrences && frequency
+        ? occurrencesBlock(frequency, extras.occurrences.retentionMonths, a)
+        : a.occurrencesUnavailable;
+    out.push(`### ${a.occurrences}\n\n${body}`);
   }
+  // El propio log viene dentro del contexto; repetirlo solo gasta tokens.
+  const around = extras.context?.filter((entry) => entry.id !== log.id) ?? null;
+  const contextBody = !around
+    ? a.contextUnavailable(String(log.id))
+    : around.length === 0
+      ? a.contextEmpty
+      : mdFence(
+          toCsv(
+            ["offset_ms", "id", "level", "error_name", "message"],
+            around.map((entry) => [
+              new Date(entry.timestamp).getTime() - origin,
+              entry.id,
+              entry.level,
+              entry.errorName ?? "",
+              clip(redactText(oneLine(entry.message)), 240),
+            ]),
+          ),
+          "csv",
+        );
+  out.push(`### ${a.context}\n\n${contextBody}`);
   out.push("</mclog_data>");
   return `${out.join("\n\n")}\n`;
 };
@@ -878,7 +937,7 @@ export const buildTraceBrief = (traceId: string, logs: LogEntry[], locale: Local
   const origin = logs.length ? new Date(logs[0].timestamp).getTime() : 0;
   const last = logs.length ? new Date(logs[logs.length - 1].timestamp).getTime() : 0;
   const errors = logs.filter((log) => log.level === "error");
-  const out = briefHeader(a.traceTitle, a.traceTask, locale);
+  const out = briefHeader(a.traceTitle, a.traceTask, locale, errors.some((log) => log.errorStack) ? [a.minifiedRule] : []);
   out.push("<mclog_data>");
   out.push(
     `### summary\n\n${mdFence(
@@ -896,7 +955,7 @@ export const buildTraceBrief = (traceId: string, logs: LogEntry[], locale: Local
   out.push(
     `### ${a.traceLogs}\n\n${mdFence(
       toCsv(
-        ["offset_ms", "id", "level", "application", "service", "host", "message"],
+        ["offset_ms", "id", "level", "application", "service", "host", "error_name", "message"],
         logs.map((log) => [
           new Date(log.timestamp).getTime() - origin,
           log.id,
@@ -904,6 +963,7 @@ export const buildTraceBrief = (traceId: string, logs: LogEntry[], locale: Local
           log.application,
           log.service ?? "",
           log.host ?? "",
+          log.errorName ?? "",
           clip(redactText(oneLine(log.message)), 240),
         ]),
       ),
@@ -911,7 +971,8 @@ export const buildTraceBrief = (traceId: string, logs: LogEntry[], locale: Local
     )}`,
   );
   if (errors.length) {
-    out.push(`### ${a.errorsInTrace}\n\n${json(errors.slice(0, 10).map((log) => logForAgent(log, 30)))}`);
+    const shown = errors.slice(0, TRACE_ERRORS);
+    out.push(`### ${a.errorsInTrace} (${shown.length}/${errors.length})\n\n${json(shown.map((log) => logForAgent(log, 30)))}`);
   }
   out.push("</mclog_data>");
   return `${out.join("\n\n")}\n`;
@@ -962,13 +1023,25 @@ export const buildTraceMarkdown = (traceId: string, logs: LogEntry[], locale: Lo
   return `${out.join("\n\n")}\n`;
 };
 
-/** Brief de un fallo agrupado, con su ejemplo mas reciente si se tiene. */
-export const buildGroupBrief = (group: ErrorGroup, sample: LogEntry | null, locale: Locale): string => {
+/**
+ * Brief de un fallo agrupado, con su ejemplo mas reciente si se tiene. La
+ * ventana va con el grupo: sin ella, `occurrences` y `first_seen_in_window`
+ * no dicen nada.
+ */
+export const buildGroupBrief = (
+  group: ErrorGroup,
+  sample: LogEntry | null,
+  window: { from: string; to: string } | null,
+  locale: Locale,
+): string => {
   const a = dictionaries[locale].reportDoc.agent;
-  const out = briefHeader(a.logTitle, a.logTask, locale);
+  const rules = [a.windowRule, ...(sample?.errorStack ? [a.minifiedRule] : [])];
+  const out = briefHeader(a.groupTitle, a.groupTask, locale, rules);
   out.push("<mclog_data>");
   out.push(
     `### error_group\n\n${json({
+      window_from: window?.from ?? null,
+      window_to: window?.to ?? null,
       fingerprint: group.fingerprint,
       occurrences: group.count,
       level: group.level,
@@ -979,7 +1052,8 @@ export const buildGroupBrief = (group: ErrorGroup, sample: LogEntry | null, loca
       first_seen_in_window: group.firstSeen,
       last_seen: group.lastSeen,
       sample_log_id: group.lastLogId,
-      sample_message: redactText(group.sampleMessage),
+      // Con el ejemplo completo debajo, el mensaje saldria dos veces.
+      ...(sample ? {} : { sample_message: redactText(group.sampleMessage) }),
     })}`,
   );
   if (sample) out.push(`### latest_sample\n\n${json(logForAgent(sample))}`);

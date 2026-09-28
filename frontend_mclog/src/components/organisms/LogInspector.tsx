@@ -12,7 +12,7 @@ import type { LogRow } from "@/components/organisms/LogTable";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { buildLogBrief } from "@/common/reports/build";
 import type { LogEntry } from "@/hooks/useAuth";
-import { useLogContext } from "@/hooks/useErrors";
+import { useFailureOccurrences, useLogContext } from "@/hooks/useErrors";
 
 type LogInspectorProps = {
   log: LogRow;
@@ -50,6 +50,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const full: LogEntry | null = "streamKey" in log ? null : log;
   const context = useLogContext(readOnly ? null : full?.id ?? null);
+  const occurrences = useFailureOccurrences(readOnly || !full?.fingerprint ? null : full.id);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -121,7 +122,9 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           icon="sparkles"
           label={t.inspector.copyAi}
           toast={t.toast.aiCopied}
-          text={() => buildLogBrief(full, context.data?.data ?? [], locale)}
+          text={() =>
+            buildLogBrief(full, { context: context.data?.data ?? null, occurrences: occurrences.data ?? null }, locale)
+          }
         />
       )}
     </div>
@@ -166,6 +169,72 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
       <section>
         <h3 className="eyebrow mb-2">{t.inspector.metadata}</h3>
         <CodeBlock code={JSON.stringify(full.metadata, null, 2)} language="json" maxHeight="60vh" />
+      </section>
+    );
+
+  const frequency = occurrences.data?.data;
+  const retention = fmt.number(occurrences.data?.retentionMonths ?? 0);
+  const occurrenceColumns = [
+    { key: "last24h", label: t.inspector.occurrences24h },
+    { key: "last7d", label: t.inspector.occurrences7d },
+    { key: "total", label: t.inspector.occurrencesTotal(retention) },
+  ] as const;
+
+  const occurrencesSection = full?.fingerprint && !readOnly && (
+      <section>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <h3 className="eyebrow">{t.inspector.occurrences}</h3>
+          <span className="text-[0.6875rem] text-ink-3">{t.inspector.occurrencesHint}</span>
+        </div>
+        {occurrences.isLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : occurrences.isError || !frequency ? (
+          <p className="text-sm text-ink-3">{t.inspector.occurrencesError}</p>
+        ) : (
+          <>
+            <dl className="grid grid-cols-3 gap-2">
+              {occurrenceColumns.map((column) => (
+                <div key={column.key} className="rounded-xl border border-line bg-surface px-3 py-2">
+                  <dt className="text-[0.6875rem] text-ink-3">{column.label}</dt>
+                  <dd className="font-mono text-base tabular-nums text-ink">{fmt.number(frequency[column.key])}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-3">
+              {t.inspector.occurrencesSeen(fmt.relative(frequency.firstSeen), fmt.relative(frequency.lastSeen))}
+              <InfoTip label={t.inspector.occurrences}>{t.inspector.occurrencesRetention(retention)}</InfoTip>
+            </p>
+            {frequency.environments.length > 1 && (
+              <table className="mt-3 w-full text-xs">
+                <caption className="sr-only">{t.inspector.occurrencesByEnv}</caption>
+                <thead>
+                  <tr className="text-left text-ink-3">
+                    <th scope="col" className="pb-1 font-normal">{t.inspector.fields.environment}</th>
+                    {occurrenceColumns.map((column) => (
+                      <th key={column.key} scope="col" className="pb-1 text-right font-normal">
+                        {column.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {frequency.environments.map((row) => (
+                    <tr key={row.environment} className="border-t border-line">
+                      <th scope="row" className="py-1 text-left font-normal">
+                        <EnvTag environment={row.environment} label={t.envs.names[row.environment] ?? row.environment} />
+                      </th>
+                      {occurrenceColumns.map((column) => (
+                        <td key={column.key} className="py-1 text-right font-mono tabular-nums text-ink-2">
+                          {fmt.number(row[column.key])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
       </section>
     );
 
@@ -257,6 +326,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
         </div>
         <div className="flex min-w-0 flex-col gap-5 border-t border-line bg-surface-2/40 px-6 py-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
           {propertiesSection}
+          {occurrencesSection}
           {contextSection}
         </div>
       </div>

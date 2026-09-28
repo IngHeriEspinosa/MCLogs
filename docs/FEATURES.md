@@ -276,7 +276,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Búsqueda con debounce** | 350 ms de espera: no lanza una consulta por cada tecla |
 | **Ordenación** | Por fecha, aplicación, nivel, host o entorno, asc/desc |
 | **Paginación** | 10 / 25 / 50 / 100 por página, con navegación anterior/siguiente |
-| **Inspector del log** | Un diálogo casi a pantalla completa, igual en Logs y en Registros: propiedades, stack con el código propio resaltado, metadata, contexto de ±2 min y "Copiar para IA"; ←/→ recorren la página |
+| **Inspector del log** | Un diálogo casi a pantalla completa, igual en Logs y en Registros: propiedades, stack con el código propio resaltado, metadata, ocurrencias del fallo (24 h, 7 días y retención, por entorno), contexto de ±2 min y "Copiar para IA"; ←/→ recorren la página |
 | **Registros** | La tabla sin resumen, con **búsqueda avanzada** por campo (mensaje, servicio, host, traceId exacto, nombre y código del error) y el detalle del log a pantalla completa, con ←/→ para recorrer la página |
 | **Snapshots** | **Compartir** en Logs, Registros, Errores y Traza guarda una copia congelada de la pantalla con su enlace, de equipo o pública; la página **Snapshots** los lista con sus vistas y permite borrarlos (ver [23](#23-snapshots-compartibles)) |
 | **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición y brief para IA |
@@ -468,7 +468,8 @@ Con eso, «Timeout cobrando el pedido 991» y «Timeout cobrando el pedido 1428�
 | `GET /api/logs/errors/groups` | **Qué está fallando**, por frecuencia, con primera y última aparición |
 | `GET /api/logs?fingerprint=…` | Las ocurrencias concretas de un grupo |
 | `GET /api/logs/trace/:traceId` | Una operación completa, aunque cruce aplicaciones |
-| `GET /api/logs/:id/context` | Lo ocurrido justo antes y después de un log |
+| `GET /api/logs/:id/context` | Lo ocurrido justo antes y después de un log, en su aplicación, servicio y entorno |
+| `GET /api/logs/:id/occurrences` | Cuántas veces ha ocurrido su fallo (24 h, 7 días y retención), por entorno |
 | `GET /api/logs/applications` | Qué aplicaciones existen, con sus servicios y errores recientes |
 
 En el dashboard esto son la vista **Errores** y la vista de **Traza**, y en la tabla de logs el filtro por huella con enlaces a la traza y a los errores iguales.
@@ -717,6 +718,7 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 | `GET` | `/api/logs/errors/groups` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `GET` | `/api/logs/trace/:traceId` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `GET` | `/api/logs/:id/context` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
+| `GET` | `/api/logs/:id/occurrences` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `GET` | `/api/logs/applications` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `DELETE` | `/api/logs` | JWT **dueño** | [5](#5-retención-y-purga) |
 | `POST` | `/mcp` | Clave `read` o JWT | [16](#16-acceso-para-ia-mcp) |

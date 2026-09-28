@@ -64,6 +64,37 @@ export const useLogContext = (id: number | null) =>
     retry: false,
   });
 
+type OccurrenceCounts = {
+  total: number;
+  last24h: number;
+  last7d: number;
+  firstSeen: string;
+  lastSeen: string;
+};
+
+/** Cuantas veces ha ocurrido el fallo de un log, en total y por entorno. */
+export type FailureOccurrences = OccurrenceCounts & {
+  fingerprint: string;
+  /** Del entorno con mas ocurrencias al que menos. */
+  environments: Array<OccurrenceCounts & { environment: LogEntry["environment"] }>;
+};
+
+export type FailureOccurrencesResponse = {
+  /** El total solo abarca lo que conserva la retencion. */
+  retentionMonths: number;
+  /** Null si el log no tiene huella. */
+  data: FailureOccurrences | null;
+};
+
+/** Ocurrencias del fallo de un log. Con `id` null no se pide nada. */
+export const useFailureOccurrences = (id: number | null) =>
+  useQuery<FailureOccurrencesResponse>({
+    queryKey: ["failure-occurrences", id],
+    queryFn: async () => (await client.get(`/api/logs/${id}/occurrences`)).data,
+    enabled: id !== null,
+    retry: false,
+  });
+
 export type ApplicationSummary = {
   application: string;
   services: string[];
