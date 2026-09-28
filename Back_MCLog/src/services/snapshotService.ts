@@ -7,6 +7,7 @@ import { getErrorGroups, getLevelTimeline, MAX_TRACE_LOGS } from "./analysisServ
 import { getWorkspaceRole } from "./workspaceService";
 import { getSetting } from "./settingsService";
 import { createRedactor } from "../utils/redact";
+import { parseLevels } from "../utils/levels";
 
 /**
  * Snapshots: copias congeladas de una pantalla (Logs, Errores o una Traza)
@@ -37,6 +38,7 @@ export class SnapshotError extends Error {
 /** Filtros de la vista, tal como los manda el panel. */
 export type SnapshotFilters = {
   application?: string;
+  /** Uno o varios niveles separados por comas ("error,warn"), como en la URL. */
   level?: string;
   environment?: string;
   search?: string;
@@ -133,7 +135,7 @@ const captureLogs = async (workspaceId: number, filters: SnapshotFilters, to: Da
   const tableFilters: LogFilters = {
     workspaceId,
     application: filters.application,
-    level: filters.level,
+    levels: parseLevels(filters.level),
     environment: filters.environment,
     search: filters.search,
     fingerprint: filters.fingerprint,
@@ -163,7 +165,7 @@ const captureLogs = async (workspaceId: number, filters: SnapshotFilters, to: Da
     prisma.log.count({ where: tableWhere }),
     getLogStats(scopeFilters),
     getLevelTimeline(scopeFilters, timelineFrom, to),
-    getErrorGroups({ ...scopeFilters, level: "error" }, DISTINCT_CAP),
+    getErrorGroups({ ...scopeFilters, levels: ["error"] }, DISTINCT_CAP),
     prisma.log.groupBy({ by: ["application"], where: scopeWhere }),
     prisma.log.groupBy({ by: ["application"], where: { AND: [scopeWhere, { level: "error" }] } }),
   ]);
@@ -210,7 +212,7 @@ const captureLogs = async (workspaceId: number, filters: SnapshotFilters, to: Da
 const captureErrors = async (workspaceId: number, filters: SnapshotFilters, to: Date): Promise<Capture> => {
   const level = filters.level === "warn" ? "warn" : "error";
   const scope: LogFilters = { workspaceId, application: filters.application, environment: filters.environment, from: filters.from, to };
-  const groups = await getErrorGroups({ ...scope, level }, DISTINCT_CAP);
+  const groups = await getErrorGroups({ ...scope, levels: [level] }, DISTINCT_CAP);
   const sampleIds = groups.slice(0, getSetting("maxSnapshotRows")).map((group) => group.lastLogId);
   const samples = sampleIds.length
     ? await prisma.log.findMany({ where: { workspaceId, id: { in: sampleIds } }, select: LOG_FIELDS })

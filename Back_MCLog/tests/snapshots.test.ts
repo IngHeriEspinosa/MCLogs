@@ -157,6 +157,16 @@ describe("crear snapshots", () => {
     expect((await create(ownerToken, { visibility: "todos" })).status).toBe(400);
     expect((await create(ownerToken, { expiresInDays: 3 })).status).toBe(400);
     expect((await create(ownerToken, { filters: { level: "fatal" } })).status).toBe(400);
+    expect((await create(ownerToken, { filters: { level: "error,fatal" } })).status).toBe(400);
+  });
+
+  it("filtra la tabla por varios niveles y guarda el filtro como llego", async () => {
+    const both = await create(memberToken, { filters: { application: APP, level: "error,info" } });
+    expect(both.status).toBe(201);
+    expect(both.body.data).toMatchObject({ totalMatched: 12, filters: { level: "error,info" } });
+
+    const errors = await create(memberToken, { filters: { application: APP, level: "error" } });
+    expect(errors.body.data.totalMatched).toBe(4);
   });
 });
 

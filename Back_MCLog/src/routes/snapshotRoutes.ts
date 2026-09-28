@@ -16,6 +16,7 @@ import {
   SNAPSHOT_TITLE_MAX,
   SnapshotError,
 } from "../services/snapshotService";
+import { isLevelList } from "../utils/levels";
 
 const handleValidation: RequestHandler = (req, res, next) => {
   const errors = validationResult(req);
@@ -73,7 +74,8 @@ snapshotRouter.post(
       .toInt(),
     body("filters").optional().isObject(),
     ...TEXT_FILTERS.map((key) => body(`filters.${key}`).optional({ values: "falsy" }).isString().isLength({ max: 500 })),
-    body("filters.level").optional({ values: "falsy" }).isIn(["debug", "info", "warn", "error"]),
+    // Uno o varios niveles separados por comas, como en GET /api/logs.
+    body("filters.level").optional({ values: "falsy" }).custom(isLevelList),
     body("filters.environment").optional({ values: "falsy" }).isIn(["development", "staging", "production"]),
     body("filters.from").optional({ values: "falsy" }).isISO8601().toDate(),
     body("filters.to").optional({ values: "falsy" }).isISO8601().toDate(),

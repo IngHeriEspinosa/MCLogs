@@ -11,6 +11,7 @@ import {
     validateLogId,
     validateLogQuery,
     validateStatsQuery,
+    validateStreamQuery,
     validateTrace
 } from '../middlewares/validateLogQuery';
 import { requireAuthOrReadKey, requireIngest } from '../middlewares/authApiKey';
@@ -34,7 +35,7 @@ router.get('/logs/stats', queryLimiter, requireAuthOrReadKey, requireWorkspace, 
 router.get('/logs/applications', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateApplications, applications);
 // Stream en vivo (SSE). Sin queryLimiter: es una conexion larga, no una rafaga
 // de peticiones, y su tope propio es SSE_MAX_CONNECTIONS.
-router.get('/logs/stream', requireAuthOrReadKey, requireWorkspace, streamLogs);
+router.get('/logs/stream', requireAuthOrReadKey, requireWorkspace, validateStreamQuery, streamLogs);
 router.get('/logs/errors/groups', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateErrorGroups, errorGroups);
 router.get('/logs/trace/:traceId', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateTrace, trace);
 router.get('/logs/:id/context', queryLimiter, requireAuthOrReadKey, requireWorkspace, validateLogContext, logContext);

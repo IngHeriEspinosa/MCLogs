@@ -150,6 +150,30 @@ describe("Stream de logs en vivo", () => {
     stream.cerrar();
   });
 
+  it("filtra por varios niveles a la vez", async () => {
+    const stream = await abrirStream(readKey, "?level=error,warn");
+    await esperarA(() => stream.eventos.some((e) => e.event === "ready"));
+
+    await enviarLog({ application: "ventas", level: "info", environment: "production", message: "ruido multinivel" });
+    await enviarLog({ application: "ventas", level: "warn", environment: "production", message: "aviso multinivel" });
+    await enviarLog({ application: "ventas", level: "error", environment: "production", message: "fallo multinivel" });
+
+    expect(await esperarA(() => stream.eventos.filter((e) => e.event === "log").length >= 2)).toBe(true);
+    await esperar(150);
+
+    const mensajes = stream.eventos.filter((e) => e.event === "log").map((e) => e.data.message);
+    expect(mensajes).toEqual(expect.arrayContaining(["aviso multinivel", "fallo multinivel"]));
+    expect(mensajes).not.toContain("ruido multinivel");
+
+    stream.cerrar();
+  });
+
+  it("rechaza un nivel desconocido antes de abrir el stream", async () => {
+    const stream = await abrirStream(readKey, "?level=error,fatal");
+    expect(stream.response.status).toBe(400);
+    stream.cerrar();
+  });
+
   it("respeta el alcance de una clave acotada", async () => {
     const stream = await abrirStream(scopedKey);
     await esperarA(() => stream.eventos.some((e) => e.event === "ready"));

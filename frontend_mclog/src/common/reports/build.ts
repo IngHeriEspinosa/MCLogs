@@ -6,6 +6,7 @@ import { binTimeline, HOUR_MS, peakBin, type TimelineBin } from "@/common/time/t
 import type { LogEntry } from "@/hooks/useAuth";
 import type { ErrorGroup, FailureOccurrences, FailureOccurrencesResponse } from "@/hooks/useErrors";
 import type { PreviousWindow, ReportData, ReportOptions, ReportSection } from "./collect";
+import { pickFilters, REPORT_FILTERS, type ReportFilter } from "./options";
 import { clip, mdCode, mdFence, mdQuote, mdTable, stackHead, textBar, toCsv, utcMinute, yamlScalar } from "./markdown";
 import { createRedactor, redactText, redactValue } from "./redact";
 
@@ -118,12 +119,26 @@ type Context = {
   comparison: Comparison | null;
   /** Errores de la ventana por aplicacion, sumando los fallos agrupados. */
   errorsByApp: Map<string, number>;
+  /** Filtros por campo que acotan el reporte, en orden fijo y ya enmascarados si toca. */
+  filters: [ReportFilter, string][];
 };
+
+/** Filtros de texto libre: pueden llevar un correo o un token, asi que pasan por el enmascarado. */
+const FREE_TEXT_FILTERS: ReadonlySet<ReportFilter> = new Set<ReportFilter>(["search", "host"]);
+
+/** errorName -> error_name, para las claves de los formatos para agentes. */
+const snakeCase = (key: string) => key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
 const context = (data: ReportData, options: ReportOptions, r: (text: string) => string): Context => {
   const t = dictionaries[options.locale];
   const errorsByApp = new Map<string, number>();
   data.groups.forEach((group) => errorsByApp.set(group.application, (errorsByApp.get(group.application) ?? 0) + group.count));
+  const picked = pickFilters(options);
+  // Se enmascaran una sola vez aqui: cada llamada a r() suma al recuento de valores tapados.
+  const filters = REPORT_FILTERS.flatMap((key): [ReportFilter, string][] => {
+    const value = picked[key];
+    return value ? [[key, FREE_TEXT_FILTERS.has(key) ? r(value) : value]] : [];
+  });
   return {
     data,
     options,
@@ -139,6 +154,7 @@ const context = (data: ReportData, options: ReportOptions, r: (text: string) => 
     windowHours: Math.max(1, Math.round((Date.parse(data.to) - Date.parse(data.from)) / HOUR_MS)),
     comparison: options.sections.includes("comparison") ? compare(data) : null,
     errorsByApp,
+    filters,
   };
 };
 
@@ -208,9 +224,11 @@ const findings = (ctx: Context): string[] => {
 };
 
 const scopeLabel = (ctx: Context) =>
-  `${ctx.options.application ? mdCode(ctx.options.application) : ctx.d.allApps} · ${
-    ctx.options.environment ? mdCode(ctx.options.environment) : ctx.d.allEnvs
-  }`;
+  [
+    ctx.options.application ? mdCode(ctx.options.application) : ctx.d.allApps,
+    ctx.options.environment ? mdCode(ctx.options.environment) : ctx.d.allEnvs,
+    ...ctx.filters.map(([key, value]) => `${ctx.d.filterLabels[key]} ${mdCode(value)}`),
+  ].join(" · ");
 
 const stackBlock = (stack: string, lines: number, ctx: Pick<Context, "r" | "d">) => {
   const head = stackHead(ctx.r(stack), lines);
@@ -484,6 +502,7 @@ const agentData = (ctx: Context) => {
     window_hours: ctx.windowHours,
     scope_application: options.application ?? null,
     scope_environment: options.environment ?? null,
+    ...Object.fromEntries(ctx.filters.map(([key, value]) => [`scope_${snakeCase(key)}`, value])),
     logs_total: data.totals.total,
     logs_error: data.totals.error,
     logs_warn: data.totals.warn,
@@ -663,6 +682,7 @@ const instructions = (ctx: Context) => {
       a.untrustedRule,
       ...a.ruleList,
       a.windowRule,
+      ...(ctx.filters.length ? [a.scopeRule] : []),
       ...(ctx.comparison ? [a.comparisonRule] : []),
       ...(ctx.options.redact ? [a.redactedRule] : []),
     ],
@@ -695,6 +715,7 @@ const agentMarkdown = (ctx: Context): string => {
       `window_to: ${yamlScalar(data.to)}`,
       `scope_application: ${yamlScalar(options.application ?? null)}`,
       `scope_environment: ${yamlScalar(options.environment ?? null)}`,
+      ...ctx.filters.map(([key, value]) => `scope_${snakeCase(key)}: ${yamlScalar(value)}`),
       `sections: [${options.sections.join(", ")}]`,
       `redacted: ${options.redact}`,
       `language: ${options.locale}`,
@@ -784,7 +805,11 @@ const agentJson = (ctx: Context) => {
     source: data.origin || null,
     language: options.locale,
     window: { from: data.from, to: data.to, hours: ctx.windowHours },
-    scope: { application: options.application ?? null, environment: options.environment ?? null },
+    scope: {
+      application: options.application ?? null,
+      environment: options.environment ?? null,
+      ...Object.fromEntries(ctx.filters.map(([key, value]) => [snakeCase(key), value])),
+    },
     redacted: options.redact,
     notes: [ctx.d.agent.untrustedRule],
     instructions: instructions(ctx),

@@ -1,5 +1,6 @@
 import { RequestHandler } from "express";
 import { param, query, validationResult, ValidationChain } from "express-validator";
+import { isLevelList } from "../utils/levels";
 
 const handle: RequestHandler = (req, res, next) => {
   const errors = validationResult(req);
@@ -10,18 +11,22 @@ const handle: RequestHandler = (req, res, next) => {
   next();
 };
 
-export const validateLogQuery: Array<ValidationChain | RequestHandler> = [
-  query("page").optional().isInt({ min: 1 }).toInt(),
-  // 200 es el tope real que aplica el controlador: validarlo aqui evita
-  // aceptar un valor que luego se recorta en silencio.
-  query("pageSize").optional().isInt({ min: 1, max: 200 }).toInt(),
-  query("from").optional().isISO8601().toDate(),
-  query("to").optional().isISO8601().toDate(),
-  query("sort").optional().matches(/^(timestamp|application|level|host|environment):(asc|desc)$/),
-  query("level").optional().isIn(["debug", "info", "warn", "error"]),
-  query("environment").optional().isIn(["development", "staging", "production"]),
-  query("format").optional().isIn(["json", "csv", "ndjson"]),
-  query("application").optional().isString().isLength({ max: 120 }),
+/** Uno o varios niveles separados por comas: "error" o "error,warn". */
+const levelRule = () =>
+  query("level").optional().custom(isLevelList).withMessage("level must be a comma-separated list of debug, info, warn, error");
+
+const environmentRule = () => query("environment").optional().isIn(["development", "staging", "production"]);
+const applicationRule = () => query("application").optional().isString().isLength({ max: 120 });
+
+/**
+ * Filtros sobre los logs. Son los mismos en el listado, las estadisticas, los
+ * grupos de error y el inventario, para que un mismo corte de un reporte o de
+ * una vista cuadre en todas sus cifras.
+ */
+const logFilterRules = (): ValidationChain[] => [
+  levelRule(),
+  environmentRule(),
+  applicationRule(),
   query("service").optional().isString().isLength({ max: 120 }),
   query("host").optional().isString().isLength({ max: 255 }),
   query("traceId").optional().isString().isLength({ max: 128 }),
@@ -31,30 +36,38 @@ export const validateLogQuery: Array<ValidationChain | RequestHandler> = [
   query("message").optional().isString().isLength({ max: 300 }),
   query("errorName").optional().isString().isLength({ max: 200 }),
   query("errorCode").optional().isString().isLength({ max: 100 }),
+];
+
+export const validateLogQuery: Array<ValidationChain | RequestHandler> = [
+  query("page").optional().isInt({ min: 1 }).toInt(),
+  // 200 es el tope real que aplica el controlador: validarlo aqui evita
+  // aceptar un valor que luego se recorta en silencio.
+  query("pageSize").optional().isInt({ min: 1, max: 200 }).toInt(),
+  query("from").optional().isISO8601().toDate(),
+  query("to").optional().isISO8601().toDate(),
+  query("sort").optional().matches(/^(timestamp|application|level|host|environment):(asc|desc)$/),
+  query("format").optional().isIn(["json", "csv", "ndjson"]),
+  ...logFilterRules(),
   handle,
 ];
 
 /** Ventana relativa en horas, comun a grupos de error y estadisticas. */
-const hoursRule = query("hours").optional().isInt({ min: 1, max: 24 * 31 }).toInt();
+const hoursRule = () => query("hours").optional().isInt({ min: 1, max: 24 * 31 }).toInt();
 
 export const validateErrorGroups: Array<ValidationChain | RequestHandler> = [
-  hoursRule,
+  hoursRule(),
   query("from").optional().isISO8601().toDate(),
   query("to").optional().isISO8601().toDate(),
   query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
-  query("level").optional().isIn(["debug", "info", "warn", "error"]),
-  query("environment").optional().isIn(["development", "staging", "production"]),
-  query("application").optional().isString().isLength({ max: 120 }),
-  query("service").optional().isString().isLength({ max: 120 }),
+  ...logFilterRules(),
   handle
 ];
 
 export const validateStatsQuery: Array<ValidationChain | RequestHandler> = [
-  hoursRule,
+  hoursRule(),
   query("from").optional().isISO8601().toDate(),
   query("to").optional().isISO8601().toDate(),
-  query("environment").optional().isIn(["development", "staging", "production"]),
-  query("application").optional().isString().isLength({ max: 120 }),
+  ...logFilterRules(),
   handle
 ];
 
@@ -64,6 +77,15 @@ export const validateStatsQuery: Array<ValidationChain | RequestHandler> = [
  */
 export const validateApplications: Array<ValidationChain | RequestHandler> = [
   query("hours").optional().isInt({ min: 24, max: 24 * 31 }).withMessage("hours must be 24-744").toInt(),
+  ...logFilterRules(),
+  handle
+];
+
+/** El stream en vivo filtra en memoria, y solo por estos tres campos. */
+export const validateStreamQuery: Array<ValidationChain | RequestHandler> = [
+  levelRule(),
+  environmentRule(),
+  applicationRule(),
   handle
 ];
 

@@ -49,8 +49,13 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
   - el fin del SMTP AUTH con contraseña en Microsoft 365, que se desactiva por defecto a finales de 2026.
 
   El mensaje sigue siendo el mismo MIME, con parte de texto y parte HTML. El token se reutiliza hasta poco antes de caducar. Los fallos citan el error de Microsoft (`AADSTS…`, `ErrorAccessDenied`) sin exponer el secreto. Sin la variable todo sigue igual: `smtp` es el valor por defecto. Guía, con el permiso limitado a un solo buzón, en [DEPLOYMENT.md → Configurar el correo saliente](docs/DEPLOYMENT.md#configurar-el-correo-saliente).
+- **Dashboard — Varios niveles a la vez** en el filtro de Logs y Registros. La lista lleva una casilla por nivel y sigue abierta al marcar; **Todos los niveles** quita la selección. En la URL va como lista (`?level=error,warn`), y los enlaces con un solo nivel siguen valiendo. El stream en vivo, la exportación y los snapshots respetan la selección. El `Select` del dashboard gana el modo `multiple`.
+- **Dashboard — Más filtros en Reportes:** servicio, host, clase y código de error, texto y huella de un fallo, además de aplicación y entorno. Acotan todas las secciones a la vez (cifras, actividad, comparación, fallos e inventario) y viajan en la URL. El reporte los lista en su ámbito; en los formatos para IA van como `scope_*`, con una regla que pide aplicarlos al seguir investigando, y el texto y el host pasan por el enmascarado. "Exportar → Reporte" desde Logs arrastra también la búsqueda y la huella.
+- **API — Mismos filtros en estadísticas, grupos de error e inventario:** `GET /api/logs/stats`, `/api/logs/errors/groups` y `/api/logs/applications` aceptan todos los filtros de `GET /api/logs` (`service`, `host`, `search`, `message`, `errorName`, `errorCode`, `fingerprint`, `traceId`, `level`…). La serie por hora y el inventario los aplican con `buildWhereSql`, que replica `buildWhere` en SQL.
 
 ### Cambiado
+- **API — `level` admite varios niveles** separados por comas (`level=error,warn`) en `GET /api/logs`, `/stats`, `/errors/groups`, `/applications`, el stream en vivo y los filtros de los snapshots. Un nivel desconocido en la lista responde `400`; el stream ahora también valida `level` y `environment`. ⚠ **Requiere acción:** desplegar la API antes que el dashboard; un dashboard nuevo contra una API anterior recibe `400` al elegir más de un nivel.
+- **Correos — Plantilla nueva:** las invitaciones, el aviso de acceso a un espacio, "olvidé mi contraseña" y las alertas comparten un diseño con cabecera de marca, título, botón, enlace de respaldo y un pie que explica por qué llega el correo. La plantilla admite Outlook y móviles, y cada correo sale también en texto plano. El correo de alertas presenta los datos en una tabla y las muestras en un bloque monoespaciado (`Back_MCLog/src/utils/emailTemplate.ts`).
 - **MCP:** `tools/list` devuelve 9 herramientas (se añade `get_integration_skill`) y el servidor declara capacidades de recursos y prompts.
 - **Dashboard — "Copiar para IA" más preciso:**
   - **Log:** el contexto ya no repite el propio log y lleva la columna `error_name`. Si no había registros cerca, o si el contexto no había cargado al copiar, el brief lo dice (en el segundo caso, con la llamada `get_log_context` que lo resuelve).
@@ -60,6 +65,7 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
   - La regla de `first_seen_in_window` solo aparece donde existe ese campo (reporte y fallo agrupado).
 
 ### Corregido
+- **Correos:** la caducidad de la invitación decía "1 días" ("1 days" en inglés), y la alerta de errores nuevos decía "error(es) nuevo(s)". Ahora usan singular y plural según el número.
 - **API — Contexto de un log:** con más registros que `limit` en la ventana, devolvía los más antiguos y el log, y lo que lo precedía, podían quedar fuera. Ahora va en dos consultas desde el log hacia atrás y hacia delante (la mitad mayor para lo anterior) y se acota también por entorno.
 - **Enmascarado:** el id de una Server Action de Next.js y los hashes de commit ya no salen como `[REDACTED:key]`. Son públicos y hacen falta para diagnosticar el fallo.
 

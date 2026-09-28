@@ -4,6 +4,7 @@ import {
   applyPrefs,
   DEFAULT_SECTIONS,
   parsePrefs,
+  pickFilters,
   type ReportOptions,
   serializePrefs,
 } from "@/common/reports/options";
@@ -69,5 +70,18 @@ describe("applyPrefs", () => {
 
   it("sin kind en la URL se respeta el enmascarado guardado", () => {
     assert.equal(applyPrefs(base, { kind: "agent-json", redact: false }, false).redact, false);
+  });
+});
+
+describe("pickFilters", () => {
+  it("toma solo los filtros por campo, recortados y sin vacios", () => {
+    const params = new URLSearchParams("kind=agent-md&application=billing&service=%20checkout%20&host=&search=pedido+42&page=3");
+    assert.deepEqual(pickFilters(Object.fromEntries(params)), { service: "checkout", search: "pedido 42" });
+  });
+
+  it("los filtros no se guardan como preferencias: viajan en la URL", () => {
+    const prefs = parsePrefs(serializePrefs({ ...base, service: "checkout", fingerprint: "abc" }));
+    assert.equal("service" in prefs, false);
+    assert.equal("fingerprint" in prefs, false);
   });
 });

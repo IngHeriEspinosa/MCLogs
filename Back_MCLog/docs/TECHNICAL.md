@@ -131,10 +131,10 @@ El `mfaToken` es un JWT de **5 minutos**, firmado con un secreto derivado (`${JW
 | GET | `/api/logs` | JWT o API key `read` | Lista paginada con filtros, orden y formatos |
 | GET | `/api/logs/:id` | JWT o API key `read` | Log individual (`404` también si queda fuera del alcance de la clave) |
 | GET | `/api/logs/:id/context` | JWT o API key `read` | Logs vecinos en el tiempo (`before`, `after`, `limit`) |
-| GET | `/api/logs/stats` | JWT o API key `read` | Resumen y línea temporal (`application`, `environment`, `hours`, `from`, `to`) |
-| GET | `/api/logs/applications` | JWT o API key `read` | Aplicaciones con logs en la ventana (`hours` 24–744, una semana por defecto) |
-| GET | `/api/logs/stream` | JWT o API key `read` | Logs en vivo por SSE (`SSE_MAX_CONNECTIONS`). Sin rate limit |
-| GET | `/api/logs/errors/groups` | JWT o API key `read` | Errores agrupados por huella, con recuento y primera/última vez |
+| GET | `/api/logs/stats` | JWT o API key `read` | Resumen y línea temporal (`hours`, `from`, `to` y los filtros de `/api/logs`) |
+| GET | `/api/logs/applications` | JWT o API key `read` | Aplicaciones con logs en la ventana (`hours` 24–744, una semana por defecto, y los filtros de `/api/logs`) |
+| GET | `/api/logs/stream` | JWT o API key `read` | Logs en vivo por SSE (`SSE_MAX_CONNECTIONS`). Sin rate limit. `level` admite varios (`error,warn`) |
+| GET | `/api/logs/errors/groups` | JWT o API key `read` | Errores agrupados por huella, con recuento y primera/última vez (los filtros de `/api/logs`; `level` por defecto `error`) |
 | GET | `/api/logs/trace/:traceId` | JWT o API key `read` | Traza completa de una petición |
 | DELETE | `/api/logs?before=ISO[&application=X]` | JWT dueño del espacio | Purga logs anteriores a la fecha → `{ deleted }` |
 | GET · POST | `/api/keys` | JWT dueño del espacio | Lista y crea API keys con scopes y alcance por aplicación. La clave se muestra una sola vez |

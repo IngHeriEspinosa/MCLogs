@@ -14,9 +14,7 @@ export type SelectOption<V extends string> = {
   icon?: IconName;
 };
 
-type SelectProps<V extends string> = {
-  value: V;
-  onChange: (value: V) => void;
+type BaseProps<V extends string> = {
   options: SelectOption<V>[];
   /** Nombre accesible si no hay un <label> visible asociado (Field). */
   label?: string;
@@ -35,28 +33,46 @@ type SelectProps<V extends string> = {
   "aria-describedby"?: string;
 };
 
+type SingleProps<V extends string> = BaseProps<V> & {
+  multiple?: false;
+  value: V;
+  onChange: (value: V) => void;
+};
+
+/**
+ * Varios valores a la vez. La lista sigue abierta al marcar, para elegir mas,
+ * y la opcion de valor "" (si la hay) hace de "todos": vacia la seleccion.
+ */
+type MultipleProps<V extends string> = BaseProps<V> & {
+  multiple: true;
+  value: V[];
+  onChange: (value: V[]) => void;
+};
+
+type SelectProps<V extends string> = SingleProps<V> | MultipleProps<V>;
+
 /**
  * Select propio con el patron "select-only combobox" de ARIA: el disparador
  * conserva el foco y anuncia la opcion activa con aria-activedescendant, asi
  * que el lector de pantalla lee etiqueta, valor y estado igual que con un
  * <select> nativo, pero con la lista estilada, puntos de color y buscador.
+ * Con `multiple`, la lista se anuncia como de seleccion multiple.
  */
-export function Select<V extends string>({
-  value,
-  onChange,
-  options,
-  label,
-  placeholder,
-  icon,
-  searchable,
-  allowCustom,
-  size = "md",
-  align = "start",
-  disabled,
-  className = "",
-  id,
-  "aria-describedby": describedBy,
-}: SelectProps<V>) {
+export function Select<V extends string>(props: SelectProps<V>) {
+  const {
+    options,
+    label,
+    placeholder,
+    icon,
+    searchable,
+    allowCustom,
+    size = "md",
+    align = "start",
+    disabled,
+    className = "",
+    id,
+    "aria-describedby": describedBy,
+  } = props;
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -69,7 +85,19 @@ export function Select<V extends string>({
     matchWidth: true,
   });
 
-  const selected = options.find((option) => option.value === value);
+  const isSelected = (option: SelectOption<V>) =>
+    props.multiple
+      ? option.value === ""
+        ? props.value.length === 0
+        : props.value.includes(option.value)
+      : option.value === props.value;
+
+  // Lo que ensena el disparador. Un valor que no es ninguna opcion (allowCustom) se ve tal cual.
+  const shown = options.filter(isSelected);
+  const custom = (props.multiple ? props.value : [props.value]).filter(
+    (value) => value && !options.some((option) => option.value === value),
+  );
+  const summary = [...shown.map((option) => option.label), ...custom].join(", ");
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -89,7 +117,7 @@ export function Select<V extends string>({
   const show = () => {
     if (disabled) return;
     setQuery("");
-    setActive(Math.max(0, options.findIndex((option) => option.value === value)));
+    setActive(Math.max(0, options.findIndex(isSelected)));
     setOpen(true);
   };
 
@@ -100,8 +128,14 @@ export function Select<V extends string>({
 
   const commit = (option: SelectOption<V> | undefined) => {
     if (!option) return;
-    onChange(option.value);
-    hide();
+    if (!props.multiple) {
+      props.onChange(option.value);
+      hide();
+      return;
+    }
+    const { value, onChange } = props;
+    if (option.value === "") onChange([]);
+    else onChange(value.includes(option.value) ? value.filter((item) => item !== option.value) : [...value, option.value]);
   };
 
   useDismiss(open, () => setOpen(false), [anchorRef, floatingRef]);
@@ -201,9 +235,16 @@ export function Select<V extends string>({
         } ${className}`}
       >
         {icon && <Icon name={icon} className="h-4 w-4 text-ink-3" />}
-        {selected?.dotClass && <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${selected.dotClass}`} />}
-        <span className={`min-w-0 flex-1 truncate ${selected ? "text-ink" : "text-ink-3"}`}>
-          {selected?.label ?? (value || placeholder)}
+        {shown.some((option) => option.dotClass) && (
+          <span aria-hidden className="flex shrink-0 items-center gap-0.5">
+            {shown.map((option) => option.dotClass && <span key={option.value} className={`h-2 w-2 rounded-full ${option.dotClass}`} />)}
+          </span>
+        )}
+        <span
+          className={`min-w-0 flex-1 truncate ${shown.length ? "text-ink" : "text-ink-3"}`}
+          title={shown.length + custom.length > 1 ? summary : undefined}
+        >
+          {summary || placeholder}
         </span>
         <Icon name="chevronsUpDown" className="h-3.5 w-3.5 text-ink-3" />
       </button>
@@ -239,15 +280,21 @@ export function Select<V extends string>({
                 </div>
               </div>
             )}
-            <ul id={listId} role="listbox" aria-label={label} className="min-h-0 flex-1 overflow-y-auto p-1">
+            <ul
+              id={listId}
+              role="listbox"
+              aria-label={label}
+              aria-multiselectable={props.multiple || undefined}
+              className="min-h-0 flex-1 overflow-y-auto p-1"
+            >
               {visible.map((option, index) => {
-                const isSelected = option.value === value;
+                const checked = isSelected(option);
                 return (
                   <li
                     key={`${option.value}-${index}`}
                     id={optionId(index)}
                     role="option"
-                    aria-selected={isSelected}
+                    aria-selected={checked}
                     onMouseMove={() => setActive(index)}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => commit(option)}
@@ -255,13 +302,24 @@ export function Select<V extends string>({
                       index === active ? "bg-surface-3 text-ink" : "text-ink-2"
                     }`}
                   >
+                    {/* Con varios, una casilla por opcion: se ve que se pueden marcar mas. */}
+                    {props.multiple && (
+                      <span
+                        aria-hidden
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
+                          checked ? "border-brand-solid bg-brand-solid text-white" : "border-line-strong bg-surface"
+                        }`}
+                      >
+                        {checked && <Icon name="check" className="h-3 w-3" strokeWidth={3} />}
+                      </span>
+                    )}
                     {option.dotClass && <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${option.dotClass}`} />}
                     {option.icon && <Icon name={option.icon} className="h-4 w-4 text-ink-3" />}
                     <span className="min-w-0 flex-1">
-                      <span className={`block truncate ${isSelected ? "font-medium text-ink" : ""}`}>{option.label}</span>
+                      <span className={`block truncate ${checked ? "font-medium text-ink" : ""}`}>{option.label}</span>
                       {option.hint && <span className="block truncate text-xs text-ink-3">{option.hint}</span>}
                     </span>
-                    {isSelected && <Icon name="check" className="h-4 w-4 text-brand" strokeWidth={2.5} />}
+                    {checked && !props.multiple && <Icon name="check" className="h-4 w-4 text-brand" strokeWidth={2.5} />}
                   </li>
                 );
               })}

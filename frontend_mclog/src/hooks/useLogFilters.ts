@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { joinLevels, parseLevels } from "@/common/filters/levels";
 import { DEFAULT_RANGE, rangeFromParams, rangeToParams, sameRange, TimeRange } from "@/common/time/range";
 
 export type SortField = "timestamp" | "application" | "level" | "host" | "environment";
@@ -13,6 +14,7 @@ export type AdvancedField = (typeof ADVANCED_FIELDS)[number];
 
 export type LogFilters = {
   range: TimeRange;
+  /** Uno o varios niveles separados por comas ("error,warn"); vacio = todos. Ver common/filters/levels. */
   level: string;
   environment: string;
   application: string;
@@ -55,7 +57,8 @@ const parse = (params: URLSearchParams): LogFilters => {
   const pageSize = Number(params.get("pageSize"));
   return {
     range: rangeFromParams(params),
-    level: params.get("level") ?? "",
+    // Normalizado: un enlace editado a mano con un nivel desconocido no llega a la API.
+    level: joinLevels(parseLevels(params.get("level") ?? "")),
     environment: params.get("environment") ?? "",
     application: params.get("application") ?? "",
     search: params.get("search") ?? "",

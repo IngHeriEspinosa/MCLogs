@@ -39,6 +39,38 @@ export const AGENT_OBJECTIVES: AgentObjective[] = ["triage", "regression", "inci
 export const MAX_GROUPS_OPTIONS = [5, 10, 20, 50] as const;
 export const STACK_LINES_OPTIONS = [10, 20, 40] as const;
 
+/**
+ * Filtros por campo, ademas de la aplicacion y el entorno. Son los de la vista
+ * de logs y acotan todas las secciones a la vez: un reporte de un servicio, de
+ * un host, de una clase de error, de un texto (un pedido, un cliente) o de un
+ * fallo concreto.
+ *
+ * El nivel no esta: lo deciden las secciones (fallos, warnings, errores
+ * recientes), y un filtro de nivel las contradiria.
+ */
+export const REPORT_FILTERS = ["service", "host", "errorName", "errorCode", "search", "fingerprint"] as const;
+export type ReportFilter = (typeof REPORT_FILTERS)[number];
+export type ReportFilters = Partial<Record<ReportFilter, string>>;
+
+/** Longitud maxima de cada filtro: la misma que valida la API. */
+export const REPORT_FILTER_MAX: Record<ReportFilter, number> = {
+  service: 120,
+  host: 255,
+  errorName: 200,
+  errorCode: 100,
+  search: 300,
+  fingerprint: 64,
+};
+
+/** Los filtros por campo de una fuente cualquiera (opciones, URL), recortados y sin los vacios. */
+export const pickFilters = (source: ReportFilters): ReportFilters =>
+  Object.fromEntries(
+    REPORT_FILTERS.flatMap((key) => {
+      const value = source[key]?.trim();
+      return value ? [[key, value]] : [];
+    }),
+  );
+
 export type ReportOptions = {
   kind: ReportKind;
   locale: Locale;
@@ -52,12 +84,12 @@ export type ReportOptions = {
   redact: boolean;
   objective: AgentObjective;
   instructions: string;
-};
+} & ReportFilters;
 
 /**
- * Lo que se recuerda en el navegador. El rango y el ambito no: viajan en la
- * URL, que es lo que se comparte. Las instrucciones tampoco, porque son de un
- * caso concreto.
+ * Lo que se recuerda en el navegador. El rango, el ambito y los filtros no:
+ * viajan en la URL, que es lo que se comparte. Las instrucciones tampoco,
+ * porque son de un caso concreto.
  */
 export type ReportPrefs = Pick<
   ReportOptions,

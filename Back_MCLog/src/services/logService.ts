@@ -66,7 +66,8 @@ export type LogFilters = {
      */
     workspaceId: number;
     application?: string;
-    level?: string;
+    /** Uno o varios niveles: el log tiene que ser de alguno de ellos. */
+    levels?: LogLevel[];
     environment?: string;
     search?: string;
     service?: string;
@@ -99,7 +100,7 @@ type Sort = {
 
 export const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
     const {
-        workspaceId, application, level, environment, search, service, host, traceId, fingerprint, message, errorName,
+        workspaceId, application, levels, environment, search, service, host, traceId, fingerprint, message, errorName,
         errorCode, from, to, applicationsIn
     } = filters;
 
@@ -117,7 +118,7 @@ export const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
         ...(message && { message: { contains: message, mode: 'insensitive' } }),
         ...(errorName && { errorName: { contains: errorName, mode: 'insensitive' } }),
         ...(errorCode && { errorCode: { contains: errorCode, mode: 'insensitive' } }),
-        ...(level && { level: level as LogLevel }),
+        ...(levels?.length && { level: { in: levels } }),
         ...(environment && { environment: environment as Environment }),
         ...(timestamp && { timestamp }),
         ...(search && {
@@ -137,6 +138,46 @@ export const buildWhere = (filters: LogFilters): Prisma.LogWhereInput => {
         return { AND: [where, { application: { in: applicationsIn } }] };
     }
     return where;
+};
+
+/**
+ * Los mismos filtros que buildWhere, como condicion SQL para las consultas en
+ * crudo (la serie por hora, el inventario), que la API tipada de Prisma no
+ * sabe expresar. Un filtro nuevo alli tiene que llegar tambien aqui, o las
+ * cifras de esas consultas dejarian de cuadrar con el listado.
+ */
+export const buildWhereSql = (filters: LogFilters): Prisma.Sql => {
+    const {
+        workspaceId, application, levels, environment, search, service, host, traceId, fingerprint, message, errorName,
+        errorCode, from, to, applicationsIn
+    } = filters;
+    const contains = (value: string) => `%${value}%`;
+
+    const conditions: Prisma.Sql[] = [Prisma.sql`"workspaceId" = ${workspaceId}`];
+    if (application) conditions.push(Prisma.sql`"application" ILIKE ${contains(application)}`);
+    if (service) conditions.push(Prisma.sql`"service" ILIKE ${contains(service)}`);
+    if (host) conditions.push(Prisma.sql`"host" ILIKE ${contains(host)}`);
+    if (traceId) conditions.push(Prisma.sql`"traceId" = ${traceId}`);
+    if (fingerprint) conditions.push(Prisma.sql`"fingerprint" = ${fingerprint}`);
+    if (message) conditions.push(Prisma.sql`"message" ILIKE ${contains(message)}`);
+    if (errorName) conditions.push(Prisma.sql`"errorName" ILIKE ${contains(errorName)}`);
+    if (errorCode) conditions.push(Prisma.sql`"errorCode" ILIKE ${contains(errorCode)}`);
+    if (levels?.length) {
+        conditions.push(Prisma.sql`"level" IN (${Prisma.join(levels.map((level) => Prisma.sql`${level}::"LogLevel"`))})`);
+    }
+    if (environment) conditions.push(Prisma.sql`"environment" = ${environment}::"Environment"`);
+    if (from) conditions.push(Prisma.sql`"timestamp" >= ${from}`);
+    if (to) conditions.push(Prisma.sql`"timestamp" <= ${to}`);
+    if (search) {
+        const needle = contains(search);
+        conditions.push(Prisma.sql`(
+            "message" ILIKE ${needle} OR "application" ILIKE ${needle} OR "service" ILIKE ${needle}
+            OR "host" ILIKE ${needle} OR "traceId" = ${search}
+        )`);
+    }
+    if (applicationsIn?.length) conditions.push(Prisma.sql`"application" = ANY(${applicationsIn})`);
+
+    return Prisma.join(conditions, ' AND ');
 };
 
 export const listLogs = async (filters: LogFilters, pagination: Pagination, sort: Sort) => {

@@ -176,7 +176,7 @@ Body `{ "logs": [ ...entradas... ] }`. Array no vacío, máximo `MAX_BATCH_SIZE`
 | `application` / `service` / `host` | string ≤120/120/255 | — | `contains`, insensible a mayúsculas |
 | `traceId` | string ≤128 | — | Coincidencia exacta |
 | `fingerprint` | string ≤64 | — | Coincidencia exacta: las ocurrencias de un mismo fallo |
-| `level` | enum | — | |
+| `level` | lista | — | Uno o varios niveles separados por comas: `error` o `error,warn`. Un nivel desconocido → `400` |
 | `environment` | enum | — | |
 | `from` / `to` | ISO-8601 | — | Combinables en un único filtro sobre `timestamp` |
 | `search` | string ≤300 | — | `OR` sobre message, application, service, host (parcial) y traceId (exacto) |
@@ -187,6 +187,8 @@ Body `{ "logs": [ ...entradas... ] }`. Array no vacío, máximo `MAX_BATCH_SIZE`
 | `format` | `json\|csv\|ndjson` | `json` | |
 
 Todos los filtros se combinan con **Y**. La búsqueda libre (`search`) y la avanzada (un campo por parámetro) pueden usarse a la vez. Una clave acotada a ciertas aplicaciones solo ve las suyas.
+
+Los mismos filtros (de `application` a `errorCode`, salvo `from`/`to`) valen en `/api/logs/stats`, `/api/logs/errors/groups` y `/api/logs/applications`: así un reporte o una vista acotada cuadra en todas sus cifras. Las consultas en crudo (serie por hora, inventario) los aplican con `buildWhereSql`, que replica `buildWhere` en SQL; un filtro nuevo tiene que llegar a los dos. Ver [logService.ts](../Back_MCLog/src/services/logService.ts).
 
 **Respuesta JSON:**
 ```json
@@ -201,7 +203,7 @@ Todos los filtros se combinan con **Y**. La búsqueda libre (`search`) y la avan
 `200` con el registro · `400` id no numérico · `404` no existe.
 
 #### `GET /api/logs/errors/groups`
-Errores agrupados por huella, del más frecuente al menos. Query: `hours` (default 24) o `from`/`to`, `application`, `service`, `environment`, `level` (default `error`), `limit` (1–100, default 50).
+Errores agrupados por huella, del más frecuente al menos. Query: `hours` (default 24) o `from`/`to`, `limit` (1–100, default 50) y los filtros de `GET /api/logs`. `level` es `error` por defecto; `level=error,warn` junta errores y warnings.
 
 ```json
 {
@@ -246,10 +248,10 @@ Cuántas veces ha ocurrido el fallo de un log (su huella): en las últimas 24 h,
 `data` es `null` si el log no tiene huella. Como el contexto, responde `404` si el log no existe o queda fuera del alcance de la clave, y con una clave acotada solo cuenta sus aplicaciones (una huella propia del emisor puede repetirse en varias).
 
 #### `GET /api/logs/applications`
-Inventario: por aplicación, sus servicios, entornos, logs en la ventana, última actividad y errores de las últimas 24 h. Query opcional: `hours` (24–744, default 168 = una semana). Solo aparecen las aplicaciones con logs en la ventana; sin ella la consulta recorría la tabla entera en cada llamada. Devuelve `{ data, from, to }`.
+Inventario: por aplicación, sus servicios, entornos, logs en la ventana, última actividad y errores de las últimas 24 h. Query opcional: `hours` (24–744, default 168 = una semana) y los filtros de `GET /api/logs`, con los que solo cuenta los logs que los cumplen (p. ej. `service=pagos`). Solo aparecen las aplicaciones con logs en la ventana; sin ella la consulta recorría la tabla entera en cada llamada. Devuelve `{ data, from, to }`.
 
 #### `GET /api/logs/stats`
-Query opcional: `application`, `environment`, `hours` (default 24) o `from`/`to`, que acotan la serie temporal.
+Query opcional: los filtros de `GET /api/logs`, y `hours` (default 24) o `from`/`to`, que acotan solo la serie temporal.
 
 ```json
 {
@@ -328,7 +330,7 @@ Los códigos de recuperación tienen formato `xxxxx-xxxxx`, valen una vez cada u
 | `GET /docs` | — | Swagger UI |
 | `GET /openapi.json` | — | Especificación OpenAPI en crudo, para generar clientes |
 | `POST /mcp` | JWT o API key con `read` | Servidor MCP (JSON-RPC). Ver [AI_INTEGRATION.md](AI_INTEGRATION.md) |
-| `GET /api/logs/stream` | JWT o API key con `read` | Stream de logs en vivo (SSE). Filtros: `level`, `application`, `environment` |
+| `GET /api/logs/stream` | JWT o API key con `read` | Stream de logs en vivo (SSE). Filtros: `level` (uno o varios, `error,warn`), `application`, `environment` |
 
 Además de las métricas por defecto del proceso, `/metrics` publica
 `http_request_duration_seconds{method,route,status}`,

@@ -200,6 +200,31 @@ describe("Grupos de error", () => {
     expect(vacia.status).toBe(200);
     expect(vacia.body.data).toHaveLength(0);
   });
+
+  it("admite los mismos filtros que el listado", async () => {
+    const grupos = (query: string) => request(app).get(`/api/logs/errors/groups?application=facturacion&${query}`).set(auth());
+
+    const porTexto = await grupos("search=rechazada");
+    expect(porTexto.status).toBe(200);
+    expect(porTexto.body.data.map((group: { sampleMessage: string }) => group.sampleMessage)).toEqual(["Tarjeta rechazada"]);
+
+    const porClase = await grupos("errorName=typeerror");
+    expect(porClase.body.data).toHaveLength(1);
+    expect(porClase.body.data[0].count).toBe(3);
+  });
+
+  it("junta errores y warnings si se piden los dos niveles", async () => {
+    await ingest({ application: "grupos-mixtos", level: "error", environment: "production", message: "se cayo" });
+    await ingest({ application: "grupos-mixtos", level: "warn", environment: "production", message: "va lento" });
+    const niveles = async (query: string) => {
+      const res = await request(app).get(`/api/logs/errors/groups?application=grupos-mixtos${query}`).set(auth());
+      return res.body.data.map((group: { level: string }) => group.level).sort();
+    };
+
+    // Sin nivel, solo errores: es lo que busca quien abre la vista de fallos.
+    expect(await niveles("")).toEqual(["error"]);
+    expect(await niveles("&level=error,warn")).toEqual(["error", "warn"]);
+  });
 });
 
 describe("Traza", () => {
@@ -381,6 +406,20 @@ describe("Inventario de aplicaciones", () => {
 
     const mes = await request(app).get("/api/logs/applications?hours=744").set(auth());
     expect(nombres(mes)).toContain("inventario-antigua");
+  });
+
+  it("con filtros, solo cuenta los logs que los cumplen", async () => {
+    const inventario = (query: string) =>
+      request(app).get(`/api/logs/applications?application=inventario-mixta&${query}`).set(auth());
+
+    const porServicio = await inventario("service=b");
+    expect(porServicio.status).toBe(200);
+    expect(porServicio.body.data).toHaveLength(1);
+    expect(porServicio.body.data[0]).toMatchObject({ count: 1, errorsLast24h: 1, services: ["b"], environments: ["staging"] });
+
+    const produccion = (await inventario("environment=production")).body.data[0];
+    expect(produccion).toMatchObject({ count: 3, errorsLast24h: 1, environments: ["production"] });
+    expect([...produccion.services].sort()).toEqual(["a", "inventario-mixta"]);
   });
 
   it("rechaza una ventana menor de 24 horas, que recortaria los errores", async () => {

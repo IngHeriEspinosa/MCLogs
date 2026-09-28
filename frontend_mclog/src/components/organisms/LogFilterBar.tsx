@@ -6,6 +6,7 @@ import { Input } from "@/components/atoms/Input";
 import { DateRangePicker } from "@/components/molecules/DateRangePicker";
 import { Select } from "@/components/molecules/Select";
 import { useI18n } from "@/common/i18n/I18nProvider";
+import { joinLevels, parseLevels } from "@/common/filters/levels";
 import { LogFilters } from "@/hooks/useLogFilters";
 import { useFilterOptions } from "@/hooks/useOptions";
 
@@ -48,11 +49,12 @@ export const LogFilterBar = forwardRef<HTMLInputElement, LogFilterBarProps>(func
         trailing={search ? undefined : <Kbd className="mr-1 hidden sm:inline-flex">/</Kbd>}
       />
 
-      <div className="w-[calc(50%-0.25rem)] sm:w-44">
+      <div className="w-[calc(50%-0.25rem)] sm:w-48">
         <Select
+          multiple
           label={t.levels.label}
-          value={filters.level}
-          onChange={(level) => setFilters({ level })}
+          value={parseLevels(filters.level)}
+          onChange={(levels) => setFilters({ level: joinLevels(levels) })}
           options={options.levels}
         />
       </div>

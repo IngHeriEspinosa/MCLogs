@@ -5,6 +5,7 @@ import { LOG_CREATED, LogEvent, logEvents } from "../events/logEvents";
 import type { AuthenticatedRequest } from "../middlewares/requireAuth";
 import { workspaceIdOf } from "../middlewares/workspaceContext";
 import { getSetting } from "../services/settingsService";
+import { parseLevels } from "../utils/levels";
 
 /**
  * Stream de logs en vivo por Server-Sent Events.
@@ -23,7 +24,7 @@ let activas = 0;
 
 type StreamFilters = {
   workspaceId: number;
-  level?: string;
+  levels?: string[];
   application?: string;
   environment?: string;
   /** Impuesto por la API key, no elegido por quien consulta. */
@@ -34,7 +35,7 @@ const matches = (event: LogEvent, filters: StreamFilters): boolean => {
   // Lo primero y lo mas barato: los logs de otro espacio no se miran siquiera.
   if (event.workspaceId !== filters.workspaceId) return false;
   if (filters.applicationsIn?.length && !filters.applicationsIn.includes(event.application)) return false;
-  if (filters.level && event.level !== filters.level) return false;
+  if (filters.levels && !filters.levels.includes(event.level)) return false;
   if (filters.environment && event.environment !== filters.environment) return false;
   if (filters.application && !event.application.toLowerCase().includes(filters.application.toLowerCase())) {
     return false;
@@ -54,7 +55,7 @@ export const streamLogs = (req: Request, res: Response) => {
   const applications = (req as AuthenticatedRequest).apiKey?.applications;
   const filters: StreamFilters = {
     workspaceId: workspaceIdOf(req),
-    level: req.query.level as string | undefined,
+    levels: parseLevels(req.query.level),
     application: req.query.application as string | undefined,
     environment: req.query.environment as string | undefined,
     applicationsIn: applications && applications.length > 0 ? applications : undefined,

@@ -1,5 +1,5 @@
 "use client";
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/atoms/Alert";
 import { Button } from "@/components/atoms/Button";
@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/atoms/Checkbox";
 import { EmptyState, Kbd } from "@/components/atoms/EmptyState";
 import { Field, Fieldset } from "@/components/atoms/Field";
 import { Icon, IconName } from "@/components/atoms/Icon";
-import { Textarea } from "@/components/atoms/Input";
+import { Input, Textarea } from "@/components/atoms/Input";
 import { Segmented } from "@/components/atoms/Segmented";
 import { Switch } from "@/components/atoms/Switch";
 import { Tag } from "@/components/atoms/Tag";
@@ -33,9 +33,14 @@ import {
   MAX_GROUPS_OPTIONS,
   MAX_SAMPLES,
   parsePrefs,
+  pickFilters,
   PREFS_KEY,
+  REPORT_FILTER_MAX,
+  REPORT_FILTERS,
   REPORT_KINDS,
   REPORT_SECTIONS,
+  ReportFilter,
+  ReportFilters,
   ReportKind,
   ReportOptions,
   ReportSection,
@@ -44,10 +49,21 @@ import {
 } from "@/common/reports/collect";
 import { approxTokens } from "@/common/reports/markdown";
 import { Preset, rangeFromParams, rangeToParams } from "@/common/time/range";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useFilterOptions } from "@/hooks/useOptions";
 
 const PRESETS: readonly Preset[] = ["1h", "6h", "24h", "7d", "30d"];
 const KIND_ICON: Record<ReportKind, IconName> = { markdown: "report", "agent-md": "bot", "agent-json": "braces" };
+const FILTER_ICON: Record<ReportFilter, IconName> = {
+  service: "layers",
+  host: "server",
+  errorName: "errors",
+  errorCode: "hash",
+  search: "search",
+  fingerprint: "hash",
+};
+/** Identificadores: se leen mejor, y se copian sin errores, en monoespaciada. */
+const MONO_FILTERS: ReadonlySet<ReportFilter> = new Set<ReportFilter>(["errorCode", "fingerprint"]);
 /** Por encima de esto un brief ya no cabe holgado en la ventana de muchos modelos. */
 const LARGE_TOKENS = 100_000;
 
@@ -55,7 +71,9 @@ type Result = BuiltReport & { options: ReportOptions; bytes: number; tokens: num
 
 const isKind = (value: unknown): value is ReportKind => REPORT_KINDS.includes(value as ReportKind);
 
-const defaults = (scope: Pick<ReportOptions, "kind" | "locale" | "range" | "application" | "environment">): ReportOptions => ({
+type Scope = Pick<ReportOptions, "kind" | "locale" | "range" | "application" | "environment"> & ReportFilters;
+
+const defaults = (scope: Scope): ReportOptions => ({
   ...scope,
   sections: [...DEFAULT_SECTIONS],
   maxGroups: 10,
@@ -75,8 +93,8 @@ function ReportsView() {
   const filterOptions = useFilterOptions();
 
   // Estado inicial desde la URL: "Exportar > Brief para IA" en la vista de
-  // logs llega aqui con el tipo, el rango y el ambito ya puestos. Las
-  // preferencias guardadas se aplican tras montar, para no desajustar la
+  // logs llega aqui con el tipo, el rango, el ambito y los filtros ya puestos.
+  // Las preferencias guardadas se aplican tras montar, para no desajustar la
   // hidratacion.
   const [options, setOptions] = useState<ReportOptions>(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -87,10 +105,15 @@ function ReportsView() {
       range: rangeFromParams(params),
       application: params.get("application") ?? undefined,
       environment: params.get("environment") ?? undefined,
+      ...pickFilters(Object.fromEntries(params)),
     });
   });
   const [hydrated, setHydrated] = useState(false);
   const [view, setView] = useState<"rendered" | "raw">("rendered");
+  const filterCount = REPORT_FILTERS.filter((key) => options[key]?.trim()).length;
+  // Abiertos si se llega con alguno puesto: un filtro activo nunca queda oculto.
+  const [filtersOpen, setFiltersOpen] = useState(filterCount > 0);
+  const filtersId = useId();
 
   const set = <K extends keyof ReportOptions>(key: K, value: ReportOptions[K]) =>
     setOptions((current) => ({ ...current, [key]: value }));
@@ -163,21 +186,26 @@ function ReportsView() {
     }
   }, [options, hydrated]);
 
-  // El tipo, el rango y el ambito van en la URL: recargar no los pierde y el
-  // enlace se puede compartir. De paso desaparece ?generate=1, para que
-  // recargar no vuelva a lanzarlo.
-  useEffect(() => {
-    if (!hydrated) return;
+  // El tipo, el rango, el ambito y los filtros van en la URL: recargar no los
+  // pierde y el enlace se puede compartir. De paso desaparece ?generate=1,
+  // para que recargar no vuelva a lanzarlo. Con retardo, porque los filtros se
+  // escriben letra a letra.
+  const query = (() => {
     const params = new URLSearchParams();
     if (options.kind !== "markdown") params.set("kind", options.kind);
     Object.entries(rangeToParams(options.range)).forEach(([key, value]) => value && params.set(key, value));
     if (options.application) params.set("application", options.application);
     if (options.environment) params.set("environment", options.environment);
-    const next = params.toString();
-    if (next !== window.location.search.replace(/^\?/, "")) {
-      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    Object.entries(pickFilters(options)).forEach(([key, value]) => value && params.set(key, value));
+    return params.toString();
+  })();
+  const debouncedQuery = useDebounce(query);
+  useEffect(() => {
+    if (!hydrated) return;
+    if (debouncedQuery !== window.location.search.replace(/^\?/, "")) {
+      router.replace(debouncedQuery ? `${pathname}?${debouncedQuery}` : pathname, { scroll: false });
     }
-  }, [hydrated, options.kind, options.range, options.application, options.environment, pathname, router]);
+  }, [hydrated, debouncedQuery, pathname, router]);
 
   // Ctrl/Cmd + Enter genera desde cualquier punto de la pagina.
   const runRef = useRef(run);
@@ -206,6 +234,7 @@ function ReportsView() {
         range: current.range,
         application: current.application,
         environment: current.environment,
+        ...pickFilters(current),
       }),
     );
   };
@@ -311,6 +340,42 @@ function ReportsView() {
                 />
               </Field>
             </div>
+
+            <Fieldset legend={t.reports.moreFilters} info={t.fieldInfo.reports.filters}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="filter"
+                iconRight={filtersOpen ? "chevronUp" : "chevronDown"}
+                aria-expanded={filtersOpen}
+                aria-controls={filtersId}
+                onClick={() => setFiltersOpen((open) => !open)}
+                className="w-full"
+              >
+                <span className="min-w-0 flex-1 truncate text-left">{filtersOpen ? t.reports.hideFilters : t.reports.filtersHint}</span>
+                {filterCount > 0 && (
+                  <span className="rounded-full bg-brand-soft px-1.5 font-mono text-[0.6875rem] text-brand-ink">{filterCount}</span>
+                )}
+              </Button>
+              {filtersOpen && (
+                <div id={filtersId} className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-1">
+                  {REPORT_FILTERS.map((key) => (
+                    <Field key={key} label={t.reports.filterNames[key]} info={t.fieldInfo.reports.filterFields[key]}>
+                      <Input
+                        icon={FILTER_ICON[key]}
+                        value={options[key] ?? ""}
+                        onChange={(event) => set(key, event.target.value || undefined)}
+                        placeholder={t.reports.filterPlaceholders[key]}
+                        maxLength={REPORT_FILTER_MAX[key]}
+                        className={MONO_FILTERS.has(key) ? "font-mono" : ""}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+            </Fieldset>
 
             <Fieldset legend={t.reports.sections} info={t.fieldInfo.reports.sections} hint={options.sections.length === 0 ? t.reports.noSections : undefined}>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">

@@ -381,6 +381,25 @@ export const en: Dictionary = {
     },
     range: "Range",
     scope: "Scope",
+    moreFilters: "More filters",
+    filtersHint: "Service, host, error class or code, text, fingerprint",
+    hideFilters: "Hide",
+    filterNames: {
+      service: "Service",
+      host: "Host",
+      errorName: "Error class",
+      errorCode: "Error code",
+      search: "Contains the text",
+      fingerprint: "Failure fingerprint",
+    },
+    filterPlaceholders: {
+      service: "e.g. checkout",
+      host: "e.g. web-01",
+      errorName: "e.g. TypeError",
+      errorCode: "e.g. ECONNRESET",
+      search: "e.g. an order or a customer",
+      fingerprint: "full fingerprint",
+    },
     sections: "Sections",
     sectionNames: {
       summary: "Summary and findings",
@@ -447,6 +466,14 @@ export const en: Dictionary = {
     scope: "Scope",
     allApps: "all applications",
     allEnvs: "all environments",
+    filterLabels: {
+      service: "service",
+      host: "host",
+      errorName: "error class",
+      errorCode: "code",
+      search: "text",
+      fingerprint: "fingerprint",
+    },
     summary: "Summary",
     keyFindings: "Key findings",
     metric: "Metric",
@@ -565,6 +592,8 @@ export const en: Dictionary = {
       ],
       windowRule:
         "`first_seen_in_window` is the first occurrence inside the window, not ever: to claim a failure is new, query a wider range.",
+      scopeRule:
+        "The data is narrowed by the `scope_*` filters. When you keep investigating, apply the same filters in the tools that accept them; where a tool does not, its numbers will cover more logs than this brief.",
       minifiedRule:
         "If the stack points to minified code (bundles such as `_next/static/chunks/…`), do not guess the source file or function: say which source map or build would be needed to locate it.",
       comparisonRule:
@@ -1399,6 +1428,20 @@ export const en: Dictionary = {
         "Time window the report analyzes. The comparison also uses the previous window of the same length: with “Last 24 hours”, the 24 hours before that.",
       application: "Limits the report to a single application. Leave it on “All applications” to analyze the whole service.",
       environment: "Limits the report to one environment. Production is usually what matters, so test errors don't skew the numbers.",
+      filters:
+        "They narrow the whole report, not a single section: numbers, activity, failures and inventory come only from logs that match every filter at once. Level is not here: the sections choose it.",
+      filterFields: {
+        service:
+          "The component that produced the log: a microservice, a module or a script. Partial, case-insensitive match: “pay” finds payments and paypal-sync.",
+        host: "The machine or container that emitted the log. Partial match: “web-” finds web-01, web-02…",
+        errorName:
+          "The error class, such as TypeError or TimeoutError. Useful for a report on one kind of failure across every application. Partial match.",
+        errorCode: "The error code, such as ECONNRESET, 500 or SSS_USAGE_LIMIT_EXCEEDED. Partial match.",
+        search:
+          "Looks for the text in the message, application, service and host, or an exact trace ID. Handy to follow a specific order, customer or invoice.",
+        fingerprint:
+          "Limits the report to a single grouped failure: its activity, trend and occurrences. It must be the full fingerprint; you'll find it in the errors view.",
+      },
       sections:
         "Blocks included in the report. Each one adds data and size: drop the ones you don't need so the document is shorter and fits better in an AI model's context.",
       options: "How much detail goes into the report and which data is hidden before exporting it.",

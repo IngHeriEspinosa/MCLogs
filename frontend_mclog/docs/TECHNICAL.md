@@ -107,15 +107,16 @@ src/
 - **Autorización visual, nunca como control**: el menú oculta la administración del espacio a quien no es su dueño y la de la plataforma a quien no es admin, pero cada página comprueba el rol y el backend lo exige igualmente.
 - **Filtros en la URL** (`useLogFilters`):
   - Rango (`range=24h` o `from`/`to` en ISO), nivel, entorno, aplicación, búsqueda, huella, orden y página.
+  - El nivel admite varios: viaja como lista separada por comas (`level=error,warn`) en la URL, en la API y en los snapshots, y `LogFilters.level` guarda esa misma cadena. `common/filters/levels.ts` la convierte (`parseLevels`/`joinLevels`) descartando desconocidos y en orden fijo, así que la misma selección da siempre el mismo enlace y los enlaces antiguos con un solo nivel siguen valiendo.
   - Los seis campos de la búsqueda avanzada: `message`, `service`, `host`, `traceId`, `errorName`, `errorCode`. `advancedCount` cuenta cuántos hay activos, para el distintivo de la tarjeta.
   - Los enlaces antiguos con `from`/`to` de un `datetime-local` siguen funcionando.
 - **Rangos relativos estables**: "últimas 24 h" se resuelve contra un instante fijado al elegir el rango o al refrescar, no en cada render; si no, la clave de la consulta cambiaría en bucle.
 - **Refetch sin saltos**: `keepPreviousData` mantiene tablas y gráficos visibles, atenuados, mientras llegan los datos nuevos.
-- **El resumen respeta rango, aplicación y entorno** (lo que acepta `/api/logs/stats`), no la búsqueda ni el nivel. Los totales de la serie salen de sumar la serie horaria; con "Todo el histórico", de los totales históricos del backend.
+- **El resumen respeta rango, aplicación y entorno**, no la búsqueda ni el nivel: responde a "qué pasa en este ámbito", y la tabla a "qué logs cumplen todo". `/api/logs/stats` admite los demás filtros (los usan los reportes), pero el resumen no se los pasa. Los totales de la serie salen de sumar la serie horaria; con "Todo el histórico", de los totales históricos del backend.
 
 ## Componentes interactivos propios
 
-- **Select**: patrón ARIA *select-only combobox*. El disparador conserva el foco y anuncia la opción activa con `aria-activedescendant`; admite buscador, valor libre y búsqueda por primera letra.
+- **Select**: patrón ARIA *select-only combobox*. El disparador conserva el foco y anuncia la opción activa con `aria-activedescendant`; admite buscador, valor libre y búsqueda por primera letra. Con `multiple` (unión discriminada: `value` pasa a ser un array) la lista lleva `aria-multiselectable`, una casilla por opción y sigue abierta al marcar; la opción de valor `""` hace de "todos" y vacía la selección.
 - **Paneles flotantes** (`useFloating` + `Portal`): `position: fixed` con coordenadas de ventana, para que ninguna tabla con `overflow` los recorte; se abren hacia arriba si abajo no caben. Si el ancla está dentro de un `<dialog>` modal, el panel se monta dentro del diálogo (la *top layer* taparía cualquier cosa montada en `<body>`).
 - **Calendario**: tabindex móvil y teclado completo (flechas, RePag/AvPag, Inicio/Fin). El selector de rangos pone primero los rangos rápidos y detrás el rango a medida con horas.
 - **Dialog**: `<dialog>` nativo, que ya atrapa el foco y deja inerte el resto.
@@ -146,6 +147,7 @@ Todo se construye en el navegador (`common/reports`): nada sale de él hasta que
 
 - `options.ts` define tipos, secciones y la validación de preferencias. No depende del cliente HTTP, así que la página y los tests lo usan sin arrastrar axios. `collect.ts` lo reexporta.
 - `collect.ts` pide en paralelo solo lo que usan las secciones elegidas (estadísticas, grupos de error y de warning, errores recientes, inventario, y estadísticas y grupos de la ventana anterior para la comparación). Después pide el ejemplo más reciente de cada fallo, para su stack: como mucho 20 peticiones, de 5 en 5, para no chocar con el rate limit. Los formatos para agentes piden siempre los grupos, porque su resumen cuenta los fallos distintos. El inventario (`/api/logs/applications`) solo admite `hours` hasta ahora, así que se le pide la ventana que cubre desde el inicio del reporte (24–744 h) y el documento dice desde cuándo cuenta.
+- **Filtros del reporte** (`REPORT_FILTERS` en `options.ts`): servicio, host, clase y código de error, texto (`search`) y huella, además de aplicación y entorno. Van a todas las peticiones, inventario incluido, para que las secciones cuadren entre sí, y viajan en la URL (no en las preferencias). El nivel no es un filtro del reporte: lo deciden las secciones, y un filtro de nivel las contradiría. `build.ts` los lista en el ámbito (`scope_*` en los formatos para agentes, más una regla que pide aplicarlos al seguir investigando) y enmascara los de texto libre (`search`, `host`) una sola vez, para no inflar el recuento.
 - `build.ts` genera tres formatos:
   - **Informe Markdown** para personas: hallazgos en prosa, tablas y un enlace a las ocurrencias de cada fallo en MCLog.
   - **Brief para agentes IA** (`.md`, `mclog.agent-brief/v2`): front matter YAML, rol, objetivo, pasos, reglas, notas del operador, herramientas del servidor MCP `mclog` y formato de respuesta; los datos van en bloques YAML/CSV/JSON dentro de `<mclog_data>`.

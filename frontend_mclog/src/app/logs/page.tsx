@@ -184,6 +184,10 @@ function LogsView() {
     Object.entries(rangeToParams(filters.range)).forEach(([key, value]) => value && params.set(key, value));
     if (filters.application) params.set("application", filters.application);
     if (filters.environment) params.set("environment", filters.environment);
+    // El reporte acota lo mismo que se esta viendo. El nivel no viaja: en el
+    // reporte lo deciden las secciones.
+    if (filters.search) params.set("search", filters.search);
+    if (filters.fingerprint) params.set("fingerprint", filters.fingerprint);
     router.push(`/reports?${params.toString()}`);
   };
 

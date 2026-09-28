@@ -1,4 +1,5 @@
 import { sendMail } from "../../config/mailer";
+import { renderEmail } from "../../utils/emailTemplate";
 import { Notifier, alertTitle, formatSample } from "../types";
 
 /** Configuración esperada en `AlertChannel.config` para el tipo `email`. */
@@ -6,55 +7,43 @@ export type EmailConfig = {
   to: string[];
 };
 
-const escapeHtml = (value: string) =>
-  value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
 export const sendEmail: Notifier = async (channel, payload) => {
   const settings = channel.config as unknown as EmailConfig;
   const destinatarios = settings?.to ?? [];
   if (destinatarios.length === 0) throw new Error("El canal de email no tiene destinatarios");
 
-  const titulo = alertTitle(payload);
-  const cabecera = [
-    `Regla: ${payload.rule.name}`,
-    `Coincidencias: ${payload.count} (umbral ${payload.threshold} en ${payload.windowMinutes} min)`,
-    payload.application ? `Aplicación: ${payload.application}` : null,
-    payload.environment ? `Entorno: ${payload.environment}` : null,
-    `Nivel: ${payload.level}`,
-  ].filter(Boolean) as string[];
+  const hallazgo =
+    payload.rule.type === "new_error_group"
+      ? payload.count === 1
+        ? "ha detectado un error nuevo"
+        : `ha detectado ${payload.count} errores nuevos`
+      : `ha registrado ${payload.count} ${payload.count === 1 ? "coincidencia" : "coincidencias"}`;
+  const umbral = payload.rule.type === "new_error_group" ? "" : ` (umbral: ${payload.threshold})`;
+  const resumen = `La regla «${payload.rule.name}» ${hallazgo} en los últimos ${payload.windowMinutes} minutos${umbral}.`;
 
-  const lineas = payload.samples.map(formatSample);
+  const detalles = [
+    { label: "Regla", value: payload.rule.name },
+    { label: "Coincidencias", value: `${payload.count} (umbral ${payload.threshold} en ${payload.windowMinutes} min)` },
+    payload.application ? { label: "Aplicación", value: payload.application } : null,
+    payload.environment ? { label: "Entorno", value: payload.environment } : null,
+    { label: "Nivel", value: payload.level },
+  ].filter((detalle): detalle is { label: string; value: string } => detalle !== null);
 
-  const texto = [
-    ...cabecera,
-    "",
-    lineas.length > 0 ? "Últimos registros:" : "",
-    ...lineas,
-    "",
-    payload.dashboardUrl ? `Ver en el dashboard: ${payload.dashboardUrl}` : "",
-  ]
-    .filter((linea) => linea !== "")
-    .join("\n");
-
-  const html = [
-    `<h2 style="margin:0 0 12px;font:600 16px system-ui,sans-serif">${escapeHtml(titulo)}</h2>`,
-    `<ul style="font:14px system-ui,sans-serif;color:#334155">`,
-    ...cabecera.map((linea) => `<li>${escapeHtml(linea)}</li>`),
-    `</ul>`,
-    lineas.length > 0
-      ? `<pre style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;font:12px ui-monospace,monospace;overflow:auto">${lineas
-          .map(escapeHtml)
-          .join("\n")}</pre>`
-      : "",
-    payload.dashboardUrl
-      ? `<p style="font:14px system-ui,sans-serif"><a href="${escapeHtml(payload.dashboardUrl)}">Ver en el dashboard</a></p>`
-      : "",
-  ].join("");
+  const { html, text } = renderEmail({
+    locale: "es",
+    preview: resumen,
+    heading: payload.rule.name,
+    paragraphs: [resumen],
+    details: detalles,
+    code: { title: "Últimos registros", lines: payload.samples.map(formatSample) },
+    action: payload.dashboardUrl ? { label: "Ver en el dashboard", url: payload.dashboardUrl } : undefined,
+    reason: "Recibes este aviso porque tu dirección figura en un canal de correo de las alertas de MCLog.",
+  });
 
   await sendMail({
     to: destinatarios.join(", "),
-    subject: titulo,
-    text: texto,
+    subject: alertTitle(payload),
+    text,
     html,
   });
 };

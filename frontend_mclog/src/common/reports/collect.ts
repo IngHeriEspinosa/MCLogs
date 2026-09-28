@@ -3,7 +3,7 @@ import { closedWindow } from "@/common/time/range";
 import { fillTimeline, HOUR_MS, sumLevels, type TimelineBin } from "@/common/time/timeline";
 import type { LogEntry, LogStats } from "@/hooks/useAuth";
 import type { ApplicationSummary, ErrorGroup } from "@/hooks/useErrors";
-import type { ReportOptions, ReportSection } from "./options";
+import { pickFilters, type ReportOptions, type ReportSection } from "./options";
 
 export * from "./options";
 
@@ -79,7 +79,9 @@ export const inventoryHours = (from: Date, now: number) =>
 export const collectReportData = async (options: ReportOptions, now = Date.now()): Promise<ReportData> => {
   const { from, to } = closedWindow(options.range, now);
   const span = { from: from.toISOString(), to: to.toISOString() };
-  const scope = { application: options.application, environment: options.environment };
+  // El mismo corte en todas las consultas, inventario incluido: asi las cifras
+  // de las secciones cuadran entre si.
+  const scope = { application: options.application, environment: options.environment, ...pickFilters(options) };
   const wants = (section: ReportSection) => options.sections.includes(section);
   // Los formatos para agentes llevan siempre el resumen numerico, que cuenta
   // los fallos distintos: sin los grupos diria "0" en vez de "no se consulto".
@@ -109,7 +111,7 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     wants("applications")
       ? client
           .get<{ data: ApplicationSummary[]; from: string }>("/api/logs/applications", {
-            params: { hours: inventoryHours(from, now) },
+            params: clean({ hours: inventoryHours(from, now), ...scope }),
           })
           .then((response) => response.data)
       : Promise.resolve(null),
@@ -140,12 +142,6 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     });
   }
 
-  // El filtro de aplicacion del backend es "contiene", no igualdad: aqui igual.
-  const needle = options.application?.toLowerCase();
-  const applications = (inventory?.data ?? [])
-    .filter((app) => !needle || app.application.toLowerCase().includes(needle))
-    .filter((app) => !options.environment || app.environments.includes(options.environment));
-
   const hours = fillTimeline(current.timeline ?? [], current.from, current.to);
   const previous: PreviousWindow | null =
     previousStats && previousGroups
@@ -169,7 +165,7 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     groupsCapped: groups.length >= GROUPS_LIMIT,
     samples,
     recentErrors,
-    applications,
+    applications: inventory?.data ?? [],
     applicationsSince: inventory?.from ?? null,
     warnGroups,
     previous,

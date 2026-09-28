@@ -147,7 +147,7 @@ export const buildMcpServer = (context: McpContext): McpServer => {
     },
     async ({ hours }) => {
       const { from, to } = windowFrom(hours ?? DEFAULT_APPLICATIONS_HOURS);
-      const applications = await listApplications(workspaceId, applicationsIn, from);
+      const applications = await listApplications({ ...scoped({}), from });
       return jsonResult({
         window: { from: iso(from), to: iso(to) },
         total: applications.length,
@@ -180,7 +180,7 @@ export const buildMcpServer = (context: McpContext): McpServer => {
       const max = limit ?? 20;
 
       const groups = await getErrorGroups(
-        scoped({ application, service, environment, level: level ?? "error", from, to }),
+        scoped({ application, service, environment, levels: [level ?? "error"], from, to }),
         max,
       );
 
@@ -238,7 +238,7 @@ export const buildMcpServer = (context: McpContext): McpServer => {
           service,
           host,
           environment,
-          level,
+          levels: level ? [level] : undefined,
           traceId,
           fingerprint,
           from: from ? new Date(from) : undefined,
@@ -282,7 +282,7 @@ export const buildMcpServer = (context: McpContext): McpServer => {
       const size = limit ?? 20;
 
       const result = await listLogs(
-        scoped({ application, environment, level: level ?? "error", from }),
+        scoped({ application, environment, levels: [level ?? "error"], from }),
         { page: 1, pageSize: size },
         { field: "timestamp", direction: "desc" },
       );

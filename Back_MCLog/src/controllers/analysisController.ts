@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import logger from "../config/logger";
-import type { AuthenticatedRequest } from "../middlewares/requireAuth";
 import { workspaceIdOf } from "../middlewares/workspaceContext";
 import {
   DEFAULT_APPLICATIONS_HOURS,
@@ -11,14 +10,9 @@ import {
   listApplications,
 } from "../services/analysisService";
 import { getSetting } from "../services/settingsService";
+import { allowedApplications, filtersFromQuery } from "./queryFilters";
 
 const HOUR_MS = 60 * 60 * 1000;
-
-/** Aplicaciones a las que esta limitada la peticion, si vino con una API key acotada. */
-const allowedApplications = (req: Request): string[] | undefined => {
-  const applications = (req as AuthenticatedRequest).apiKey?.applications;
-  return applications && applications.length > 0 ? applications : undefined;
-};
 
 /**
  * Ventana temporal de la consulta. Se puede dar explicita con `from`/`to`, o
@@ -39,18 +33,15 @@ export const errorGroups = async (req: Request, res: Response) => {
   const limit = Math.min(Math.max(parseInt((req.query.limit as string) ?? "50", 10) || 50, 1), 100);
 
   try {
+    const filters = filtersFromQuery(req);
     const groups = await getErrorGroups(
       {
-        workspaceId: workspaceIdOf(req),
-        application: req.query.application as string | undefined,
-        service: req.query.service as string | undefined,
-        environment: req.query.environment as string | undefined,
+        ...filters,
         // Por defecto solo errores: los avisos tienen huella, pero quien abre
         // esta vista busca lo que esta roto.
-        level: (req.query.level as string | undefined) ?? "error",
+        levels: filters.levels ?? ["error"],
         from,
         to,
-        applicationsIn: allowedApplications(req),
       },
       limit,
     );
@@ -161,7 +152,7 @@ export const applications = async (req: Request, res: Response) => {
 
   try {
     res.json({
-      data: await listApplications(workspaceIdOf(req), allowedApplications(req), from),
+      data: await listApplications({ ...filtersFromQuery(req), from }),
       from: from.toISOString(),
       to: to.toISOString(),
     });

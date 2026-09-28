@@ -184,6 +184,39 @@ describe("buildReport", () => {
   });
 });
 
+describe("filtros del reporte", () => {
+  const filtered = { service: "checkout", errorName: "TypeError", search: "pedido de ana@example.com" };
+
+  it("el ambito del informe los enumera y enmascara el texto libre", () => {
+    const { content } = buildReport(data(), options({ ...filtered, sections: ["summary"] }));
+    const scope = content.split("\n").find((line) => line.startsWith("> **Ámbito:**")) ?? "";
+    assert.match(scope, /servicio `checkout`/);
+    assert.match(scope, /clase de error `TypeError`/);
+    assert.match(scope, /texto `pedido de \[REDACTED:email\]`/);
+  });
+
+  it("los formatos para agentes los llevan en snake_case, con la regla de ambito", () => {
+    const report = agentJson(data(), filtered);
+    assert.equal(report.scope.service, "checkout");
+    assert.equal(report.scope.error_name, "TypeError");
+    assert.equal(report.data.summary.scope_error_name, "TypeError");
+    assert.ok((report.instructions.rules as string[]).some((rule) => rule.includes("scope_*")));
+
+    const brief = buildReport(data(), options({ ...filtered, kind: "agent-md" })).content;
+    assert.match(brief, /^scope_service: "?checkout"?$/m);
+  });
+
+  it("sin filtros no anade claves ni la regla de ambito", () => {
+    const report = agentJson(data());
+    assert.deepEqual(Object.keys(report.scope), ["application", "environment"]);
+    assert.ok(!(report.instructions.rules as string[]).some((rule) => rule.includes("scope_*")));
+  });
+
+  it("ignora los filtros vacios o solo con espacios", () => {
+    assert.deepEqual(Object.keys(agentJson(data(), { host: "   ", fingerprint: "" }).scope), ["application", "environment"]);
+  });
+});
+
 const logEntry = (id: number, extra: Partial<LogEntry> = {}): LogEntry => ({
   id,
   timestamp: "2026-09-28T06:59:33.981Z",

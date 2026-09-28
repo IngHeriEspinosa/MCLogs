@@ -146,7 +146,9 @@ Devuelve un registro completo con toda su metadata. `400` si el id no es numéri
 | `byLevel` | Conteo por nivel (debug/info/warn/error) |
 | `byApplication` | **Top 10** de aplicaciones más activas |
 | `byEnvironment` | Conteo por entorno |
-| `timeline` | Serie por hora y nivel, acotada con `hours` o `from`/`to` (y `application`, `environment`) |
+| `timeline` | Serie por hora y nivel, acotada con `hours` o `from`/`to` |
+
+Admite los mismos filtros que el listado (`application`, `service`, `host`, `level`, `search`, `errorName`…): con ellos, totales y serie cuentan solo los logs que los cumplen.
 
 Las consultas se lanzan en paralelo con `Promise.all`. El dashboard las refresca cada 60 segundos.
 
@@ -272,7 +274,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Hasta 4K** | La interfaz escala y aprovecha el ancho hasta 3840 px |
 | **Resumen** | Registros, errores, warnings, fallos distintos y aplicaciones del rango, con tendencia; por nivel, por entorno, fallos principales y apps más activas |
 | **Gráfico de actividad** | Columnas apiladas por nivel; arrastrar acota el rango, clic aísla un intervalo, vista de tabla alternativa |
-| **Filtros combinables** | Rango de tiempo (rápidos o calendario con horas), nivel, entorno, aplicación con buscador y búsqueda libre |
+| **Filtros combinables** | Rango de tiempo (rápidos o calendario con horas), uno o varios niveles a la vez, entorno, aplicación con buscador y búsqueda libre |
 | **Búsqueda con debounce** | 350 ms de espera: no lanza una consulta por cada tecla |
 | **Ordenación** | Por fecha, aplicación, nivel, host o entorno, asc/desc |
 | **Paginación** | 10 / 25 / 50 / 100 por página, con navegación anterior/siguiente |
@@ -287,8 +289,8 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Mi cuenta** | Preferencias, cambio de contraseña, verificación en dos pasos y eliminar la propia cuenta |
 | **Badges por severidad** | Color por nivel para localizar errores de un vistazo |
 | **Export** | CSV y NDJSON con los filtros activos |
-| **Reportes** | Informe Markdown para personas, brief para agentes de IA (Markdown) y datos en JSON (`mclog.agent-report/v2`); comparación con el periodo anterior (fallos nuevos, que empeoran o que desaparecen), warnings agrupados opcionales, enmascarado de correos, IPs y tokens con recuento de lo tapado, preferencias recordadas y **Ctrl + Enter** para generar |
-| **Filtros en la URL** | `?range=7d&level=error&application=x`, incluida la búsqueda avanzada (`&errorCode=ECONNRESET`) — copiar el enlace reproduce la vista exacta |
+| **Reportes** | Informe Markdown para personas, brief para agentes de IA (Markdown) y datos en JSON (`mclog.agent-report/v2`); comparación con el periodo anterior (fallos nuevos, que empeoran o que desaparecen), warnings agrupados opcionales, filtros por servicio, host, clase o código de error, texto y huella que acotan todas las secciones a la vez, enmascarado de correos, IPs y tokens con recuento de lo tapado, preferencias recordadas y **Ctrl + Enter** para generar |
+| **Filtros en la URL** | `?range=7d&level=error,warn&application=x`, incluida la búsqueda avanzada (`&errorCode=ECONNRESET`) — copiar el enlace reproduce la vista exacta |
 | **Estados de carga** | Skeletons al cargar; al refiltrar se mantiene la tabla anterior atenuada (sin parpadeo) |
 | **Sesión automática** | Un 401 dispara un reintento vía `/auth/refresh`; si falla, lleva al acceso (`/`) y, tras entrar, de vuelta a la página |
 
@@ -472,6 +474,8 @@ Con eso, «Timeout cobrando el pedido 991» y «Timeout cobrando el pedido 1428�
 | `GET /api/logs/:id/occurrences` | Cuántas veces ha ocurrido su fallo (24 h, 7 días y retención), por entorno |
 | `GET /api/logs/applications` | Qué aplicaciones existen, con sus servicios y errores recientes |
 
+`errors/groups` y `applications` admiten además los filtros del listado (servicio, host, texto, clase de error…). `errors/groups` agrupa solo errores salvo que se pida otra cosa: `level=error,warn` junta errores y warnings.
+
 En el dashboard esto son la vista **Errores** y la vista de **Traza**, y en la tabla de logs el filtro por huella con enlaces a la traza y a los errores iguales.
 
 ---
@@ -588,7 +592,7 @@ El aviso incluye un enlace al dashboard con los filtros de la regla puestos, si 
 
 Se eligió SSE y no WebSocket porque el flujo es de un solo sentido: el servidor empuja y el cliente no habla. SSE va sobre HTTP normal, el navegador lo reconecta solo y atraviesa los proxys sin nada especial, siempre que el proxy no acumule la respuesta (en el Caddyfile de producción está resuelto).
 
-Acepta los mismos filtros de nivel, aplicación y entorno, y respeta el alcance de la API key. El stream lleva solo la cabecera del log, sin metadata ni stack: para el detalle se pide el registro.
+Acepta los mismos filtros de nivel (uno o varios, `level=error,warn`), aplicación y entorno, y respeta el alcance de la API key. El stream lleva solo la cabecera del log, sin metadata ni stack: para el detalle se pide el registro.
 
 **Dos límites que conviene conocer:**
 

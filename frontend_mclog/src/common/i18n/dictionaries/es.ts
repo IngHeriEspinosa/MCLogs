@@ -388,6 +388,25 @@ export const es = {
     },
     range: "Rango",
     scope: "Ámbito",
+    moreFilters: "Más filtros",
+    filtersHint: "Servicio, host, clase o código de error, texto, huella",
+    hideFilters: "Ocultar",
+    filterNames: {
+      service: "Servicio",
+      host: "Host",
+      errorName: "Clase de error",
+      errorCode: "Código de error",
+      search: "Contiene el texto",
+      fingerprint: "Huella de un fallo",
+    },
+    filterPlaceholders: {
+      service: "p. ej. checkout",
+      host: "p. ej. web-01",
+      errorName: "p. ej. TypeError",
+      errorCode: "p. ej. ECONNRESET",
+      search: "p. ej. un pedido o un cliente",
+      fingerprint: "huella completa",
+    },
     sections: "Secciones",
     sectionNames: {
       summary: "Resumen y hallazgos",
@@ -455,6 +474,15 @@ export const es = {
     scope: "Ámbito",
     allApps: "todas las aplicaciones",
     allEnvs: "todos los entornos",
+    /** Delante de cada filtro en la linea de ambito: "servicio `checkout`". */
+    filterLabels: {
+      service: "servicio",
+      host: "host",
+      errorName: "clase de error",
+      errorCode: "código",
+      search: "texto",
+      fingerprint: "huella",
+    },
     summary: "Resumen",
     keyFindings: "Hallazgos clave",
     metric: "Métrica",
@@ -576,6 +604,8 @@ export const es = {
       ],
       windowRule:
         "`first_seen_in_window` es la primera ocurrencia dentro de la ventana, no la histórica: para afirmar que un fallo es nuevo, consulta un rango mayor.",
+      scopeRule:
+        "Los datos están acotados por los filtros `scope_*`. Al seguir investigando, aplica los mismos filtros en las herramientas que los admitan; si una no los admite, sus cifras abarcarán más logs que este brief.",
       minifiedRule:
         "Si el stack apunta a código minificado (bundles como `_next/static/chunks/…`), no deduzcas el archivo ni la función de origen: di qué source map o build haría falta para ubicarlo.",
       comparisonRule:
@@ -1428,6 +1458,20 @@ export const es = {
         "Ventana de tiempo que analiza el reporte. La comparación usa además la ventana anterior de igual duración: con «Últimas 24 horas», las 24 horas previas.",
       application: "Limita el reporte a una sola aplicación. Déjalo en «Todas las aplicaciones» para analizar el servicio completo.",
       environment: "Limita el reporte a un entorno. Suele interesar producción, para que los errores de pruebas no desvíen las cifras.",
+      filters:
+        "Acotan el reporte entero, no una sola sección: cifras, actividad, fallos e inventario salen solo de los logs que cumplen todos los filtros a la vez. El nivel no está aquí: lo eligen las secciones.",
+      filterFields: {
+        service:
+          "El componente que generó el log: un microservicio, un módulo o un script. Coincidencia parcial y sin distinguir mayúsculas: «pay» encuentra payments y paypal-sync.",
+        host: "La máquina o el contenedor que emitió el log. Coincidencia parcial: «web-» encuentra web-01, web-02…",
+        errorName:
+          "La clase del error, como TypeError o TimeoutError. Sirve para un reporte de un tipo de fallo en todas las aplicaciones. Coincidencia parcial.",
+        errorCode: "El código del error, como ECONNRESET, 500 o SSS_USAGE_LIMIT_EXCEEDED. Coincidencia parcial.",
+        search:
+          "Busca el texto en el mensaje, la aplicación, el servicio y el host, o un trace ID exacto. Útil para seguir un pedido, un cliente o una factura concretos.",
+        fingerprint:
+          "Limita el reporte a un único fallo agrupado: su actividad, su evolución y sus ocurrencias. Tiene que ser la huella completa; la tienes en la vista de errores.",
+      },
       sections:
         "Bloques que incluye el reporte. Cada uno añade datos y tamaño: quita los que no necesites para que el documento sea más corto y quepa mejor en el contexto de un modelo de IA.",
       options: "Cuánto detalle entra en el reporte y qué datos se ocultan antes de exportarlo.",

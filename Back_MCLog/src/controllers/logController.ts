@@ -1,9 +1,9 @@
 import { Environment, LogLevel } from '@prisma/client';
 import { Request, Response } from 'express';
 import logger from '../config/logger';
-import type { AuthenticatedRequest } from '../middlewares/requireAuth';
 import { workspaceIdOf } from '../middlewares/workspaceContext';
 import { computeFingerprint, shouldFingerprint } from '../utils/fingerprint';
+import { allowedApplications, filtersFromQuery } from './queryFilters';
 import { getLevelTimeline } from '../services/analysisService';
 import { getSetting } from '../services/settingsService';
 import {
@@ -19,15 +19,6 @@ import {
 
 type SortField = 'timestamp' | 'level' | 'application' | 'host' | 'environment';
 const allowedSortFields: readonly SortField[] = ['timestamp', 'level', 'application', 'host', 'environment'];
-
-/**
- * Aplicaciones a las que esta limitada la peticion, si se autentico con una
- * API key acotada. `undefined` = sin restriccion.
- */
-const allowedApplications = (req: Request): string[] | undefined => {
-    const applications = (req as AuthenticatedRequest).apiKey?.applications;
-    return applications && applications.length > 0 ? applications : undefined;
-};
 
 /**
  * Rechaza la peticion si intenta escribir logs de una aplicacion fuera del
@@ -131,24 +122,11 @@ const csvEscape = (value: unknown) => {
 };
 
 const parseFilters = (req: Request) => {
-    const { application, level, environment, search, service, host, traceId, fingerprint, message, errorName, errorCode, from, to } =
-        req.query;
+    const { from, to } = req.query;
     return {
-        workspaceId: workspaceIdOf(req),
-        application: application as string | undefined,
-        level: level as string | undefined,
-        environment: environment as string | undefined,
-        search: search as string | undefined,
-        service: service as string | undefined,
-        host: host as string | undefined,
-        traceId: traceId as string | undefined,
-        fingerprint: fingerprint as string | undefined,
-        message: message as string | undefined,
-        errorName: errorName as string | undefined,
-        errorCode: errorCode as string | undefined,
+        ...filtersFromQuery(req),
         from: from ? new Date(from as string) : undefined,
-        to: to ? new Date(to as string) : undefined,
-        applicationsIn: allowedApplications(req)
+        to: to ? new Date(to as string) : undefined
     };
 };
 
@@ -222,12 +200,9 @@ export const getLog = async (req: Request, res: Response) => {
 };
 
 export const stats = async (req: Request, res: Response) => {
-    const filters = {
-        workspaceId: workspaceIdOf(req),
-        application: req.query.application as string | undefined,
-        environment: req.query.environment as string | undefined,
-        applicationsIn: allowedApplications(req)
-    };
+    // Los mismos filtros que el listado, para que un reporte acotado (a un
+    // servicio, un host, un texto...) cuadre con los logs que se ven.
+    const filters = filtersFromQuery(req);
 
     // Ventana de la linea temporal. Por defecto 24 h, que es lo que muestra el
     // dashboard; los totales no dependen de ella.

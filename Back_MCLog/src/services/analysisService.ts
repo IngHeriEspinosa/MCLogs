@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
-import { LogFilters, buildWhere } from "./logService";
+import { LogFilters, buildWhere, buildWhereSql } from "./logService";
 
 /**
  * Consultas de analisis: lo que hace falta para investigar un incidente, no
@@ -300,16 +300,11 @@ export const DEFAULT_APPLICATIONS_HOURS = 24 * 7;
  * que son pocas combinaciones y se agrupan en memoria; despues, sobre ese
  * resultado ya pequeno, por aplicacion. En un solo paso los ARRAY_AGG(DISTINCT)
  * obligaban a ordenar todas las filas, y el orden acababa en disco.
+ *
+ * Admite los mismos filtros que el listado: con ellos, el inventario cuenta
+ * solo los logs que los cumplen (p. ej. los de un servicio o un host).
  */
-export const listApplications = async (
-  workspaceId: number,
-  applicationsIn: string[] | undefined,
-  from: Date,
-): Promise<ApplicationSummary[]> => {
-  const scope = applicationsIn?.length
-    ? Prisma.sql`AND "application" = ANY(${applicationsIn})`
-    : Prisma.empty;
-
+export const listApplications = async (filters: LogFilters & { from: Date }): Promise<ApplicationSummary[]> => {
   const rows = await prisma.$queryRaw<
     Array<Omit<ApplicationSummary, "count" | "errorsLast24h"> & { count: bigint | number; errorsLast24h: bigint | number }>
   >`
@@ -324,7 +319,7 @@ export const listApplications = async (
           WHERE "level" = 'error' AND "timestamp" >= NOW() - INTERVAL '24 hours'
         ) AS "errors"
       FROM "Log"
-      WHERE "workspaceId" = ${workspaceId} AND "timestamp" >= ${from} ${scope}
+      WHERE ${buildWhereSql(filters)}
       GROUP BY "application", "service", "environment"
     )
     SELECT
@@ -357,23 +352,14 @@ export type TimelineBucket = {
 
 /**
  * Serie por hora de logs por nivel. Sirve para ver de un vistazo cuando empezo
- * algo a fallar, que es la primera pregunta de cualquier incidente.
+ * algo a fallar, que es la primera pregunta de cualquier incidente. La ventana
+ * `from`/`to` manda sobre la que traigan los filtros.
  */
 export const getLevelTimeline = async (
   filters: LogFilters,
   from: Date,
   to: Date,
 ): Promise<TimelineBucket[]> => {
-  const conditions: Prisma.Sql[] = [
-    Prisma.sql`"workspaceId" = ${filters.workspaceId}`,
-    Prisma.sql`"timestamp" >= ${from}`,
-    Prisma.sql`"timestamp" <= ${to}`,
-  ];
-
-  if (filters.application) conditions.push(Prisma.sql`"application" ILIKE ${`%${filters.application}%`}`);
-  if (filters.environment) conditions.push(Prisma.sql`"environment" = ${filters.environment}::"Environment"`);
-  if (filters.applicationsIn?.length) conditions.push(Prisma.sql`"application" = ANY(${filters.applicationsIn})`);
-
   const rows = await prisma.$queryRaw<Array<{ bucket: Date; error: number; warn: number; info: number; debug: number }>>`
     SELECT
       DATE_TRUNC('hour', "timestamp") AS "bucket",
@@ -382,7 +368,7 @@ export const getLevelTimeline = async (
       COUNT(*) FILTER (WHERE "level" = 'info')::int  AS "info",
       COUNT(*) FILTER (WHERE "level" = 'debug')::int AS "debug"
     FROM "Log"
-    WHERE ${Prisma.join(conditions, " AND ")}
+    WHERE ${buildWhereSql({ ...filters, from, to })}
     GROUP BY 1
     ORDER BY 1 ASC
   `;

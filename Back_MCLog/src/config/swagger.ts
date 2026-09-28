@@ -1,18 +1,22 @@
 import swaggerJSDoc from "swagger-jsdoc";
 import { PASSWORD_MIN_LENGTH } from "../services/userService";
 
-const logQueryParams = [
-  { in: "query", name: "page", schema: { type: "integer", minimum: 1 } },
-  { in: "query", name: "pageSize", schema: { type: "integer", minimum: 1, maximum: 200 } },
+const levelParam = {
+  in: "query",
+  name: "level",
+  schema: { type: "string", example: "error,warn" },
+  description: "Uno o varios niveles separados por comas: debug, info, warn, error",
+};
+
+/** Filtros sobre los logs: los mismos en el listado, las estadísticas, los grupos de error y el inventario. */
+const logFilterParams = [
   { in: "query", name: "application", schema: { type: "string" } },
   { in: "query", name: "service", schema: { type: "string" } },
   { in: "query", name: "host", schema: { type: "string" } },
   { in: "query", name: "traceId", schema: { type: "string" }, description: "Coincidencia exacta" },
   { in: "query", name: "fingerprint", schema: { type: "string", maxLength: 64 }, description: "Huella de agrupación, exacta" },
-  { in: "query", name: "level", schema: { type: "string", enum: ["debug", "info", "warn", "error"] } },
+  levelParam,
   { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
-  { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
-  { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
   {
     in: "query",
     name: "search",
@@ -23,6 +27,14 @@ const logQueryParams = [
   { in: "query", name: "message", schema: { type: "string", maxLength: 300 }, description: "El mensaje contiene el texto" },
   { in: "query", name: "errorName", schema: { type: "string", maxLength: 200 }, description: "El nombre del error contiene el texto" },
   { in: "query", name: "errorCode", schema: { type: "string", maxLength: 100 }, description: "El código de error contiene el texto" },
+];
+
+const logQueryParams = [
+  { in: "query", name: "page", schema: { type: "integer", minimum: 1 } },
+  { in: "query", name: "pageSize", schema: { type: "integer", minimum: 1, maximum: 200 } },
+  ...logFilterParams,
+  { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
+  { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
   {
     in: "query",
     name: "sort",
@@ -129,10 +141,10 @@ export const swaggerSpec = swaggerJSDoc({
         get: {
           tags: ["consulta"],
           summary: "Estadísticas: totales, últimas 24h, por nivel, por aplicación, por entorno y línea temporal",
+          description: "Admite los mismos filtros que GET /api/logs. La ventana (hours o from/to) solo acota la línea temporal.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [
-            { in: "query", name: "application", schema: { type: "string" } },
-            { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
+            ...logFilterParams,
             { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744 }, description: "Ventana relativa en horas" },
             { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
             { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
@@ -163,10 +175,8 @@ export const swaggerSpec = swaggerJSDoc({
             { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744, default: 24 } },
             { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
             { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
-            { in: "query", name: "application", schema: { type: "string" } },
-            { in: "query", name: "service", schema: { type: "string" } },
-            { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
-            { in: "query", name: "level", schema: { type: "string", enum: ["error", "warn"], default: "error" } },
+            ...logFilterParams.filter((param) => param !== levelParam),
+            { ...levelParam, schema: { ...levelParam.schema, default: "error" } },
             { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
           ],
           responses: {
@@ -248,7 +258,7 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["análisis"],
           summary: "Inventario de aplicaciones con sus servicios, entornos y errores recientes",
           description:
-            "Solo incluye las aplicaciones con logs en la ventana, y `count` son los logs dentro de ella. `errorsLast24h` cuenta siempre las últimas 24 h.",
+            "Solo incluye las aplicaciones con logs en la ventana, y `count` son los logs dentro de ella. `errorsLast24h` cuenta siempre las últimas 24 h. Con los filtros de GET /api/logs, solo cuenta los logs que los cumplen.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [
             {
@@ -257,6 +267,7 @@ export const swaggerSpec = swaggerJSDoc({
               description: "Ventana hacia atras en horas",
               schema: { type: "integer", minimum: 24, maximum: 744, default: 168 },
             },
+            ...logFilterParams,
           ],
           responses: { 200: { description: "OK" }, 400: { description: "hours fuera de rango" } },
         },
@@ -627,7 +638,7 @@ export const swaggerSpec = swaggerJSDoc({
             "Emite los logs según se ingieren. La conexión queda abierta; el navegador la reconecta solo. El bus es por instancia: con varias réplicas, cada cliente ve los logs que entraron por la suya.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [
-            { in: "query", name: "level", schema: { type: "string", enum: ["debug", "info", "warn", "error"] } },
+            levelParam,
             { in: "query", name: "application", schema: { type: "string" } },
             { in: "query", name: "environment", schema: { type: "string", enum: ["development", "staging", "production"] } },
           ],

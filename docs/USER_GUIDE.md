@@ -57,7 +57,7 @@ Una sola fila encima de todo. Se combinan entre sí, y el resumen y la tabla se 
 |---|---|
 | **Rango de tiempo** | Rangos rápidos (15 minutos, 1 hora… 30 días, todo el histórico) o un rango a medida en el calendario, con hora de inicio y fin |
 | **Buscar** | Busca a la vez en el mensaje, la aplicación, el servicio, el host y el traceId. La tecla <kbd>/</kbd> te lleva directo al buscador |
-| **Nivel** | Debug, Info, Warning o Error |
+| **Nivel** | Uno o varios a la vez: Error, Warning, Info o Debug. La lista se queda abierta para marcar más, y **Todos los niveles** quita la selección |
 | **Entorno** | Desarrollo, Staging o Producción |
 | **Aplicación** | Lista con buscador. También puedes escribir parte de un nombre que no esté en la lista |
 
@@ -108,7 +108,7 @@ El botón **Exportar** descarga los logs **con los filtros que tengas puestos**,
 - **CSV** se abre directo en Excel, pero no incluye la metadata.
 - **NDJSON** trae un JSON por línea con el registro completo, metadata incluida.
 
-Desde el mismo menú, **Informe Markdown** y **Brief para agentes IA** abren la pantalla de Reportes con tu rango y ámbito, y lo generan al momento.
+Desde el mismo menú, **Informe Markdown** y **Brief para agentes IA** abren la pantalla de Reportes con tu rango, tu ámbito, la búsqueda y la huella que tengas puestas, y lo generan al momento. El nivel no viaja: en el reporte lo eligen las secciones.
 
 ### Compartir un snapshot
 
@@ -181,7 +181,19 @@ La pantalla **Reportes** genera documentos a partir de los logs de un rango:
 | **Brief para agentes IA** | Un agente de IA: instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
 | **Datos para agentes (JSON)** | Pipelines y herramientas: lo mismo que el brief, en un objeto JSON con esquema estable |
 
-Eliges el rango, la aplicación y el entorno, las secciones y cuántos fallos incluir. Para los briefs de IA, además, el **objetivo** (triaje, regresión tras un despliegue o resumen de incidente) y, si quieres, instrucciones propias. El idioma del reporte se elige aparte del de la interfaz. Tus preferencias se recuerdan en el navegador, el rango y el ámbito van en la URL, y **Ctrl + Enter** genera.
+Eliges el rango, la aplicación y el entorno, las secciones y cuántos fallos incluir. Para los briefs de IA, además, el **objetivo** (triaje, regresión tras un despliegue o resumen de incidente) y, si quieres, instrucciones propias. El idioma del reporte se elige aparte del de la interfaz. Tus preferencias se recuerdan en el navegador, el rango, el ámbito y los filtros van en la URL, y **Ctrl + Enter** genera.
+
+**Más filtros** acota el reporte entero, no una sola sección, para casos concretos:
+
+| Filtro | Para qué |
+|---|---|
+| **Servicio** | Un componente de una aplicación: un microservicio, un módulo o un script de NetSuite |
+| **Host** | Una máquina o un contenedor que se comporta raro |
+| **Clase de error** / **Código de error** | Un tipo de fallo en todas las aplicaciones, como `TimeoutError` o `ECONNRESET` |
+| **Contiene el texto** | Seguir un pedido, un cliente o una factura por su identificador |
+| **Huella de un fallo** | Un solo fallo agrupado: cuándo empezó, cómo evoluciona y sus ocurrencias |
+
+Cifras, actividad, fallos e inventario salen solo de los logs que cumplen todos los filtros, y el reporte los lista en su **Ámbito**. En los briefs para IA, el texto y el host pasan por el enmascarado como el resto.
 
 La sección **Comparación con el periodo anterior** compara con la ventana de igual duración justo antes y señala los fallos **nuevos**, los que **empeoraron** y los que **dejaron de aparecer**: es lo primero que mirar tras un despliegue. **Warnings agrupados** (opcional) ayuda a separar el ruido. En el informe Markdown cada fallo enlaza a sus ocurrencias en MCLog.
 

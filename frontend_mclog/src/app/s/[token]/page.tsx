@@ -73,7 +73,13 @@ const FilterChips: React.FC<{ filters: SnapshotFilters; withRange: boolean }> = 
   const { t, fmt } = useI18n();
   const labels = t.snapshots.viewer.filterLabels;
   const valueOf = (key: (typeof FILTER_KEYS)[number], value: string) => {
-    if (key === "level") return t.levels.names[value as keyof typeof t.levels.names] ?? value;
+    // Puede ser una lista ("error,warn"); los snapshots antiguos traen uno solo.
+    if (key === "level") {
+      return value
+        .split(",")
+        .map((level) => t.levels.names[level as keyof typeof t.levels.names] ?? level)
+        .join(", ");
+    }
     if (key === "environment") return t.envs.names[value as keyof typeof t.envs.names] ?? value;
     if (key === "fingerprint") return `${value.slice(0, 12)}…`;
     return value;

@@ -3,6 +3,7 @@ import { config } from "../config/env";
 import logger from "../config/logger";
 import { isMailConfigured, sendMail } from "../config/mailer";
 import { prisma } from "../config/prisma";
+import { renderEmail } from "../utils/emailTemplate";
 import { UserServiceError, hashPassword, revokeSessions } from "./userService";
 import { getSetting } from "./settingsService";
 
@@ -33,37 +34,58 @@ const sha256 = (value: string) => createHash("sha256").update(value, "utf8").dig
  */
 export const isPasswordResetAvailable = () => isMailConfigured() && config.publicDashboardUrl !== "";
 
-const escapeHtml = (value: string) =>
-  value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+type ActionEmailCopy = {
+  subject: string;
+  preview: string;
+  heading: string;
+  paragraphs: string[];
+  action: string;
+  notes: string[];
+  reason: string;
+};
 
-const COPY: Record<ResetLocale, (minutes: number) => { subject: string; intro: string; action: string; expiry: string; ignore: string }> = {
+const buildActionEmail = (copy: ActionEmailCopy, link: string, locale: ResetLocale) => ({
+  subject: copy.subject,
+  ...renderEmail({
+    locale,
+    preview: copy.preview,
+    heading: copy.heading,
+    paragraphs: copy.paragraphs,
+    action: { label: copy.action, url: link },
+    notes: copy.notes,
+    reason: copy.reason,
+  }),
+});
+
+const COPY: Record<ResetLocale, (minutes: number) => ActionEmailCopy> = {
   es: (minutes) => ({
     subject: "Restablece tu contraseña de MCLog",
-    intro: "Alguien ha pedido restablecer la contraseña de tu cuenta de MCLog. Para elegir una nueva, abre este enlace:",
+    preview: `Elige una contraseña nueva. El enlace caduca en ${minutes} minutos.`,
+    heading: "Restablece tu contraseña",
+    paragraphs: ["Hemos recibido una solicitud para restablecer la contraseña de tu cuenta de MCLog. Para elegir una nueva, pulsa el botón:"],
     action: "Elegir una contraseña nueva",
-    expiry: `El enlace caduca en ${minutes} minutos y solo sirve una vez. Al usarlo se cerrarán todas tus sesiones abiertas.`,
-    ignore: "Si no lo has pedido tú, ignora este correo: tu contraseña no cambiará.",
+    notes: [
+      `El enlace caduca en ${minutes} minutos y solo sirve una vez. Al usarlo se cerrarán todas tus sesiones abiertas.`,
+      "Si no lo has pedido tú, ignora este correo: tu contraseña no cambiará.",
+    ],
+    reason: "Recibes este correo porque se pidió restablecer la contraseña de la cuenta de MCLog asociada a esta dirección.",
   }),
   en: (minutes) => ({
     subject: "Reset your MCLog password",
-    intro: "Someone asked to reset the password of your MCLog account. To choose a new one, open this link:",
+    preview: `Choose a new password. The link expires in ${minutes} minutes.`,
+    heading: "Reset your password",
+    paragraphs: ["We received a request to reset the password of your MCLog account. To choose a new one, click the button:"],
     action: "Choose a new password",
-    expiry: `The link expires in ${minutes} minutes and works only once. Using it will sign you out of every open session.`,
-    ignore: "If you didn't ask for this, ignore this email: your password won't change.",
+    notes: [
+      `The link expires in ${minutes} minutes and works only once. Using it will sign you out of every open session.`,
+      "If you didn't ask for this, ignore this email: your password won't change.",
+    ],
+    reason: "You're receiving this email because a password reset was requested for the MCLog account linked to this address.",
   }),
 };
 
-export const buildResetEmail = (link: string, locale: ResetLocale) => {
-  const copy = COPY[locale](getSetting("passwordResetTtlMinutes"));
-  const text = [copy.intro, "", link, "", copy.expiry, copy.ignore].join("\n");
-  const html = [
-    `<p style="font:14px system-ui,sans-serif;color:#334155">${escapeHtml(copy.intro)}</p>`,
-    `<p style="margin:20px 0"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#19607e;color:#fff;font:600 14px system-ui,sans-serif;text-decoration:none">${escapeHtml(copy.action)}</a></p>`,
-    `<p style="font:12px ui-monospace,monospace;color:#64748b;word-break:break-all">${escapeHtml(link)}</p>`,
-    `<p style="font:13px system-ui,sans-serif;color:#64748b">${escapeHtml(copy.expiry)}<br>${escapeHtml(copy.ignore)}</p>`,
-  ].join("");
-  return { subject: copy.subject, text, html };
-};
+export const buildResetEmail = (link: string, locale: ResetLocale) =>
+  buildActionEmail(COPY[locale](getSetting("passwordResetTtlMinutes")), link, locale);
 
 /**
  * Envia el enlace si el correo corresponde a una cuenta. Si no, no hace nada:
@@ -106,44 +128,62 @@ export const requestPasswordReset = async (email: string, locale: ResetLocale): 
  */
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-const INVITE_COPY: Record<ResetLocale, (workspace: string, days: number) => { subject: string; intro: string; action: string; expiry: string }> = {
+/** "1 dia", "7 dias": la caducidad de una invitacion puede quedar en un solo dia. */
+const DAYS: Record<ResetLocale, (days: number) => string> = {
+  es: (days) => `${days} ${days === 1 ? "día" : "días"}`,
+  en: (days) => `${days} ${days === 1 ? "day" : "days"}`,
+};
+
+const INVITE_COPY: Record<ResetLocale, (workspace: string, days: number) => ActionEmailCopy> = {
   es: (workspace, days) => ({
     subject: `Te han invitado a «${workspace}» en MCLog`,
-    intro: `Te han invitado al espacio «${workspace}» de MCLog, donde se centralizan los logs de sus aplicaciones. Para entrar, elige tu contraseña:`,
+    preview: `Activa tu cuenta para entrar en «${workspace}».`,
+    heading: "Te han invitado a MCLog",
+    paragraphs: [
+      `Te han invitado al espacio «${workspace}» de MCLog, la plataforma donde se centralizan los logs de sus aplicaciones.`,
+      "Para activar tu cuenta, elige tu contraseña:",
+    ],
     action: "Activar mi cuenta",
-    expiry: `El enlace caduca en ${days} días y solo sirve una vez.`,
+    notes: [`El enlace caduca en ${DAYS.es(days)} y solo sirve una vez.`],
+    reason: "Recibes este correo porque te han invitado a MCLog con esta dirección. Si no esperabas la invitación, puedes ignorarlo.",
   }),
   en: (workspace, days) => ({
     subject: `You've been invited to "${workspace}" on MCLog`,
-    intro: `You've been invited to the "${workspace}" workspace on MCLog, where its applications' logs are centralized. To get in, choose your password:`,
+    preview: `Activate your account to join "${workspace}".`,
+    heading: "You've been invited to MCLog",
+    paragraphs: [
+      `You've been invited to the "${workspace}" workspace on MCLog, the platform where its applications' logs are centralized.`,
+      "To activate your account, choose your password:",
+    ],
     action: "Activate my account",
-    expiry: `The link expires in ${days} days and works only once.`,
+    notes: [`The link expires in ${DAYS.en(days)} and works only once.`],
+    reason: "You're receiving this email because you were invited to MCLog with this address. If you weren't expecting it, you can ignore it.",
   }),
 };
 
-const NOTICE_COPY: Record<ResetLocale, (workspace: string) => { subject: string; intro: string; action: string }> = {
+export const buildInvitationEmail = (workspace: string, days: number, link: string, locale: ResetLocale) =>
+  buildActionEmail(INVITE_COPY[locale](workspace, days), link, locale);
+
+const NOTICE_COPY: Record<ResetLocale, (workspace: string) => ActionEmailCopy> = {
   es: (workspace) => ({
     subject: `Ahora tienes acceso a «${workspace}» en MCLog`,
-    intro: `Te han agregado al espacio «${workspace}» de MCLog. Lo encontrarás en el selector de espacios del panel.`,
+    preview: `Ya puedes entrar en «${workspace}».`,
+    heading: "Tienes acceso a un espacio nuevo",
+    paragraphs: [`Te han agregado al espacio «${workspace}» de MCLog. Lo encontrarás en el selector de espacios del panel.`],
     action: "Abrir MCLog",
+    notes: [],
+    reason: "Recibes este correo porque tienes una cuenta de MCLog con esta dirección.",
   }),
   en: (workspace) => ({
     subject: `You now have access to "${workspace}" on MCLog`,
-    intro: `You've been added to the "${workspace}" workspace on MCLog. You'll find it in the workspace switcher.`,
+    preview: `You can now open "${workspace}".`,
+    heading: "You have access to a new workspace",
+    paragraphs: [`You've been added to the "${workspace}" workspace on MCLog. You'll find it in the workspace switcher.`],
     action: "Open MCLog",
+    notes: [],
+    reason: "You're receiving this email because you have an MCLog account with this address.",
   }),
 };
-
-const buildActionEmail = (subject: string, paragraphs: string[], action: string, link: string) => ({
-  subject,
-  text: [...paragraphs.slice(0, 1), "", link, "", ...paragraphs.slice(1)].join("\n"),
-  html: [
-    `<p style="font:14px system-ui,sans-serif;color:#334155">${escapeHtml(paragraphs[0])}</p>`,
-    `<p style="margin:20px 0"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#19607e;color:#fff;font:600 14px system-ui,sans-serif;text-decoration:none">${escapeHtml(action)}</a></p>`,
-    `<p style="font:12px ui-monospace,monospace;color:#64748b;word-break:break-all">${escapeHtml(link)}</p>`,
-    ...paragraphs.slice(1).map((p) => `<p style="font:13px system-ui,sans-serif;color:#64748b">${escapeHtml(p)}</p>`),
-  ].join(""),
-});
 
 /**
  * Genera el enlace de activacion de una cuenta invitada. Como el de "olvide mi
@@ -174,9 +214,9 @@ export const sendInvitation = async (
   const path = await issueInvitationPath(user.id);
   if (!isPasswordResetAvailable()) return { emailSent: false, path };
 
-  const copy = INVITE_COPY[locale](workspaceName, getSetting("invitationTtlDays"));
+  const link = `${config.publicDashboardUrl}${path}`;
   try {
-    await sendMail({ to: user.email, ...buildActionEmail(copy.subject, [copy.intro, copy.expiry], copy.action, `${config.publicDashboardUrl}${path}`) });
+    await sendMail({ to: user.email, ...buildInvitationEmail(workspaceName, getSetting("invitationTtlDays"), link, locale) });
     return { emailSent: true, path };
   } catch (error) {
     logger.error("Invitation email failed", { error: String(error) });
@@ -189,7 +229,7 @@ export const sendMembershipNotice = async (email: string, workspaceName: string,
   if (!isPasswordResetAvailable()) return false;
   const copy = NOTICE_COPY[locale](workspaceName);
   try {
-    await sendMail({ to: email, ...buildActionEmail(copy.subject, [copy.intro], copy.action, config.publicDashboardUrl) });
+    await sendMail({ to: email, ...buildActionEmail(copy, config.publicDashboardUrl, locale) });
     return true;
   } catch (error) {
     logger.error("Membership notice email failed", { error: String(error) });

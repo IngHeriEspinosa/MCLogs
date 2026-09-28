@@ -133,6 +133,60 @@ describe("Logs API", () => {
     expect((await get("errorCode=etimedout_42&level=info")).body.total).toBe(0);
   });
 
+  it("filters by several levels at once, comma-separated", async () => {
+    const logs = ["error", "warn", "info", "debug"].map((level) => ({
+      application: "multi-level",
+      level,
+      environment: "production",
+      message: `level ${level}`,
+    }));
+    await request(app).post("/api/logs/batch").set("x-api-key", config.apiKey).send({ logs });
+    const get = (query: string) =>
+      request(app).get(`/api/logs?application=multi-level&${query}`).set("Authorization", `Bearer ${accessToken}`);
+
+    const both = await get("level=error,warn");
+    expect(both.status).toBe(200);
+    expect(both.body.data.map((l: { level: string }) => l.level).sort()).toEqual(["error", "warn"]);
+    // Un solo nivel sigue funcionando como antes.
+    expect((await get("level=debug")).body.total).toBe(1);
+  });
+
+  it("rejects an unknown level inside the list", async () => {
+    const res = await request(app).get("/api/logs?level=error,fatal").set("Authorization", `Bearer ${accessToken}`);
+    expect(res.status).toBe(400);
+  });
+
+  it("applies the listing filters to the stats timeline", async () => {
+    const base = { application: "stats-scope", environment: "production" };
+    await request(app)
+      .post("/api/logs/batch")
+      .set("x-api-key", config.apiKey)
+      .send({
+        logs: [
+          { ...base, service: "checkout", host: "web-01", level: "error", message: "card declined" },
+          { ...base, service: "checkout", host: "web-02", level: "warn", message: "slow gateway" },
+          { ...base, service: "billing", host: "web-01", level: "error", message: "card declined" },
+        ],
+      });
+
+    const totals = async (query: string) => {
+      const res = await request(app)
+        .get(`/api/logs/stats?application=stats-scope&hours=1&${query}`)
+        .set("Authorization", `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      return (res.body.timeline as Array<{ error: number; warn: number }>).reduce(
+        (sum, bucket) => ({ error: sum.error + bucket.error, warn: sum.warn + bucket.warn }),
+        { error: 0, warn: 0 },
+      );
+    };
+
+    expect(await totals("service=checkout")).toEqual({ error: 1, warn: 1 });
+    expect(await totals("host=web-01")).toEqual({ error: 2, warn: 0 });
+    expect(await totals("level=warn")).toEqual({ error: 0, warn: 1 });
+    expect(await totals("search=gateway")).toEqual({ error: 0, warn: 1 });
+    expect(await totals("message=declined&service=billing")).toEqual({ error: 1, warn: 0 });
+  });
+
   it("sorts by application", async () => {
     const res = await request(app)
       .get("/api/logs?sort=application:asc")
