@@ -28,6 +28,7 @@ Cada guía recorre un proceso de principio a fin: qué vas a conseguir, qué nec
 | [Integrar una aplicación Node.js](guias/integrar-node.md) | Enviar logs y excepciones desde Node con `@multicomputos-srl/mclog` |
 | [Integrar NetSuite](guias/integrar-netsuite.md) | Subir el cliente SuiteScript y registrar logs desde User Events y Map/Reduce |
 | [Integrar NetSuite con lib_mclog.js](guias/integrar-netsuite-lib-mclog.md) | Librería central descargable: configuración en un registro personalizado, un envío por ejecución y errores no controlados registrados solos |
+| [NetSuite para consultores: recetario de logs](guias/netsuite-recetario.md) | Siete scripts listos para subir (integraciones, validaciones, procesos masivos y formularios) y las reglas para registrar bien |
 | [Investigar un incidente](guias/investigar-incidente.md) | Ir del aviso a la causa: Errores, ocurrencias, traza, contexto y brief para IA |
 | [Buscar registros](guias/buscar-registros.md) | Filtros, búsqueda avanzada por campo, compartir y exportar |
 | [Compartir un snapshot](guias/compartir-snapshots.md) | Enlace a una copia congelada de Logs, Errores o una Traza, para tu equipo o público con los datos enmascarados |

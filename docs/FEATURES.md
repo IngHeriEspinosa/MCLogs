@@ -565,7 +565,7 @@ Un **canal** define por dónde avisar. Una regla puede usar varios.
 | Tipo | Configuración | Notas |
 |---|---|---|
 | `webhook` | `url` y `secret` opcional | Sirve para Slack, Discord, Teams o n8n. Con `secret`, cada aviso va firmado con HMAC-SHA256 en `x-mclog-signature` |
-| `email` | `to` (lista) | El servidor SMTP se configura con las variables `SMTP_*` |
+| `email` | `to` (lista) | El envío se configura en el backend: SMTP (`SMTP_*`) o Microsoft Graph (`MAIL_TRANSPORT=graph`) |
 | `telegram` | `botToken` y `chatId` | Mensaje en MarkdownV2 |
 
 Los secretos **se guardan pero no se devuelven**: al listar llegan enmascarados, y reenviar la máscara al editar conserva el valor original.

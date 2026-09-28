@@ -107,6 +107,10 @@ jobs:
       - name: Tests de lib_mclog.js
         run: node integrations/netsuite/test_lib_mclog.js
 
+      # Los ejemplos del recetario se publican en el sitio: si uno se rompe, CI lo para.
+      - name: Tests de los ejemplos (recetario) y lib_mclog_browser.js
+        run: node integrations/netsuite/test_examples.js
+
   frontend:
     name: Dashboard
     runs-on: ubuntu-latest

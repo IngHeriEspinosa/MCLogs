@@ -11,6 +11,8 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
 ### Añadido
 - **NetSuite — `lib_mclog.js`, librería central descargable.** Lee la URL, la API key, la aplicación y el ambiente de un registro personalizado (`customrecord_mclog_config`), con 5 minutos de caché en `N/cache`. Acumula los logs y envía un solo lote al terminar cada punto de entrada. `wrapEntryPoints` pone el contexto (registro y traceId `<tipo>:<id>` en User Events, clave en Map/Reduce, método en Suitelets) y registra las excepciones no controladas sin duplicar las que ya se registraron a mano. Rechaza URL `http://`, oculta credenciales en la metadata y respeta la governance. Incluye 114 pruebas sin dependencias (`test_lib_mclog.js`), que corren en CI.
 - **Sitio:** guía "Integrar NetSuite con lib_mclog.js", con enlaces de descarga, creación del registro, ejemplos por tipo de script y solución de problemas.
+- **NetSuite — recetario para consultores.** Siete scripts completos sobre `lib_mclog.js` en `integrations/netsuite/examples/`: enviar una factura a un proveedor (User Event), recibir pedidos de un e-commerce (RESTlet), reglas que bloquean un pedido (User Event), ruta de aprobación (Workflow Action), recordatorios de facturas vencidas (Scheduled), importación de clientes desde CSV (Map/Reduce) y errores de formularios (Client Script). Guía "NetSuite para consultores: recetario de logs" en el sitio, con la instalación paso a paso y cinco reglas para registrar bien. El skill de IA `mclog` los enlaza (§4.1): el agente parte del ejemplo que encaja, usa el proxy en Client Scripts y reconoce el `404` de una URL base que termina en `/mcp`.
+- **NetSuite — `lib_mclog_browser.js`.** Logs desde Client Scripts a través de un Suitelet proxy (`examples/sl_mclog_browser_proxy.js`), sin que la API key llegue al navegador. El proxy exige la cabecera `X-MCLog-Client`, acota tamaño, número y nivel de los logs, y marca su origen. `test_examples.js` prueba las siete recetas y la librería del navegador (123 comprobaciones), y corre en CI.
 - **Skill de IA `mclog`** (`docs/skills/mclog/SKILL.md`). En un solo `.md` enseña a un asistente a:
   - desplegar MCLog: VPS con Compose + Caddy, CapRover + Railway o local;
   - preparar espacios y claves;
@@ -42,6 +44,11 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
 - **Dashboard — Configuración:** bajo **Acceso para IA (MCP)**, cuántas claves lo han usado en los últimos 30 días. Si se apaga sin guardar, avisa de que esos asistentes se cortarán.
 - **API — `GET /api/logs/:id/occurrences`:** cuántas veces ha ocurrido el fallo de un log (su huella) en 24 h, en 7 días y en lo que conserva la retención, con primera y última vez, en total y por entorno. Respeta el alcance de las claves acotadas.
 - **Dashboard — Ocurrencias en el detalle del log:** nueva sección con esas cifras y el desglose por entorno. "Copiar para IA" las incluye, con una regla que aclara que el total y la primera vez solo abarcan la retención.
+- **API — Correo por Microsoft Graph:** `MAIL_TRANSPORT=graph` envía las alertas, las invitaciones y "olvidé mi contraseña" por HTTPS con una app de Microsoft Entra ID (`MS_GRAPH_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_GRAPH_CLIENT_SECRET`), desde el buzón de `SMTP_FROM`. Resuelve dos cosas:
+  - los servidores que no pueden salir por SMTP, como los Droplets de DigitalOcean, que bloquean los puertos 25, 465 y 587;
+  - el fin del SMTP AUTH con contraseña en Microsoft 365, que se desactiva por defecto a finales de 2026.
+
+  El mensaje sigue siendo el mismo MIME, con parte de texto y parte HTML. El token se reutiliza hasta poco antes de caducar. Los fallos citan el error de Microsoft (`AADSTS…`, `ErrorAccessDenied`) sin exponer el secreto. Sin la variable todo sigue igual: `smtp` es el valor por defecto. Guía, con el permiso limitado a un solo buzón, en [DEPLOYMENT.md → Configurar el correo saliente](docs/DEPLOYMENT.md#configurar-el-correo-saliente).
 
 ### Cambiado
 - **MCP:** `tools/list` devuelve 9 herramientas (se añade `get_integration_skill`) y el servidor declara capacidades de recursos y prompts.

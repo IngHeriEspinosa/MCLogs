@@ -141,6 +141,9 @@ node integrations/netsuite/test_mclog_client.js
 
 # Librería central NetSuite (lib_mclog.js) — 114 comprobaciones, sin dependencias
 node integrations/netsuite/test_lib_mclog.js
+
+# Recetario NetSuite (examples/) y lib_mclog_browser.js — 123 comprobaciones, sin dependencias
+node integrations/netsuite/test_examples.js
 ```
 
 ## Licencia

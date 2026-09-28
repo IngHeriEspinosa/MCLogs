@@ -75,6 +75,9 @@ srv-captain--mclog-db:5432         → PostgreSQL  (CapRover, app mclog-db, sin 
    | `TRUST_PROXY=1` | La API está detrás del nginx de CapRover; sin esto no ve la IP real ni el `https` |
    | `COOKIE_SAMESITE=lax` | Correcto porque los dos subdominios comparten dominio raíz |
 
+   > [!WARNING]
+   > Si el servidor de CapRover es un Droplet de **DigitalOcean**, el correo no puede salir por SMTP: bloquea los puertos 25, 465 y 587. Con Microsoft 365, configura el envío por Microsoft Graph (`MAIL_TRANSPORT=graph`) siguiendo [DEPLOYMENT.md → Configurar el correo saliente](../DEPLOYMENT.md#configurar-el-correo-saliente).
+
 ## Paso 3 — Despliega la API
 
 Desde tu equipo, en la carpeta del backend:
@@ -170,6 +173,7 @@ Llévalas fuera del servidor (S3, Spaces, otro host) y prueba a restaurar una de
 | Entras, pero al navegar vuelves al login | Las cookies no se guardan: la API no va por HTTPS, falta `COOKIE_SECURE=1`, o los dominios no comparten dominio raíz ([paso 5](#paso-5--entiende-los-dos-dominios)) |
 | `caprover deploy` falla con `unable to get local issuer certificate` | Proxy corporativo: apunta `NODE_EXTRA_CA_CERTS` al certificado raíz de tu empresa. Nunca uses `NODE_TLS_REJECT_UNAUTHORIZED=0` |
 | El build de Railway falla descargando las fuentes | El build necesita acceso a `fonts.googleapis.com`; revisa los logs del build |
+| Invitaciones y alertas por correo fallan con `Connection timeout` | El proveedor del servidor bloquea la salida por SMTP (DigitalOcean lo hace). Pasa a `MAIL_TRANSPORT=graph` ([correo saliente](../DEPLOYMENT.md#configurar-el-correo-saliente)) |
 
 Más casos en [DEPLOYMENT.md](../DEPLOYMENT.md#resolución-de-problemas).
 

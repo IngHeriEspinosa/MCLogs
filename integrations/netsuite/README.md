@@ -12,8 +12,13 @@ Envía los logs de todos tus scripts de NetSuite al servicio centralizado MCLog 
 | `test_mclog_client.js` | Pruebas del módulo fuera de NetSuite (`node test_mclog_client.js`) |
 | `lib_mclog.js` | Librería central alternativa: configuración en un registro personalizado, un lote por ejecución, errores no controlados automáticos |
 | `test_lib_mclog.js` | Pruebas de `lib_mclog.js` fuera de NetSuite (`node test_lib_mclog.js`) |
+| `lib_mclog_browser.js` | Logs desde Client Scripts, a través de un Suitelet proxy: la API key no llega al navegador |
+| `examples/` | Siete scripts completos sobre `lib_mclog.js`: integraciones, validaciones, procesos masivos y formularios |
+| `test_examples.js` | Pruebas de `examples/` y `lib_mclog_browser.js` fuera de NetSuite (`node test_examples.js`) |
 
 > **¿Varios scripts en la misma cuenta?** Usa `lib_mclog.js`: la API key vive en un registro de NetSuite y no en el código, cada ejecución envía un solo lote y basta con envolver los puntos de entrada (`return mcLog.wrapEntryPoints({ afterSubmit })`). Instalación, ejemplos por tipo de script y referencia completa en [Integrar NetSuite con lib_mclog.js](../../docs/guias/integrar-netsuite-lib-mclog.md). El resto de este README describe `mclog_client.js`.
+>
+> **¿Eres consultor y buscas un script completo para tu caso?** El [recetario para consultores](../../docs/guias/netsuite-recetario.md) explica paso a paso los siete scripts de `examples/` y las reglas para registrar bien.
 
 ## Instalación (5 minutos)
 

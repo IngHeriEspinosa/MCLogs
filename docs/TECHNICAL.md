@@ -487,8 +487,11 @@ Todas las variables se leen en [env.ts](../Back_MCLog/src/config/env.ts). Los bo
 | `SCHEDULER_ENABLED` | `1` | Mantenimiento periódico. Con varias instancias, dejarlo activo en una sola |
 | `MCP_ENABLED` | `1` | Valor inicial de `mcpEnabled` (servidor MCP en `/mcp`); la cuenta root lo enciende o apaga en caliente |
 | `SSE_MAX_CONNECTIONS` | `50` | Valor inicial de `maxLiveConnections` (conexiones simultáneas al stream en vivo, **por instancia**) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | — / 587 / `0` | Servidor de correo: alertas por email, invitaciones y "olvidé mi contraseña" (estas dos también necesitan `PUBLIC_DASHBOARD_URL`) |
-| `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — / — / `MCLog <no-reply@localhost>` | Credenciales y remitente del correo |
+| `MAIL_TRANSPORT` | `smtp` | Cómo sale el correo (alertas por email, invitaciones y "olvidé mi contraseña"; estas dos también necesitan `PUBLIC_DASHBOARD_URL`): `smtp` con las `SMTP_*`, o `graph` por Microsoft Graph (HTTPS) con las `MS_GRAPH_*`. Cualquier otro valor equivale a `smtp`. Ver [DEPLOYMENT.md](DEPLOYMENT.md#configurar-el-correo-saliente) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | — / 587 / `0` | Servidor SMTP (solo con `MAIL_TRANSPORT=smtp`) |
+| `SMTP_USER` / `SMTP_PASS` | — / — | Credenciales SMTP (solo con `MAIL_TRANSPORT=smtp`) |
+| `SMTP_FROM` | `MCLog <no-reply@localhost>` | Remitente con los dos transportes. Con `graph`, su dirección es el buzón que envía |
+| `MS_GRAPH_TENANT_ID` / `MS_GRAPH_CLIENT_ID` / `MS_GRAPH_CLIENT_SECRET` | — | App de Microsoft Entra ID con la que se envía por Graph (solo con `MAIL_TRANSPORT=graph`). Hacen falta las tres |
 | `PUBLIC_DASHBOARD_URL` | — | URL del dashboard, para los enlaces de notificaciones, invitaciones y restablecimiento de contraseña |
 | `PASSWORD_RESET_TTL_MINUTES` | `30` | Valor inicial de `passwordResetTtlMinutes`: minutos que vale un enlace de "olvidé mi contraseña" |
 | `PASSWORD_RESET_RATE_LIMIT_MAX` / `..._WINDOW_MS` | `5` / `900000` | Peticiones a `/auth/password/forgot` por IP y ventana |

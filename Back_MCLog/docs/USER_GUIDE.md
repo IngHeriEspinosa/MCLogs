@@ -103,7 +103,7 @@ Se puede limitar por aplicación con `&application=nombre`.
 
 ## Alertas y tiempo real
 
-El planificador que ejecuta la retención evalúa también las **reglas de alerta** cada minuto, y avisa por webhook, correo o Telegram. Se configuran desde el dashboard (**Espacio → Alertas**); del backend solo dependen las variables `SMTP_*` para el canal de correo.
+El planificador que ejecuta la retención evalúa también las **reglas de alerta** cada minuto, y avisa por webhook, correo o Telegram. Se configuran desde el dashboard (**Espacio → Alertas**); del backend solo depende el correo saliente (`SMTP_*`, o `MAIL_TRANSPORT=graph` con las `MS_GRAPH_*`) para el canal de correo.
 
 `GET /api/logs/stream` emite los logs según se ingieren, por Server-Sent Events, con un tope de `SSE_MAX_CONNECTIONS` conexiones simultáneas **por instancia**. El bus de eventos también es por instancia: con varias réplicas, cada cliente ve los logs que entraron por la suya.
 

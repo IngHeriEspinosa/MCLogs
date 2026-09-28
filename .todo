@@ -1,3 +1,58 @@
 
 Revisar lo de los fallos distintos a que se refiere.
 Que es la trazabilidad y huellas en los logs, como funciona.
+
+------------------------------
+
+Asunto: Solicitud: app de Entra ID para que MCLog envíe correo por Microsoft Graph
+
+Hola, equipo:
+
+MCLog, nuestra plataforma interna de logs, necesita enviar correos transaccionales
+(invitaciones a cuentas, restablecimiento de contraseña y alertas), unos <N> al día.
+
+Por qué Graph y no SMTP: el servidor está en DigitalOcean, que bloquea la salida por
+SMTP (puertos 25, 465 y 587). Además, Microsoft desactiva por defecto el SMTP AUTH con
+contraseña a finales de diciembre de 2026. Graph va por HTTPS con OAuth 2.0
+(client credentials) y no tiene ninguno de los dos problemas.
+
+Lo que necesito:
+
+1. Un buzón de envío. Basta uno compartido, sin licencia; por ejemplo,
+   no-reply@multicomputos.com.
+
+2. Un registro de aplicación en Entra ID, "MCLog", de un solo inquilino, sin URI de
+   redirección y con un secreto de cliente.
+
+3. Permiso para enviar SOLO desde ese buzón, con RBAC para aplicaciones de Exchange Online:
+
+   New-ServicePrincipal -AppId <AppId> -ObjectId <ObjectId de la app empresarial> -DisplayName "MCLog"
+   New-ManagementScope -Name "MCLog - buzon de envio" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'no-reply@multicomputos.com'"
+   New-ManagementRoleAssignment -App <AppId> -Role "Application Mail.Send" -CustomResourceScope "MCLog - buzon de envio"
+
+   Comprobación: Test-ServicePrincipalAuthorization -Identity <AppId> -Resource no-reply@multicomputos.com
+   debe devolver InScope = True.
+
+   Importante: por favor, NO añadan Mail.Send en "Permisos de API" de Entra ni den
+   consentimiento de administrador. Ese permiso vale para todos los buzones del tenant,
+   y el ámbito de Exchange se suma a él en lugar de restringirlo.
+
+Lo que necesito de vuelta:
+- Id. de directorio (inquilino)
+- Id. de aplicación (cliente)
+- Valor del secreto y su fecha de caducidad, por un canal seguro (no por correo)
+- Dirección del buzón de envío
+
+La app solo podrá enviar desde ese buzón; no puede leer correo. El secreto se guardará
+únicamente como variable de entorno del servidor, nunca en el repositorio.
+
+Si fuera posible, lo necesitaría antes del <fecha>, para tener margen antes de diciembre.
+
+Gracias,
+Heri Espinosa
+
+------------------------------
+
+Caso de soporte de DigitalOcean:
+Support Ticket Created Successfully!
+Ticket Number:#12853264

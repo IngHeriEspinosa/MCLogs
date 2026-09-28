@@ -8,6 +8,11 @@ const int = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+export type MailTransport = "smtp" | "graph";
+/** Graph solo si se pide expresamente: cualquier otro valor deja SMTP, que es lo que habia antes. */
+const mailTransport = (value: string | undefined): MailTransport =>
+  value?.trim().toLowerCase() === "graph" ? "graph" : "smtp";
+
 export const config = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: int(process.env.PORT, 3000),
@@ -40,15 +45,27 @@ export const config = {
   mcpEnabled: boolDefaultTrue(process.env.MCP_ENABLED),
   /** Tope de conexiones simultaneas al stream en vivo, por instancia. */
   sseMaxConnections: int(process.env.SSE_MAX_CONNECTIONS, 50),
-  // Servidor SMTP para los avisos por correo. Sin SMTP_HOST, ese canal falla
-  // con un mensaje claro en lugar de quedarse colgado.
+  // Correo saliente: alertas, invitaciones y "olvide mi contrasena". Sin el
+  // transporte elegido configurado, esos envios fallan con un mensaje claro en
+  // lugar de quedarse colgados.
+  // "smtp" usa las SMTP_*. "graph" envia por la API de Microsoft Graph, por
+  // HTTPS: para cuando el proveedor bloquea los puertos SMTP (DigitalOcean lo
+  // hace) o el tenant de Microsoft 365 ya no admite SMTP AUTH con contrasena.
+  mailTransport: mailTransport(process.env.MAIL_TRANSPORT),
   smtp: {
     host: process.env.SMTP_HOST || "",
     port: int(process.env.SMTP_PORT, 587),
     secure: bool(process.env.SMTP_SECURE),
     user: process.env.SMTP_USER || "",
     pass: process.env.SMTP_PASS || "",
+    /** Remitente de todos los correos, salgan por SMTP o por Graph. Con Graph, su direccion es el buzon que envia. */
     from: process.env.SMTP_FROM || "MCLog <no-reply@localhost>",
+  },
+  // App registrada en Microsoft Entra ID con el permiso de aplicacion Mail.Send.
+  graph: {
+    tenantId: process.env.MS_GRAPH_TENANT_ID || "",
+    clientId: process.env.MS_GRAPH_CLIENT_ID || "",
+    clientSecret: process.env.MS_GRAPH_CLIENT_SECRET || "",
   },
 
   /** URL publica del dashboard, para construir enlaces en alertas y notificaciones. */

@@ -113,6 +113,14 @@ export const DOCS: DocMeta[] = [
     group: "guias",
   },
   {
+    slug: "netsuite-recetario",
+    file: "guias/netsuite-recetario.md",
+    title: "NetSuite para consultores: recetario de logs",
+    description:
+      "Siete scripts listos para subir (integraciones, validaciones, procesos masivos y formularios) y las reglas para registrar bien.",
+    group: "guias",
+  },
+  {
     slug: "conectar-una-ia",
     file: "guias/conectar-ia.md",
     title: "Conectar una IA",

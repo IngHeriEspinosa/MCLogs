@@ -16,7 +16,7 @@ Haz que MCLog te avise por Slack, Teams, Discord, correo o Telegram cuando algo 
 | Canal | Necesitas |
 |---|---|
 | **Webhook** (Slack, Discord, Teams, n8n…) | La URL de un *incoming webhook* de tu herramienta |
-| **Correo** | Que el backend tenga configuradas las variables `SMTP_*` (las pone quien despliega) |
+| **Correo** | Que el backend tenga configurado el correo saliente, por SMTP o por Microsoft Graph (lo pone quien despliega) |
 | **Telegram** | Un bot (créalo con @BotFather, que te da el **token**) y el **chat ID** del grupo o persona que recibirá los avisos |
 
 > [!TIP]
@@ -98,7 +98,8 @@ Pestaña **Historial**: cada disparo con su regla, cuántas coincidencias hubo y
 | Síntoma | Solución |
 |---|---|
 | **Enviar prueba** de un webhook: `HTTP 404` o `403` | La URL está mal o el webhook se revocó en tu herramienta |
-| **Enviar prueba** de correo: "no está configurado" | Faltan las variables `SMTP_*` en el backend |
+| **Enviar prueba** de correo: "no configurado" | Faltan las variables de correo en el backend: `SMTP_*`, o las `MS_GRAPH_*` con `MAIL_TRANSPORT=graph` |
+| **Enviar prueba** de correo: `Connection timeout` | El servidor no puede salir por SMTP (DigitalOcean bloquea esos puertos). Quien despliega debe pasar a Microsoft Graph ([DEPLOYMENT.md](../DEPLOYMENT.md#configurar-el-correo-saliente)) |
 | **Enviar prueba** de Telegram: `chat not found` | El chat ID es incorrecto, o el bot no está en el grupo: añádelo |
 | La prueba llega, pero la regla nunca avisa | Revisa los filtros (entorno, aplicación, nivel) y que el umbral se alcance dentro de la ventana. Mira **Último aviso**: si avisó hace poco, está en su silencio |
 | Llegan demasiados avisos | Las reglas no se editan: borra la regla y créala con más **Silencio tras avisar** o más **Umbral**, o apágala con su interruptor |

@@ -360,6 +360,7 @@ La librería **nunca rompe tu script**: cuando algo va mal, lo anota en el **Exe
 | `MCLog desactivado: No hay ningún customrecord_mclog_config activo con URL y API key` | Falta el registro, está inactivo o le falta la URL o la clave (paso 3). Después de corregirlo, tarda hasta 5 minutos en aplicarse |
 | `MCLog desactivado: La URL … debe empezar por https://` | La URL es `http://`. La clave no viaja sin cifrar |
 | `MCLog: no se pudo leer la configuración` | El rol que ejecuta no tiene permiso sobre el registro, o los ids de `SETTINGS_RECORD` no coinciden con los del registro. Se reintenta cada minuto |
+| `HTTP 404` | La URL del registro no es la de la API. Lo más común: termina en `/mcp` (la del panel **Conectar una IA**). Quítalo |
 | `HTTP 401` | Clave mal copiada, revocada o caducada |
 | `HTTP 403` | La clave no tiene el permiso **Enviar logs** o está acotada a otras aplicaciones: revisa el campo **Aplicación** |
 | `HTTP 400` | Un campo no es válido. Con esta librería es raro: comprueba que el servidor no tenga topes menores que los de la sección 2 |
@@ -383,5 +384,6 @@ No cubren lo que depende del runtime real: la governance de verdad, los permisos
 
 ## Siguiente paso
 
+- [NetSuite para consultores: recetario de logs](netsuite-recetario.md): siete scripts completos sobre esta librería, incluidos Client Scripts, y las reglas para registrar bien.
 - [Configurar alertas](configurar-alertas.md) para enterarte de un error nuevo sin mirar el dashboard.
 - [Investigar un incidente](investigar-incidente.md): de un error agrupado a la traza completa del documento.

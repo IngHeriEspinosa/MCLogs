@@ -1155,7 +1155,7 @@ export const es = {
     secretHint:
       "Opcional. Si lo pones, cada aviso viaja firmado con HMAC-SHA256 en la cabecera x-mclog-signature, para que el receptor compruebe que viene de MCLog.",
     recipients: "Destinatarios",
-    recipientsHint: "Separados por comas. El servidor SMTP se configura con las variables SMTP_* del backend.",
+    recipientsHint: "Separados por comas. El correo saliente (SMTP o Microsoft Graph) se configura en el backend.",
     botToken: "Token del bot",
     chatId: "Chat ID",
     keepSecretHint: "Déjalo vacío para conservar el valor guardado.",
@@ -1474,7 +1474,7 @@ export const es = {
       secret:
         "Clave compartida con el receptor. MCLog firma el cuerpo con ella y envía la firma en x-mclog-signature (sha256=…). El receptor calcula la misma firma y descarta lo que no coincida. Una vez guardado, no se vuelve a mostrar.",
       recipients:
-        "Direcciones que recibirán el aviso, separadas por comas. El envío usa el servidor SMTP del backend: si no está configurado, «Enviar prueba» fallará.",
+        "Direcciones que recibirán el aviso, separadas por comas. El envío usa el correo saliente del backend (SMTP o Microsoft Graph): si no está configurado, «Enviar prueba» fallará.",
       botToken:
         "El token que te da @BotFather al crear el bot (123456:ABC-DEF…). Da control total sobre el bot: una vez guardado solo se muestran sus primeros caracteres.",
       chatId:

@@ -330,7 +330,7 @@ Para eso está el **silencio tras avisar** de cada regla. Tras dispararse, calla
 Sí. En Espacio → Alertas → Historial cada disparo muestra a cuántos canales se entregó y el motivo de los que fallaron. Un canal caído no impide avisar por los demás.
 
 ### ¿Hace falta configurar algo para el correo?
-Solo para ese canal: las variables `SMTP_*` del backend. Webhook y Telegram se configuran enteros desde el dashboard.
+Solo para ese canal: el correo saliente del backend, por SMTP (`SMTP_*`) o por Microsoft Graph (`MAIL_TRANSPORT=graph`), ver [DEPLOYMENT.md](DEPLOYMENT.md#configurar-el-correo-saliente). Webhook y Telegram se configuran enteros desde el dashboard.
 
 ### ¿Cómo pruebo una regla sin esperar a un fallo real?
 Con el Lab. **Pico de incidente** dispara las reglas de umbral y **Error nuevo** las de tipo "Error nuevo". Elige como entorno de destino el mismo que filtra tu regla. Guía: [Configurar alertas](guias/configurar-alertas.md).

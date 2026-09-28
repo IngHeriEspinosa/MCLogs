@@ -330,6 +330,63 @@ Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nad
 
 **Espacio → Lab → Tráfico normal → Ejecutar** envía 120 logs de prueba (al entorno **Desarrollo**). Si aparecen en **Logs**, la cadena completa funciona. Bórralos después con **Borrar datos del lab**.
 
+### Configurar el correo saliente
+
+MCLog envía correo para las alertas por email, las invitaciones a cuentas nuevas y "olvidé mi contraseña" (estas dos necesitan además `PUBLIC_DASHBOARD_URL`). Sin correo, lo demás funciona igual: al invitar, el panel ofrece el enlace para compartirlo a mano.
+
+`MAIL_TRANSPORT` elige por dónde sale:
+
+| `MAIL_TRANSPORT` | Úsalo si | Variables |
+|---|---|---|
+| `smtp` (por defecto) | El servidor puede conectar por SMTP (587 o 465) y el proveedor acepta usuario y contraseña | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` |
+| `graph` | El correo es de Microsoft 365 y el servidor no puede salir por SMTP, o el tenant ya no admite SMTP AUTH con contraseña | `MS_GRAPH_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_GRAPH_CLIENT_SECRET`, `SMTP_FROM` |
+
+> [!WARNING]
+> **DigitalOcean bloquea la salida por los puertos 25, 465 y 587** en todos los Droplets, así que un CapRover alojado ahí no puede usar `smtp` en esos puertos con ningún proveedor. En los logs de la API se ve como `Invitation email failed` o `Alert delivery failed` con `Connection timeout` a los 10 s. Usa `graph`, o un proveedor de correo transaccional que acepte el puerto 2525.
+
+> [!NOTE]
+> Microsoft desactiva por defecto el SMTP AUTH con contraseña en los tenants de Microsoft 365 a finales de diciembre de 2026, y anunciará su retirada definitiva en 2027. Con Microsoft 365, `graph` es la opción que seguirá funcionando.
+
+#### Enviar con Microsoft 365 (Graph)
+
+La API se autentica con una app de Microsoft Entra ID (OAuth 2.0, *client credentials*) y envía por HTTPS desde un buzón concreto. Hace falta ser administrador de Entra ID y de Exchange Online.
+
+1. **Elige el buzón que envía.** Basta un buzón compartido, que no consume licencia; por ejemplo `no-reply@tu-dominio.com`.
+2. **Registra la app.** En el [centro de administración de Microsoft Entra](https://entra.microsoft.com): **Aplicaciones → Registros de aplicaciones → Nuevo registro**. Nombre `MCLog`, "Solo las cuentas de este directorio organizativo", sin URI de redirección.
+3. **Crea el secreto.** En la app, **Certificados y secretos → Nuevo secreto de cliente**. Copia el **Valor** en ese momento (no el "Id. de secreto"): no se vuelve a mostrar. Apunta cuándo caduca.
+4. **Anota los identificadores.** En **Información general** de la app, el **Id. de aplicación (cliente)** y el **Id. de directorio (inquilino)**. En **Aplicaciones empresariales → MCLog**, el **Id. de objeto**, que es otro distinto.
+5. **Da permiso de envío solo sobre ese buzón**, desde PowerShell con el módulo `ExchangeOnlineManagement`:
+
+   ```powershell
+   Connect-ExchangeOnline
+   New-ServicePrincipal -AppId <id-de-aplicacion> -ObjectId <id-de-objeto-de-la-app-empresarial> -DisplayName "MCLog"
+   New-ManagementScope -Name "MCLog - buzon de envio" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'no-reply@tu-dominio.com'"
+   New-ManagementRoleAssignment -App <id-de-aplicacion> -Role "Application Mail.Send" -CustomResourceScope "MCLog - buzon de envio"
+
+   # Comprobación: InScope debe salir True con el buzón de envío y False con cualquier otro
+   Test-ServicePrincipalAuthorization -Identity <id-de-aplicacion> -Resource no-reply@tu-dominio.com
+   ```
+
+   El permiso tarda entre 30 minutos y 2 horas en aplicarse.
+
+   > [!CAUTION]
+   > **No** añadas `Mail.Send` en **Permisos de API** de la app ni le concedas consentimiento de administrador. Ese permiso de Entra vale para **todos** los buzones del tenant, y el ámbito de Exchange se suma a él en lugar de recortarlo. El paso 5 es todo el permiso que necesita.
+
+6. **Configura la API** (en CapRover, **App Configs → Environmental Variables**) y guarda para que se reinicie:
+
+   ```bash
+   MAIL_TRANSPORT=graph
+   MS_GRAPH_TENANT_ID=<id-de-directorio>
+   MS_GRAPH_CLIENT_ID=<id-de-aplicacion>
+   MS_GRAPH_CLIENT_SECRET=<valor-del-secreto>
+   SMTP_FROM=MCLog <no-reply@tu-dominio.com>
+   ```
+
+   La dirección de `SMTP_FROM` tiene que ser la del buzón del paso 1. `SMTP_HOST`, `SMTP_USER` y `SMTP_PASS` dejan de usarse, y puedes borrarlas.
+7. **Comprueba.** Crea un canal de correo en **Espacio → Alertas** y pulsa **Enviar prueba**, o invita a una cuenta. Si falla, el error de Microsoft aparece en la prueba y en los logs de la API ([Resolución de problemas](#resolución-de-problemas)).
+
+Renueva el secreto antes de que caduque: a partir de ese día, los envíos fallan con `AADSTS7000222`.
+
 ### Conectar tus aplicaciones
 
 - Cualquier lenguaje → [INTEGRATION.md](INTEGRATION.md)
@@ -364,6 +421,11 @@ Una clave de ingesta comprometida puede escribir logs basura, pero **no leer nad
 | El disco se llena | La retención (**Plataforma → Configuración**) es demasiado alta. Mira el tamaño con `psql -c "\dt+"` dentro del contenedor de la base |
 | Los emisores reciben `429` | Superan el límite de ingesta. Agrupa en lotes antes de subir `INGEST_RATE_LIMIT_MAX` |
 | El stream **En vivo** no muestra nada detrás de un proxy propio | El proxy acumula la respuesta. Caddy ya lo resuelve (`flush_interval -1`) y la API manda `X-Accel-Buffering: no` para nginx |
+| Los correos fallan con `Connection timeout` a los 10 s | El servidor no puede salir por SMTP: DigitalOcean, entre otros, bloquea los puertos 25, 465 y 587. Compruébalo en el servidor con `nc -vz -w 5 <SMTP_HOST> 587`. Con Microsoft 365, pasa a `MAIL_TRANSPORT=graph` ([correo saliente](#configurar-el-correo-saliente)) |
+| `Microsoft Entra ID no entregó el token` con `AADSTS7000215` | `MS_GRAPH_CLIENT_SECRET` no es el **Valor** del secreto; suele pegarse el "Id. de secreto". Con `AADSTS7000222`, el secreto caducó: crea otro |
+| `Microsoft Entra ID no entregó el token` con `AADSTS700016` o `AADSTS90002` | `MS_GRAPH_CLIENT_ID` (700016) o `MS_GRAPH_TENANT_ID` (90002) mal copiados |
+| `Microsoft Graph rechazó el correo (HTTP 403: ErrorAccessDenied …)` | Falta el permiso del paso 5, todavía no se ha aplicado (hasta 2 h), o `SMTP_FROM` no es el buzón de ese ámbito |
+| `Microsoft Graph rechazó el correo (HTTP 404 …)` | La dirección de `SMTP_FROM` no es un buzón de ese tenant |
 
 ---
 

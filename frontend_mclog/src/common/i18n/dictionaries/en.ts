@@ -1139,7 +1139,7 @@ export const en: Dictionary = {
     secretHint:
       "Optional. When set, each alert is signed with HMAC-SHA256 in the x-mclog-signature header so the receiver can verify it comes from MCLog.",
     recipients: "Recipients",
-    recipientsHint: "Comma separated. The SMTP server is configured with the backend's SMTP_* variables.",
+    recipientsHint: "Comma separated. Outgoing mail (SMTP or Microsoft Graph) is configured in the backend.",
     botToken: "Bot token",
     chatId: "Chat ID",
     keepSecretHint: "Leave empty to keep the saved value.",
@@ -1443,7 +1443,7 @@ export const en: Dictionary = {
       url: "Address that receives a JSON POST for each alert: title, rule, match count, samples and a dashboard link. For Slack, Discord or Teams, use an “incoming webhook” URL.",
       secret:
         "Key shared with the receiver. MCLog signs the body with it and sends the signature in x-mclog-signature (sha256=…). The receiver computes the same signature and drops anything that doesn't match. Once saved, it isn't shown again.",
-      recipients: "Addresses that will receive the alert, comma separated. Delivery uses the backend's SMTP server: if it isn't configured, “Send test” will fail.",
+      recipients: "Addresses that will receive the alert, comma separated. Delivery uses the backend's outgoing mail (SMTP or Microsoft Graph): if it isn't configured, “Send test” will fail.",
       botToken:
         "The token @BotFather gives you when you create the bot (123456:ABC-DEF…). It grants full control of the bot: once saved, only its first characters are shown.",
       chatId: "Identifier of the chat, group or channel the bot will post alerts to. Add the bot to the group first; group IDs start with “-”.",

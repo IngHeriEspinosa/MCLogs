@@ -471,7 +471,7 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["auth"],
           summary: "Pedir un enlace para restablecer la contraseña (se envía por correo)",
           description:
-            "Responde lo mismo exista o no la cuenta. Requiere SMTP_HOST y PUBLIC_DASHBOARD_URL. Como mucho un correo por cuenta y minuto.",
+            "Responde lo mismo exista o no la cuenta. Requiere el correo saliente configurado (SMTP_HOST, o MAIL_TRANSPORT=graph con las MS_GRAPH_*) y PUBLIC_DASHBOARD_URL. Como mucho un correo por cuenta y minuto.",
           requestBody: {
             required: true,
             content: {

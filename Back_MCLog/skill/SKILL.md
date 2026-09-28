@@ -278,10 +278,27 @@ define(['/SuiteScripts/lib/lib_mclog'], (mcLog) => {
 - **Tras un refresh del sandbox:** cambia la clave del registro, porque se copia la de producción.
 - **La librería no reintenta,** y necesita ≥20 unidades de governance para enviar. Cuesta 10 unidades por lote y 0 si no se registró nada.
 - **Diagnóstico:** en el **Execution Log** del script, con Log Level Audit o Debug. Por ejemplo, `MCLog desactivado: …` indica que falta el registro, que la URL no es https o que el rol no tiene permiso sobre el registro.
+- **Client Scripts: nunca `lib_mclog.js`,** porque la API key quedaría a la vista en el navegador.
+  - Usa `lib_mclog_browser.js`, con la misma API (`info`, `warn`, `error`, `exception`, `wrapEntryPoints`), y el Suitelet `examples/sl_mclog_browser_proxy.js`, que reenvía con `lib_mclog.js` desde el servidor.
+  - En el Deployment del proxy, **Available Without Login** va desmarcado y **Execute As Role** es un rol con View sobre el registro de configuración.
+- **Lo que se vaya a buscar va en el traceId.** La búsqueda de MCLog no entra en `metadata`. Un número externo, como el pedido de un e-commerce, se asocia con `setDocument('weborder', externalId)`.
+- **Mensajes fijos.** Los datos variables (nombres, ids, importes) van en `metadata`. Si no, cada valor abre un grupo distinto en **Errores**.
+
+**Partir de un ejemplo.** Si el caso encaja con uno de estos escenarios, descarga el script y adáptalo en lugar de escribirlo desde cero. Cada uno lleva en la cabecera qué registra y cómo instalarlo; lo adaptable está en su sección CONFIGURACIÓN y en los parámetros del Script. Base de las URL: `https://github.com/IngHeriEspinosa/MCLogs/raw/main/integrations/netsuite/`.
+
+| Escenario | Tipo | Fichero |
+|---|---|---|
+| Enviar un documento a la API de un tercero | User Event | `examples/ue_invoice_send_to_provider.js` |
+| Recibir pedidos de un sistema externo, sin duplicados | RESTlet | `examples/rl_order_intake.js` |
+| Reglas de negocio que bloquean un guardado | User Event | `examples/ue_sales_order_rules.js` |
+| Decidir una ruta de aprobación | Workflow Action | `examples/wa_approval_route.js` |
+| Recorrer documentos con control de governance | Scheduled | `examples/ss_overdue_invoice_reminders.js` |
+| Importación masiva desde CSV | Map/Reduce | `examples/mr_customer_import.js` |
+| Errores de un formulario en el navegador | Client Script + Suitelet | `examples/cs_sales_order_form.js`, `examples/sl_mclog_browser_proxy.js` y `lib_mclog_browser.js` |
 
 `mclog_client.js` (configuración en constantes dentro del fichero) queda solo para scripts aislados o pruebas rápidas.
 
-Guía: [Integrar NetSuite con lib_mclog.js](https://ingheriespinosa.github.io/MCLogs/docs/integrar-netsuite-lib-mclog).
+Guías: [Integrar NetSuite con lib_mclog.js](https://ingheriespinosa.github.io/MCLogs/docs/integrar-netsuite-lib-mclog) y, con la instalación paso a paso de cada ejemplo, [NetSuite para consultores: recetario de logs](https://ingheriespinosa.github.io/MCLogs/docs/netsuite-recetario).
 
 ### 4.2 Node.js / TypeScript (incluye Next.js, NestJS, Express)
 
@@ -676,6 +693,7 @@ curl -s -X POST {BASE}/mcp -H "Authorization: Bearer $MCLOG_READ_KEY" -H "Conten
 | `/health` → `503 degraded` | La API no alcanza PostgreSQL: revisa `DATABASE_URL` o el servicio `db` |
 | El dashboard dice "No se pudo contactar con el servidor" | `CORS_ORIGINS` no coincide exactamente (esquema, host, sin barra final), o `NEXT_PUBLIC_API_URL` es incorrecta o no se redesplegó |
 | La sesión se cae al navegar | Falta HTTPS o `COOKIE_SECURE=1`, falta `TRUST_PROXY=1`, o los dominios no comparten dominio raíz |
+| `404` al enviar | La URL base no es la raíz de la API. Lo más común es que termine en `/mcp`: el cliente añade `/api/logs/batch` y la petición llega a `/mcp/api/logs/batch`. Quita esa ruta |
 | `401` al enviar | Clave mal copiada, revocada o caducada |
 | `403` al enviar | La clave no tiene `ingest`, o `application` no está entre las permitidas (`allowedApplications`) |
 | `403 "The Lab is disabled…"` | Se envió sin API key: la petición cayó en la sesión del dashboard. Añade `x-api-key` |
@@ -703,7 +721,7 @@ curl -s -X POST {BASE}/mcp -H "Authorization: Bearer $MCLOG_READ_KEY" -H "Conten
   - revisa de vez en cuando el **Inventario de claves** (§3) y revoca las abandonadas o las que nunca se usaron.
 - **Red:**
   - la base de datos nunca se expone a Internet, y solo el proxy (Caddy o nginx de CapRover) publica puertos;
-  - los logs no se envían desde el navegador (CORS), sino desde el servidor.
+  - los logs no se envían desde el navegador (CORS), sino desde el servidor. En NetSuite, un Client Script pasa por el Suitelet proxy (§4.1).
 - **Contenido:**
   - no pongas secretos ni datos personales innecesarios en `message` ni en `metadata`;
   - redacta antes de enviar.
@@ -719,5 +737,6 @@ curl -s -X POST {BASE}/mcp -H "Authorization: Bearer $MCLOG_READ_KEY" -H "Conten
 | Contrato REST completo | `docs/INTEGRATION.md` · `docs/TECHNICAL.md` · Swagger en `{BASE}/docs` |
 | Despliegue y operación | `docs/DEPLOYMENT.md` · `docs/guias/copias-y-mantenimiento.md` |
 | Espacios, usuarios y claves | `docs/guias/administrar-usuarios-y-claves.md` |
+| NetSuite: scripts completos por escenario | <https://ingheriespinosa.github.io/MCLogs/docs/netsuite-recetario> · `integrations/netsuite/examples/` |
 | Errores frecuentes | `docs/FAQ.md` |
 | Descargar este skill | `{BASE}/api/skill` · <https://ingheriespinosa.github.io/MCLogs/mclog-SKILL.md> |
