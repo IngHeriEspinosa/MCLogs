@@ -26,6 +26,9 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
   - **Sitio**: página `/docs/skill-ia` con botón "Descargar .md".
 - **API:** copia del skill en `Back_MCLog/skill/`, que la imagen Docker incluye. Se regenera con `npm run sync:skill`, y la CI y un test fallan si difiere de `docs/`.
 
+- **Dashboard — Rango rápido "Últimos 5 minutos"** en Logs y Registros, para seguir de cerca un despliegue o un incidente. Viaja en la URL como `range=5m`.
+- **Dashboard — Informe en PDF** en Reportes. El informe para personas se descarga en Markdown o en PDF: el mismo documento maquetado para papel, con la cabecera de MCLog, el nombre y el número de página al pie, tablas que no se parten entre filas y stacks que no se cortan en el margen. Se imprime en un iframe oculto con el motor del navegador ("Guardar como PDF"), sin dependencias nuevas, siempre en claro y en el idioma del reporte; los enlaces a las ocurrencias siguen activos.
+- **Dashboard — Configuración de Reportes más compacta.** Los tres tipos pasan a mosaicos en fila (**Informe**, **Brief IA**, **Datos IA**) con sus formatos de descarga y la descripción del elegido debajo; las secciones son pastillas; el idioma entra en **Opciones**. La vista previa queda fija y a toda la altura junto al panel, y en 4K el panel se ensancha a dos columnas. `Checkbox` gana la variante `chip`.
 - **Dashboard — Modo presentación** en Logs, Registros, Errores, Traza, Reportes y Snapshots. Un botón en la barra superior pone la vista a pantalla completa (Fullscreen API sobre `<html>`, para que menús y diálogos sigan visibles) y oculta la barra lateral y la superior. Se sale con Esc o con el botón flotante; el foco pasa al botón que sustituye al pulsado. Si el navegador no concede la pantalla completa, se ocultan igualmente las barras. `DashboardLayout` gana la prop `presentable` y la variable CSS `--sticky-top` para los paneles fijos.
 
 - **Dashboard — Panel "Conectar una IA"** en **Espacio → API keys**, solo para el dueño del espacio. Muestra:
@@ -67,6 +70,7 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
   - La regla de `first_seen_in_window` solo aparece donde existe ese campo (reporte y fallo agrupado).
 
 ### Corregido
+- **Dashboard — `Fieldset` ya no desborda su columna** con un texto largo en una línea (el botón "Más filtros" de Reportes se salía del panel): un `<fieldset>` mide por defecto al menos lo que su contenido sin partir.
 - **Correos:** la caducidad de la invitación decía "1 días" ("1 days" en inglés), y la alerta de errores nuevos decía "error(es) nuevo(s)". Ahora usan singular y plural según el número.
 - **API — Contexto de un log:** con más registros que `limit` en la ventana, devolvía los más antiguos y el log, y lo que lo precedía, podían quedar fuera. Ahora va en dos consultas desde el log hacia atrás y hacia delante (la mitad mayor para lo anterior) y se acota también por entorno.
 - **Enmascarado:** el id de una Server Action de Next.js y los hashes de commit ya no salen como `[REDACTED:key]`. Son públicos y hacen falta para diagnosticar el fallo.

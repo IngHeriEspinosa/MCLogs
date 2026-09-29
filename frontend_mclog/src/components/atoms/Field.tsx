@@ -76,7 +76,9 @@ export const Fieldset: React.FC<{
 }> = ({ legend, hint, info, children, className = "" }) => {
   const legendId = useId();
   return (
-    <fieldset aria-labelledby={legendId} className={`flex flex-col gap-2 ${className}`}>
+    // min-w-0: un <fieldset> mide por defecto al menos lo que su contenido
+    // sin partir, y un texto largo en una linea lo sacaria de su columna.
+    <fieldset aria-labelledby={legendId} className={`flex min-w-0 flex-col gap-2 ${className}`}>
       <legend className="mb-1.5 flex items-center gap-1.5 text-[0.8125rem] font-medium text-ink">
         <span id={legendId}>{legend}</span>
         {info && <InfoTip label={typeof legend === "string" ? legend : undefined}>{info}</InfoTip>}

@@ -109,6 +109,7 @@ export const en: Dictionary = {
   time: {
     label: "Time range",
     presets: {
+      "5m": "Last 5 minutes",
       "15m": "Last 15 minutes",
       "1h": "Last hour",
       "6h": "Last 6 hours",
@@ -151,7 +152,7 @@ export const en: Dictionary = {
     exportCsvHint: "For spreadsheets",
     exportNdjson: "NDJSON",
     exportNdjsonHint: "One log per line",
-    exportMd: "Markdown report",
+    exportMd: "PDF or Markdown report",
     exportMdHint: "Summary for people",
     exportAi: "AI agent brief",
     exportAiHint: "Context and instructions",
@@ -364,21 +365,21 @@ export const en: Dictionary = {
   reports: {
     eyebrow: "Analysis",
     title: "Reports",
-    description: "Generate Markdown reports for your team, or structured briefs so an AI agent can investigate for you.",
+    description: "Generate PDF or Markdown reports for your team, or structured briefs so an AI agent can investigate for you.",
     config: "Settings",
     kind: "Report type",
     kinds: {
       markdown: {
-        title: "Markdown report",
-        description: "For people: summary, findings and tables ready to share.",
+        title: "Report",
+        description: "For people: summary, findings and tables ready to share. Download it as PDF or Markdown.",
       },
       "agent-md": {
-        title: "AI agent brief",
-        description: "Instructions, rules and machine-readable data blocks in a single .md.",
+        title: "AI brief",
+        description: "For an AI assistant: instructions, rules and machine-readable data blocks in a single .md.",
       },
       "agent-json": {
-        title: "Agent data (JSON)",
-        description: "A single JSON object with a stable schema, for pipelines and tools.",
+        title: "AI data",
+        description: "For pipelines and tools: a single JSON object with a stable schema.",
       },
     },
     range: "Range",
@@ -450,6 +451,12 @@ export const en: Dictionary = {
     size: (size: string, tokens: string) => `${size} · ~${tokens} tokens`,
     tokensHint: "Rough estimate: 4 characters per token.",
     generatedAt: (when: string) => `Generated ${when}`,
+    downloadMarkdown: "Markdown",
+    downloadMarkdownHint: "Download the report as Markdown (.md)",
+    downloadPdf: "PDF",
+    downloadPdfHint: "Opens the print dialog: choose “Save as PDF” as the destination.",
+    pdfNote: "The PDF is saved from the browser's print dialog: choose “Save as PDF”.",
+    pdfError: "We couldn't prepare the PDF",
     stale: "Settings changed since the last generation.",
     shortcut: "Ctrl + Enter",
     reset: "Reset",
@@ -1425,7 +1432,7 @@ export const en: Dictionary = {
 
     reports: {
       kind:
-        "Sets the format and who the report is for:\n• Markdown report: to read or share with your team.\n• AI agent brief: a .md with instructions, rules and data, ready to paste into an assistant.\n• JSON: an object with a stable schema for processing in code.\nPicking an AI format turns on sensitive-data masking.",
+        "Sets the format and who the report is for:\n• Report: to read or share with your team. Download it as PDF or Markdown.\n• AI brief: a .md with instructions, rules and data, ready to paste into an assistant.\n• AI data: a JSON object with a stable schema for processing in code.\nPicking an AI format turns on sensitive-data masking.",
       range:
         "Time window the report analyzes. The comparison also uses the previous window of the same length: with “Last 24 hours”, the 24 hours before that.",
       application: "Limits the report to a single application. Leave it on “All applications” to analyze the whole service.",

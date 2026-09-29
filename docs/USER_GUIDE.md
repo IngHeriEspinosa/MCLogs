@@ -34,7 +34,7 @@ A la izquierda tienes el menú de secciones (en el móvil se abre con el botón 
 | **Logs** | Resumen, gráfico de actividad y la tabla de registros, con filtros, modo en vivo y descargas |
 | **Registros** | Solo la tabla, con **búsqueda avanzada** por campo y el detalle a pantalla completa |
 | **Errores** | Los fallos agrupados por causa. Casi siempre, el mejor sitio para empezar |
-| **Reportes** | Informes en Markdown y briefs para agentes de IA |
+| **Reportes** | Informes en PDF o Markdown y briefs para agentes de IA |
 | **Snapshots** | Las copias de Logs, Registros, Errores o una Traza compartidas con un enlace: quién las creó, cuándo caducan, cuántas veces se abrieron |
 | **Miembros** | Quién ve el espacio: invitar, cambiar rol, quitar (dueño) |
 | **Alertas** | Avisos automáticos por webhook, correo o Telegram (dueño) |
@@ -108,7 +108,7 @@ El botón **Exportar** descarga los logs **con los filtros que tengas puestos**,
 - **CSV** se abre directo en Excel, pero no incluye la metadata.
 - **NDJSON** trae un JSON por línea con el registro completo, metadata incluida.
 
-Desde el mismo menú, **Informe Markdown** y **Brief para agentes IA** abren la pantalla de Reportes con tu rango, tu ámbito, la búsqueda y la huella que tengas puestas, y lo generan al momento. El nivel no viaja: en el reporte lo eligen las secciones.
+Desde el mismo menú, **Informe PDF o Markdown** y **Brief para agentes IA** abren la pantalla de Reportes con tu rango, tu ámbito, la búsqueda y la huella que tengas puestas, y lo generan al momento. El nivel no viaja: en el reporte lo eligen las secciones.
 
 ### Compartir un snapshot
 
@@ -175,11 +175,13 @@ Pulsa cualquier línea para desplegar su detalle, con stack y metadata. Arriba, 
 
 La pantalla **Reportes** genera documentos a partir de los logs de un rango:
 
-| Tipo | Para quién |
-|---|---|
-| **Informe Markdown** | Personas: hallazgos clave en prosa, métricas, actividad, niveles, aplicaciones, fallos con su stack y errores recientes |
-| **Brief para agentes IA** | Un agente de IA: instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
-| **Datos para agentes (JSON)** | Pipelines y herramientas: lo mismo que el brief, en un objeto JSON con esquema estable |
+| Tipo | Formatos | Para quién |
+|---|---|---|
+| **Informe** | PDF, Markdown | Personas: hallazgos clave en prosa, métricas, actividad, niveles, aplicaciones, fallos con su stack y errores recientes |
+| **Brief IA** | Markdown | Un agente de IA: instrucciones (rol, objetivo, pasos, reglas y formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
+| **Datos IA** | JSON | Pipelines y herramientas: lo mismo que el brief, en un objeto JSON con esquema estable |
+
+El **PDF** se guarda desde el diálogo de impresión del navegador (destino **Guardar como PDF**): lleva la cabecera de MCLog y el número de página, y sale siempre en claro.
 
 Eliges el rango, la aplicación y el entorno, las secciones y cuántos fallos incluir. Para los briefs de IA, además, el **objetivo** (triaje, regresión tras un despliegue o resumen de incidente) y, si quieres, instrucciones propias. El idioma del reporte se elige aparte del de la interfaz. Tus preferencias se recuerdan en el navegador, el rango, el ámbito y los filtros van en la URL, y **Ctrl + Enter** genera.
 
@@ -195,7 +197,7 @@ Eliges el rango, la aplicación y el entorno, las secciones y cuántos fallos in
 
 Cifras, actividad, fallos e inventario salen solo de los logs que cumplen todos los filtros, y el reporte los lista en su **Ámbito**. En los briefs para IA, el texto y el host pasan por el enmascarado como el resto.
 
-La sección **Comparación con el periodo anterior** compara con la ventana de igual duración justo antes y señala los fallos **nuevos**, los que **empeoraron** y los que **dejaron de aparecer**: es lo primero que mirar tras un despliegue. **Warnings agrupados** (opcional) ayuda a separar el ruido. En el informe Markdown cada fallo enlaza a sus ocurrencias en MCLog.
+La sección **Comparación con el periodo anterior** compara con la ventana de igual duración justo antes y señala los fallos **nuevos**, los que **empeoraron** y los que **dejaron de aparecer**: es lo primero que mirar tras un despliegue. **Warnings agrupados** (opcional) ayuda a separar el ruido. En el informe (también en el PDF) cada fallo enlaza a sus ocurrencias en MCLog.
 
 **Enmascarar datos sensibles** oculta correos, IPs, tokens y claves antes de exportar. Viene activado en los formatos de IA: mantenlo así si el reporte va a un modelo externo. Las huellas, los traceId y los UUID de los mensajes se conservan, porque el agente los necesita para seguir investigando.
 

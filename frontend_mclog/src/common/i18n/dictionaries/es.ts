@@ -114,6 +114,7 @@ export const es = {
   time: {
     label: "Rango de tiempo",
     presets: {
+      "5m": "Últimos 5 minutos",
       "15m": "Últimos 15 minutos",
       "1h": "Última hora",
       "6h": "Últimas 6 horas",
@@ -156,7 +157,7 @@ export const es = {
     exportCsvHint: "Para hojas de cálculo",
     exportNdjson: "NDJSON",
     exportNdjsonHint: "Un log por línea",
-    exportMd: "Informe Markdown",
+    exportMd: "Informe PDF o Markdown",
     exportMdHint: "Resumen para personas",
     exportAi: "Brief para agentes IA",
     exportAiHint: "Contexto e instrucciones",
@@ -371,21 +372,21 @@ export const es = {
     eyebrow: "Análisis",
     title: "Reportes",
     description:
-      "Genera informes en Markdown para tu equipo o briefs estructurados para que un agente de IA investigue por ti.",
+      "Genera informes en PDF o Markdown para tu equipo, o briefs estructurados para que un agente de IA investigue por ti.",
     config: "Configuración",
     kind: "Tipo de reporte",
     kinds: {
       markdown: {
-        title: "Informe Markdown",
-        description: "Para personas: resumen, hallazgos y tablas listos para compartir.",
+        title: "Informe",
+        description: "Para personas: resumen, hallazgos y tablas listos para compartir. Se descarga en PDF o en Markdown.",
       },
       "agent-md": {
-        title: "Brief para agentes IA",
-        description: "Instrucciones, reglas y datos en bloques legibles por máquina, en un solo .md.",
+        title: "Brief IA",
+        description: "Para un asistente de IA: instrucciones, reglas y datos en bloques legibles por máquina, en un solo .md.",
       },
       "agent-json": {
-        title: "Datos para agentes (JSON)",
-        description: "Un único objeto JSON con esquema estable, para pipelines y herramientas.",
+        title: "Datos IA",
+        description: "Para pipelines y herramientas: un único objeto JSON con esquema estable.",
       },
     },
     range: "Rango",
@@ -457,6 +458,12 @@ export const es = {
     size: (size: string, tokens: string) => `${size} · ~${tokens} tokens`,
     tokensHint: "Estimación aproximada: 4 caracteres por token.",
     generatedAt: (when: string) => `Generado ${when}`,
+    downloadMarkdown: "Markdown",
+    downloadMarkdownHint: "Descargar el informe en Markdown (.md)",
+    downloadPdf: "PDF",
+    downloadPdfHint: "Abre el diálogo de impresión: elige «Guardar como PDF» como destino.",
+    pdfNote: "El PDF se guarda desde el diálogo de impresión del navegador: elige «Guardar como PDF».",
+    pdfError: "No pudimos preparar el PDF",
     stale: "La configuración ha cambiado desde la última generación.",
     shortcut: "Ctrl + Enter",
     reset: "Restablecer",
@@ -1455,7 +1462,7 @@ export const es = {
 
     reports: {
       kind:
-        "Define el formato y para quién es el reporte:\n• Informe Markdown: para leerlo o compartirlo con tu equipo.\n• Brief para agentes IA: un .md con instrucciones, reglas y datos, listo para pegar en un asistente.\n• JSON: un objeto con esquema estable para procesarlo con código.\nAl elegir un formato para IA se activa el enmascarado de datos sensibles.",
+        "Define el formato y para quién es el reporte:\n• Informe: para leerlo o compartirlo con tu equipo. Se descarga en PDF o en Markdown.\n• Brief IA: un .md con instrucciones, reglas y datos, listo para pegar en un asistente.\n• Datos IA: un objeto JSON con esquema estable para procesarlo con código.\nAl elegir un formato para IA se activa el enmascarado de datos sensibles.",
       range:
         "Ventana de tiempo que analiza el reporte. La comparación usa además la ventana anterior de igual duración: con «Últimas 24 horas», las 24 horas previas.",
       application: "Limita el reporte a una sola aplicación. Déjalo en «Todas las aplicaciones» para analizar el servicio completo.",

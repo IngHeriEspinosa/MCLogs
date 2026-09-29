@@ -31,7 +31,7 @@ La barra de arriba es la misma que en Logs:
 
 | Filtro | Úsalo para |
 |---|---|
-| **Rango de tiempo** | Rangos rápidos (**Últimos 15 minutos** … **Últimos 30 días**, **Todo el histórico**) o un rango a medida en el calendario, con hora de inicio y de fin |
+| **Rango de tiempo** | Rangos rápidos (**Últimos 5 minutos** … **Últimos 30 días**, **Todo el histórico**) o un rango a medida en el calendario, con hora de inicio y de fin |
 | **Buscar** | Un texto que aparezca **en cualquier sitio**: mensaje, aplicación, servicio, host o traceId. La tecla <kbd>/</kbd> te lleva directo aquí |
 | **Nivel** | Solo errores, solo warnings… |
 | **Entorno** | Producción, Staging o Desarrollo |

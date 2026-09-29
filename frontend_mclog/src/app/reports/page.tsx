@@ -18,10 +18,12 @@ import { DateRangePicker } from "@/components/molecules/DateRangePicker";
 import { MarkdownView } from "@/components/molecules/MarkdownView";
 import { Select } from "@/components/molecules/Select";
 import { useToast } from "@/components/molecules/Toast";
+import { printReportPdf } from "@/components/organisms/ReportPrint";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { saveFile } from "@/common/api/download";
 import { errorMessage } from "@/common/api/errorMessage";
 import { LOCALES, Locale } from "@/common/i18n/config";
+import { dictionaries } from "@/common/i18n/dictionaries";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { BuiltReport, buildReport } from "@/common/reports/build";
 import {
@@ -54,6 +56,8 @@ import { useFilterOptions } from "@/hooks/useOptions";
 
 const PRESETS: readonly Preset[] = ["1h", "6h", "24h", "7d", "30d"];
 const KIND_ICON: Record<ReportKind, IconName> = { markdown: "report", "agent-md": "bot", "agent-json": "braces" };
+/** Formatos en los que se descarga cada tipo. El informe es el mismo documento en los dos. */
+const KIND_FORMATS: Record<ReportKind, readonly string[]> = { markdown: ["PDF", "MD"], "agent-md": ["MD"], "agent-json": ["JSON"] };
 const FILTER_ICON: Record<ReportFilter, IconName> = {
   service: "layers",
   host: "server",
@@ -114,6 +118,7 @@ function ReportsView() {
   // Abiertos si se llega con alguno puesto: un filtro activo nunca queda oculto.
   const [filtersOpen, setFiltersOpen] = useState(filterCount > 0);
   const filtersId = useId();
+  const kindId = useId();
 
   const set = <K extends keyof ReportOptions>(key: K, value: ReportOptions[K]) =>
     setOptions((current) => ({ ...current, [key]: value }));
@@ -124,6 +129,7 @@ function ReportsView() {
   const [result, setResult] = useState<Result | null>(null);
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
+  const [printing, setPrinting] = useState(false);
   const runId = useRef(0);
 
   const generate = useCallback(async (input: ReportOptions) => {
@@ -242,6 +248,8 @@ function ReportsView() {
   const stale = useMemo(() => !!result && JSON.stringify(result.options) !== JSON.stringify(options), [result, options]);
   const isAgent = options.kind !== "markdown";
   const isJson = result?.filename.endsWith(".json");
+  // Lo que se ve es el resultado, no la configuracion actual: decide su tipo.
+  const isHumanReport = result?.options.kind === "markdown";
   const large = !!result && result.options.kind !== "markdown" && result.tokens > LARGE_TOKENS;
 
   const toggleSection = (section: ReportSection, checked: boolean) =>
@@ -258,11 +266,35 @@ function ReportsView() {
     notify(t.toast.downloaded(result.filename));
   };
 
+  // El PDF es el mismo informe maquetado para papel, en el idioma del reporte.
+  const downloadPdf = async () => {
+    if (!result || printing) return;
+    const { app } = dictionaries[result.options.locale];
+    const title = result.filename.replace(/\.md$/, "");
+    setPrinting(true);
+    try {
+      await printReportPdf({
+        source: result.content,
+        linkOrigin: result.origin,
+        brand: app.name,
+        tagline: app.tagline,
+        title,
+        lang: result.options.locale,
+        footer: `${app.name} · ${title}`,
+      });
+    } catch (error) {
+      notify(`${t.reports.pdfError}: ${errorMessage(error, t.common.unknownError)}`, "error");
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const sectionHints: Partial<Record<ReportSection, string>> = t.reports.sectionHints;
 
   return (
     <DashboardLayout title={t.reports.title} eyebrow={t.reports.eyebrow} description={t.reports.description} presentable>
-      <div className="grid items-start gap-4 xl:grid-cols-[25rem_minmax(0,1fr)] 3xl:grid-cols-[28rem_minmax(0,1fr)] 3xl:gap-5">
+      {/* En 4K el informe ya llega a su ancho de lectura: el sobrante va a la configuracion, que se abre a dos columnas. */}
+      <div className="grid items-start gap-4 xl:grid-cols-[25rem_minmax(0,1fr)] 3xl:grid-cols-[28rem_minmax(0,1fr)] 3xl:gap-5 4xl:grid-cols-[36rem_minmax(0,1fr)]">
         <Card
           title={t.reports.config}
           divider
@@ -274,14 +306,16 @@ function ReportsView() {
           className="xl:sticky xl:top-[var(--sticky-top)] xl:max-h-[calc(100vh_-_var(--sticky-top)_-_1rem)] xl:overflow-y-auto"
         >
           <form
-            className="flex flex-col gap-6"
+            className="flex flex-col gap-5"
             onSubmit={(event) => {
               event.preventDefault();
               run();
             }}
           >
+            {/* Mosaicos compactos en fila; la descripcion del elegido va debajo y
+                cada mosaico la enlaza con aria-describedby. */}
             <Fieldset legend={t.reports.kind} info={t.fieldInfo.reports.kind}>
-              <div role="radiogroup" aria-label={t.reports.kind} className="flex flex-col gap-2">
+              <div role="radiogroup" aria-label={t.reports.kind} className="grid grid-cols-3 gap-2">
                 {REPORT_KINDS.map((kind) => {
                   const selected = options.kind === kind;
                   return (
@@ -290,37 +324,51 @@ function ReportsView() {
                       type="button"
                       role="radio"
                       aria-checked={selected}
+                      aria-describedby={`${kindId}-${kind}`}
                       onClick={() =>
                         setOptions((current) => ({ ...current, kind, redact: kind === "markdown" ? current.redact : true }))
                       }
-                      className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
+                      className={`flex min-w-0 flex-col gap-2 rounded-xl border p-2.5 text-left transition-colors ${
                         selected ? "border-brand/50 bg-brand-soft/60 ring-1 ring-brand/20" : "border-line hover:border-line-strong hover:bg-surface-2"
                       }`}
                     >
-                      <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                          selected ? "bg-brand-solid text-white" : "bg-surface-3 text-ink-3"
-                        }`}
-                      >
-                        <Icon name={KIND_ICON[kind]} className="h-[1.125rem] w-[1.125rem]" />
+                      <span className="flex items-start justify-between gap-1">
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                            selected ? "bg-brand-solid text-white" : "bg-surface-3 text-ink-3"
+                          }`}
+                        >
+                          <Icon name={KIND_ICON[kind]} className="h-4 w-4" />
+                        </span>
+                        {selected && <Icon name="checkCircle" className="h-4 w-4 shrink-0 text-brand" />}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-ink">{t.reports.kinds[kind].title}</span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-ink-3">{t.reports.kinds[kind].description}</span>
+                      <span className="flex min-w-0 flex-col gap-1">
+                        <span className="truncate text-[0.8125rem] font-semibold leading-tight text-ink">{t.reports.kinds[kind].title}</span>
+                        <span className="flex flex-wrap gap-1">
+                          {KIND_FORMATS[kind].map((format) => (
+                            <Tag key={format} mono tone={selected ? "brand" : "neutral"}>
+                              {format}
+                            </Tag>
+                          ))}
+                        </span>
                       </span>
-                      {selected && <Icon name="checkCircle" className="h-4 w-4 text-brand" />}
                     </button>
                   );
                 })}
               </div>
+              {REPORT_KINDS.map((kind) => (
+                <p key={kind} id={`${kindId}-${kind}`} hidden={options.kind !== kind} className="text-xs leading-relaxed text-ink-3">
+                  {t.reports.kinds[kind].description}
+                </p>
+              ))}
             </Fieldset>
 
             <Field label={t.reports.range} info={t.fieldInfo.reports.range}>
               <DateRangePicker value={options.range} onChange={(range) => set("range", range)} presets={PRESETS} />
             </Field>
 
-            {/* Una columna en el panel lateral: a dos, "Todos los entornos" se cortaba. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            {/* Una columna en el panel lateral: a dos, "Todos los entornos" se cortaba. En 4K cabe. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1 4xl:grid-cols-2">
               <Field label={t.logs.application} info={t.fieldInfo.reports.application}>
                 <Select
                   icon="box"
@@ -358,7 +406,7 @@ function ReportsView() {
                 )}
               </Button>
               {filtersOpen && (
-                <div id={filtersId} className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-1">
+                <div id={filtersId} className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2 xl:grid-cols-1 4xl:grid-cols-2">
                   {REPORT_FILTERS.map((key) => (
                     <Field key={key} label={t.reports.filterNames[key]} info={t.fieldInfo.reports.filterFields[key]}>
                       <Input
@@ -378,10 +426,12 @@ function ReportsView() {
             </Fieldset>
 
             <Fieldset legend={t.reports.sections} info={t.fieldInfo.reports.sections} hint={options.sections.length === 0 ? t.reports.noSections : undefined}>
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
+              {/* Pastillas: ocho secciones en unas pocas lineas en lugar de una columna larga. */}
+              <div className="flex flex-wrap gap-1.5">
                 {REPORT_SECTIONS.map((section) => (
                   <Checkbox
                     key={section}
+                    variant="chip"
                     checked={options.sections.includes(section)}
                     onChange={(checked) => toggleSection(section, checked)}
                     label={t.reports.sectionNames[section]}
@@ -392,7 +442,7 @@ function ReportsView() {
             </Fieldset>
 
             <Fieldset legend={t.reports.options} info={t.fieldInfo.reports.options}>
-              <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="flex flex-col gap-3.5 rounded-xl border border-line bg-surface-2 p-3.5">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label={t.reports.maxGroups} info={t.fieldInfo.reports.maxGroups}>
                     <Select
@@ -410,13 +460,14 @@ function ReportsView() {
                     />
                   </Field>
                 </div>
+                {/* El tope de ejemplos va en la ayuda: en linea ocupaba dos renglones. */}
                 <Switch
                   checked={options.includeStacks}
                   onChange={(value) => set("includeStacks", value)}
                   label={t.reports.includeStacks}
-                  info={t.fieldInfo.reports.includeStacks}
-                  description={t.reports.includeStacksHint(fmt.number(MAX_SAMPLES))}
+                  info={`${t.fieldInfo.reports.includeStacks}\n${t.reports.includeStacksHint(fmt.number(MAX_SAMPLES))}`}
                 />
+                {/* La descripcion del enmascarado se queda visible: decide que sale de la organizacion. */}
                 <Switch
                   checked={options.redact}
                   onChange={(value) => set("redact", value)}
@@ -424,6 +475,16 @@ function ReportsView() {
                   info={t.fieldInfo.reports.redact}
                   description={t.reports.redactHint}
                 />
+                <Field label={t.reports.reportLanguage} info={t.fieldInfo.reports.reportLanguage}>
+                  <Segmented
+                    size="sm"
+                    label={t.reports.reportLanguage}
+                    value={options.locale}
+                    onChange={(value) => set("locale", value as Locale)}
+                    options={LOCALES.map((option) => ({ value: option, label: t.prefs.languages[option] }))}
+                    className="w-full"
+                  />
+                </Field>
               </div>
             </Fieldset>
 
@@ -451,16 +512,6 @@ function ReportsView() {
               </Fieldset>
             )}
 
-            <Field label={t.reports.reportLanguage} info={t.fieldInfo.reports.reportLanguage}>
-              <Segmented
-                label={t.reports.reportLanguage}
-                value={options.locale}
-                onChange={(value) => set("locale", value as Locale)}
-                options={LOCALES.map((option) => ({ value: option, label: t.prefs.languages[option] }))}
-                className="w-full"
-              />
-            </Field>
-
             {/* Fijo al pie del panel: la accion principal no puede quedar bajo el scroll. */}
             <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-col gap-2 border-t border-line bg-surface px-5 pb-5 pt-4">
               <Button
@@ -482,7 +533,11 @@ function ReportsView() {
           </form>
         </Card>
 
-        <section className="min-w-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-card" aria-label={t.reports.preview}>
+        {/* Fija y a toda la altura, como la configuracion: las dos columnas llenan la pantalla y solo se desplaza el documento. */}
+        <section
+          className="min-w-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-card xl:sticky xl:top-[var(--sticky-top)] xl:flex xl:h-[calc(100vh_-_var(--sticky-top)_-_1rem)] xl:flex-col"
+          aria-label={t.reports.preview}
+        >
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
               <h2 className="font-heading text-[0.9375rem] font-semibold text-ink">{t.reports.preview}</h2>
@@ -498,7 +553,7 @@ function ReportsView() {
               )}
             </div>
             {result && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {!isJson && (
                   <Segmented
                     size="sm"
@@ -513,9 +568,34 @@ function ReportsView() {
                   />
                 )}
                 <CopyButton text={result.content} label={t.common.copy} />
-                <Button size="sm" variant="primary" icon="download" onClick={download}>
-                  {t.common.download}
-                </Button>
+                {isHumanReport ? (
+                  <>
+                    <Button
+                      size="sm"
+                      icon="download"
+                      onClick={download}
+                      title={t.reports.downloadMarkdownHint}
+                      aria-label={`${t.common.download} ${t.reports.downloadMarkdown}`}
+                    >
+                      {t.reports.downloadMarkdown}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon="download"
+                      onClick={() => void downloadPdf()}
+                      loading={printing}
+                      title={t.reports.downloadPdfHint}
+                      aria-label={`${t.common.download} ${t.reports.downloadPdf}`}
+                    >
+                      {t.reports.downloadPdf}
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="primary" icon="download" onClick={download}>
+                    {t.common.download}
+                  </Button>
+                )}
               </div>
             )}
           </header>
@@ -529,7 +609,7 @@ function ReportsView() {
             </div>
           )}
 
-          <div className="max-h-[calc(100vh-11rem)] min-h-[28rem] overflow-auto">
+          <div className="max-h-[calc(100vh-11rem)] min-h-[28rem] overflow-auto xl:max-h-none xl:min-h-0 xl:flex-1">
             {pending ? (
               <div className="mx-auto flex max-w-[110ch] flex-col gap-3 p-6 3xl:p-10">
                 <div className="skeleton h-7 w-1/2" />
@@ -560,8 +640,9 @@ function ReportsView() {
             )}
           </div>
           {result && (
-            <footer className="border-t border-line px-5 py-2.5 text-[0.6875rem] text-ink-3">
-              {t.reports.generatedAt(fmt.dateTime(result.generatedAt))}
+            <footer className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-line px-5 py-2.5 text-[0.6875rem] text-ink-3">
+              <span>{t.reports.generatedAt(fmt.dateTime(result.generatedAt))}</span>
+              {isHumanReport && <span>{t.reports.pdfNote}</span>}
             </footer>
           )}
         </section>

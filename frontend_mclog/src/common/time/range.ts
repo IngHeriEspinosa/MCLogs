@@ -7,12 +7,13 @@
  * enlaces antiguos, con `from`/`to` de un datetime-local, siguen funcionando.
  */
 
-export const PRESETS = ["15m", "1h", "6h", "24h", "7d", "30d", "all"] as const;
+export const PRESETS = ["5m", "15m", "1h", "6h", "24h", "7d", "30d", "all"] as const;
 export type Preset = (typeof PRESETS)[number];
 
 const MINUTE = 60_000;
 
 export const PRESET_MINUTES: Record<Exclude<Preset, "all">, number> = {
+  "5m": 5,
   "15m": 15,
   "1h": 60,
   "6h": 6 * 60,

@@ -108,7 +108,7 @@ Debajo tienes las propiedades (con botón de copiar en trace ID, huella e ID), e
 El botón **Exportar** ofrece:
 
 - **CSV** y **NDJSON**: los logs con los filtros activos, hasta 10 000 registros. CSV abre en Excel pero no lleva metadata; NDJSON trae el registro completo, un JSON por línea.
-- **Informe Markdown** y **Brief para agentes IA**: abren la pantalla de Reportes con el mismo rango y ámbito, y lo generan al momento.
+- **Informe PDF o Markdown** y **Brief para agentes IA**: abren la pantalla de Reportes con el mismo rango y ámbito, y lo generan al momento.
 
 Junto al número de registros de la tabla hay un icono que abre la misma vista en **Registros**, con los filtros que tengas puestos.
 
@@ -161,15 +161,15 @@ Reglas:
 
 ## Reportes
 
-Genera documentos a partir de los logs de un rango, en tres formatos:
+Genera documentos a partir de los logs de un rango. Hay tres tipos; cada mosaico indica en qué formatos se descarga:
 
-| Tipo | Para quién | Qué lleva |
-|---|---|---|
-| **Informe Markdown** | Personas | Hallazgos clave en prosa, comparación con el periodo anterior, métricas, actividad, niveles, aplicaciones, fallos con su stack y enlace a sus ocurrencias, y errores recientes |
-| **Brief para agentes IA** | Un agente de IA (Claude, ChatGPT…) | Instrucciones (rol, objetivo, pasos, reglas, formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
-| **Datos para agentes (JSON)** | Pipelines y herramientas | Lo mismo que el brief, en un único objeto JSON con esquema estable |
+| Tipo | Formatos | Para quién | Qué lleva |
+|---|---|---|---|
+| **Informe** | PDF, Markdown | Personas | Hallazgos clave en prosa, comparación con el periodo anterior, métricas, actividad, niveles, aplicaciones, fallos con su stack y enlace a sus ocurrencias, y errores recientes |
+| **Brief IA** | Markdown | Un agente de IA (Claude, ChatGPT…) | Instrucciones (rol, objetivo, pasos, reglas, formato de respuesta), las herramientas MCP de MCLog para seguir investigando y los datos en bloques estructurados |
+| **Datos IA** | JSON | Pipelines y herramientas | Lo mismo que el brief, en un único objeto JSON con esquema estable |
 
-A la izquierda eliges el rango, la aplicación y el entorno, las secciones, cuántos fallos incluir y si llevan stack (del ejemplo más reciente de los 20 primeros fallos, como mucho). Para los formatos de IA, además, el **objetivo** (triaje, regresión tras un despliegue, resumen de incidente) y unas **instrucciones adicionales** opcionales, por ejemplo "desplegamos la 2.3 a las 14:00". El idioma del reporte se elige aparte del de la interfaz. **Generar** está siempre visible al pie del panel, y **Ctrl + Enter** genera desde cualquier punto de la página.
+A la izquierda eliges el rango, la aplicación y el entorno, las secciones (pastillas: pulsa una para quitarla o añadirla), cuántos fallos incluir y si llevan stack (del ejemplo más reciente de los 20 primeros fallos, como mucho). Para los formatos de IA, además, el **objetivo** (triaje, regresión tras un despliegue, resumen de incidente) y unas **instrucciones adicionales** opcionales, por ejemplo "desplegamos la 2.3 a las 14:00". El idioma del reporte se elige aparte del de la interfaz. **Generar** está siempre visible al pie del panel, y **Ctrl + Enter** genera desde cualquier punto de la página.
 
 Tus preferencias (tipo, secciones, opciones, idioma) se recuerdan en este navegador; **Restablecer** vuelve a los valores por defecto. El rango, la aplicación y el entorno van en la URL: recargar no los pierde y puedes compartir el enlace.
 
@@ -179,11 +179,23 @@ Secciones destacadas:
 - **Aplicaciones**: los registros se cuentan desde el inicio de la ventana hasta ahora; los errores son los de la ventana.
 - **Warnings agrupados** (desactivada por defecto): los warnings más repetidos, para separar el ruido de lo importante.
 
-En el informe Markdown, cada fallo lleva un enlace **ver ocurrencias** que abre los registros de ese fallo en MCLog, con la misma ventana.
+En el informe, cada fallo lleva un enlace **ver ocurrencias** que abre los registros de ese fallo en MCLog, con la misma ventana. En el PDF el enlace sigue activo.
 
 **Enmascarar datos sensibles** oculta correos, IPs, tokens, JWT y claves largas antes de exportar. Viene activado en los formatos de IA: déjalo así siempre que el reporte vaya a un modelo externo o salga de tu organización. Las huellas, los traceId y los UUID que aparecen en los mensajes (normalmente ids de pedidos, usuarios…) se conservan, porque hacen falta para seguir investigando.
 
 A la derecha, la vista previa: **Vista** muestra el documento formateado y **Fuente** el Markdown tal cual. Arriba ves el tamaño, una estimación de tokens y cuántos valores se enmascararon; si un brief para IA pasa de ~100 000 tokens, un aviso te sugiere recortarlo porque puede no caber en el contexto del modelo. Los botones **Copiar** y **Descargar** son los únicos momentos en que algo sale de tu navegador.
+
+### Descargar el informe en PDF
+
+Con un **Informe** generado, la vista previa ofrece **Markdown** (descarga el `.md`) y **PDF**:
+
+1. Pulsa **PDF**. Se abre el diálogo de impresión del navegador con el informe ya maquetado.
+2. En **Destino**, elige **Guardar como PDF** (Chrome y Edge) o **Guardar en PDF** (Firefox); en Safari, usa el menú **PDF** del diálogo. El navegador suele recordar la elección para la próxima vez.
+3. Elige el tamaño de papel si quieres (A4, carta…) y guarda. El nombre propuesto es el del informe, por ejemplo `mclog-report-20260929-1411.pdf`.
+
+El PDF lleva la cabecera de MCLog, el nombre del informe y el número de página al pie, y sale siempre en claro aunque uses el tema oscuro. El texto se puede seleccionar y buscar. Se genera en tu navegador, igual que el resto del reporte, y respeta el enmascarado si lo activaste.
+
+**Si el diálogo propone una impresora física**, cambia el destino a Guardar como PDF antes de pulsar Imprimir.
 
 > Todo lo que el brief incluye de los logs va dentro de `<mclog_data>`, y las reglas le dicen al agente que ese contenido son datos, no instrucciones. Así, un log que diga "ignora lo anterior" no le cambia la tarea.
 

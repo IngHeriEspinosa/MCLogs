@@ -86,7 +86,7 @@ Elige según a quién va:
 | **Alguien sin cuenta, o una foto fija del incidente** | **Compartir** en Logs, Registros, Errores o Traza: un [snapshot](compartir-snapshots.md) con su propio enlace, que no cambia aunque lleguen logs nuevos. Público, con los datos sensibles enmascarados, o solo para tu equipo |
 | **Un ticket** | **Copiar JSON** en el detalle del log |
 | **Un asistente de IA** | **Copiar para IA** en el detalle (o el botón ✦ en Errores): un brief en Markdown con el log, su stack y su contexto, **con los datos sensibles enmascarados** |
-| **Un informe del incidente** | **Reportes** → **Informe Markdown** (para personas) o **Brief para agentes IA** con el objetivo **Resumen de incidente** |
+| **Un informe del incidente** | **Reportes** → **Informe** (para personas, en PDF o Markdown) o **Brief para agentes IA** con el objetivo **Resumen de incidente** |
 | **La traza entera** | En Traza, **Descargar .md** o **Copiar para IA** |
 
 Si tu equipo tiene un asistente conectado por MCP ([Conectar una IA](conectar-ia.md)), puedes preguntarle directamente: «¿Qué está fallando en facturación desde las 10:00?».

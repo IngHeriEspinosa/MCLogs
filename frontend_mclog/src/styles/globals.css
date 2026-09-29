@@ -315,6 +315,129 @@ a {
   @apply font-mono text-xs text-ink-3;
 }
 
+/* ---------------------------------------------------------------------------
+   Informe en papel (PDF). Se maqueta en un iframe aparte (common/print.ts),
+   siempre en tema claro, y estas reglas solo aplican dentro de .report-print.
+
+   Medidas en pt: en papel se piensa en puntos, no en pixeles de pantalla. El
+   tamano del papel no se fija: lo decide el dialogo (A4, carta...). La pagina
+   con nombre evita que estas margenes afecten a imprimir la consola.
+   ------------------------------------------------------------------------- */
+@page report {
+  margin: 16mm 15mm 18mm;
+
+  @bottom-left {
+    font: 7.5pt system-ui, sans-serif;
+    color: rgb(94 110 119);
+  }
+
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font: 7.5pt system-ui, sans-serif;
+    color: rgb(94 110 119);
+  }
+}
+
+.report-print {
+  page: report;
+  /* Sin esto el navegador omite fondos y bordes de color al imprimir. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.report-print-brand {
+  @apply mb-[14pt] flex items-center gap-2 border-b-2 border-brand pb-[8pt];
+}
+
+.report-print .md-view {
+  @apply text-[9.5pt] leading-[1.55];
+}
+
+.report-print .md-view > * + * {
+  @apply mt-[7pt];
+}
+
+.report-print .md-view h1 {
+  @apply text-[19pt] leading-tight;
+}
+
+.report-print .md-view h2 {
+  @apply mt-[18pt] pb-[4pt] text-[13pt];
+  break-after: avoid;
+}
+
+.report-print .md-view h3 {
+  @apply mt-[12pt] text-[10.5pt];
+  break-after: avoid;
+}
+
+.report-print .md-view h4 {
+  break-after: avoid;
+}
+
+.report-print .md-view blockquote {
+  @apply py-[5pt];
+  break-inside: avoid;
+}
+
+/* "Mensaje de ejemplo:", "Stack trace:": una etiqueta no se queda sola al pie. */
+.report-print .md-view p:has(> strong:only-child) {
+  break-after: avoid;
+}
+
+.report-print .md-view blockquote > p + p {
+  @apply mt-[2pt];
+}
+
+.report-print .md-view a {
+  @apply no-underline;
+}
+
+/* Tablas: sin desplazamiento (en papel no hay scroll), filas enteras y
+   cabecera repetida en cada pagina. */
+.report-print .md-view .md-table {
+  @apply overflow-visible rounded-md;
+}
+
+.report-print .md-view table {
+  @apply text-[8pt] leading-snug;
+}
+
+.report-print .md-view thead {
+  display: table-header-group;
+}
+
+.report-print .md-view tr {
+  break-inside: avoid;
+}
+
+.report-print .md-view th {
+  @apply whitespace-normal px-[6pt] py-[4pt];
+}
+
+/* Un mensaje con una URL o un JSON sin espacios se parte donde haga falta
+   (si no, la tabla se saldria del papel); los identificadores en codigo
+   (aplicacion, servicio) se quedan enteros. */
+.report-print .md-view td {
+  @apply px-[6pt] py-[3.5pt];
+  overflow-wrap: anywhere;
+}
+
+.report-print .md-view td code {
+  overflow-wrap: normal;
+}
+
+/* Stacks y bloques de codigo: fondo claro para no gastar tinta y lineas
+   partidas en lugar de cortadas por el margen. */
+.report-print .md-view pre {
+  @apply overflow-visible whitespace-pre-wrap rounded-md border border-line bg-surface-2 px-[8pt] py-[6pt] text-[7.5pt] leading-[1.45] text-ink-2;
+  overflow-wrap: anywhere;
+}
+
+.report-print .md-view :not(pre) > code {
+  @apply text-[0.9em];
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
