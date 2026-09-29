@@ -195,6 +195,38 @@ export type EnvironmentOccurrences = {
   lastSeen: Date;
 };
 
+/**
+ * Probabilidad de que el fallo se repita. Cada hora de reloj observada es un
+ * ensayo: hubo al menos una ocurrencia o no la hubo.
+ */
+export type FailureRecurrence = {
+  /** Inicio de la observacion: el primer log de la aplicacion en los ultimos 7 dias. */
+  observedFrom: Date;
+  /** Horas de reloj desde `observedFrom` hasta ahora, la actual incluida. */
+  observedHours: number;
+  /** De esas, en cuantas ocurrio el fallo. */
+  activeHours: number;
+  /** Probabilidad de al menos una ocurrencia en la proxima hora. */
+  nextHour: number;
+  /** Lo mismo en las proximas 24 h, tomando cada hora como independiente. */
+  next24h: number;
+};
+
+/**
+ * Que parte de las operaciones (traceId distintos) de la aplicacion, servicio
+ * y entorno del log acaba en este fallo, en los ultimos 7 dias.
+ */
+export type FailureRate = {
+  application: string;
+  service: string | null;
+  environment: string;
+  operations: number;
+  /** Operaciones que registraron este fallo. */
+  failed: number;
+  /** `failed / operations`, o null si el servicio no envia traceId. */
+  rate: number | null;
+};
+
 export type FailureOccurrences = {
   fingerprint: string;
   total: number;
@@ -204,16 +236,43 @@ export type FailureOccurrences = {
   lastSeen: Date;
   /** Del entorno con mas ocurrencias al que menos. */
   environments: EnvironmentOccurrences[];
+  recurrence: FailureRecurrence;
+  failureRate: FailureRate;
+};
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Regla de sucesion de Laplace: (aciertos + 1) / (ensayos + 2). Con pocos
+ * datos no afirma ni 0 % ni 100 %, y con muchos converge a la frecuencia.
+ */
+export const laplace = (hits: number, trials: number) => (hits + 1) / (trials + 2);
+
+/**
+ * Probabilidad de repeticion a partir de las horas con ocurrencias (`hours`,
+ * truncadas o no a la hora) entre `observedFrom` y `now`.
+ */
+export const recurrenceOf = (hours: Date[], observedFrom: Date, now: Date): FailureRecurrence => {
+  const bucket = (date: Date) => Math.floor(date.getTime() / HOUR_MS);
+  const current = bucket(now);
+  const activeHours = new Set(hours.map(bucket).filter((hour) => hour <= current)).size;
+  // Una hora con ocurrencias siempre esta dentro de lo observado.
+  const observedHours = Math.max(current - bucket(observedFrom) + 1, activeHours, 1);
+  const nextHour = laplace(activeHours, observedHours);
+  return { observedFrom, observedHours, activeHours, nextHour, next24h: 1 - (1 - nextHour) ** 24 };
 };
 
 /**
  * Cuantas veces ha ocurrido el fallo de un log: en las ultimas 24 h, en 7 dias
  * y en todo lo que conserva la retencion, por entorno. Es lo que dice si un
- * error es aislado o cronico, y si pasa solo en produccion.
+ * error es aislado o cronico, y si pasa solo en produccion. Con los ultimos 7
+ * dias estima tambien la probabilidad de que se repita y la parte de las
+ * operaciones de su servicio que acaba en el.
  *
  * La huella no incluye el entorno, asi que el mismo fallo en desarrollo y en
- * produccion comparte grupo; por eso el desglose. Una sola consulta sobre el
- * indice (workspaceId, fingerprint, timestamp).
+ * produccion comparte grupo; por eso el desglose. Las ocurrencias y sus horas
+ * van sobre el indice (workspaceId, fingerprint, timestamp); el inicio de la
+ * observacion y las operaciones, sobre (workspaceId, application, timestamp).
  *
  * Devuelve null si el log no existe o queda fuera de alcance, y
  * `occurrences: null` si el log no tiene huella.
@@ -235,21 +294,47 @@ export const getFailureOccurrences = async (
     ? Prisma.sql`AND "application" = ANY(${filters.applicationsIn})`
     : Prisma.empty;
 
-  const rows = await prisma.$queryRaw<
-    Array<{ environment: string; total: number; last24h: number; last7d: number; firstSeen: Date; lastSeen: Date }>
-  >`
-    SELECT
-      "environment"::text AS "environment",
-      COUNT(*)::int AS "total",
-      COUNT(*) FILTER (WHERE "timestamp" >= ${day})::int AS "last24h",
-      COUNT(*) FILTER (WHERE "timestamp" >= ${week})::int AS "last7d",
-      MIN("timestamp") AS "firstSeen",
-      MAX("timestamp") AS "lastSeen"
-    FROM "Log"
-    WHERE "workspaceId" = ${filters.workspaceId} AND "fingerprint" = ${target.fingerprint} ${scope}
-    GROUP BY "environment"
-    ORDER BY "total" DESC
-  `;
+  const [rows, hours, appFirst, operations] = await Promise.all([
+    prisma.$queryRaw<
+      Array<{ environment: string; total: number; last24h: number; last7d: number; firstSeen: Date; lastSeen: Date }>
+    >`
+      SELECT
+        "environment"::text AS "environment",
+        COUNT(*)::int AS "total",
+        COUNT(*) FILTER (WHERE "timestamp" >= ${day})::int AS "last24h",
+        COUNT(*) FILTER (WHERE "timestamp" >= ${week})::int AS "last7d",
+        MIN("timestamp") AS "firstSeen",
+        MAX("timestamp") AS "lastSeen"
+      FROM "Log"
+      WHERE "workspaceId" = ${filters.workspaceId} AND "fingerprint" = ${target.fingerprint} ${scope}
+      GROUP BY "environment"
+      ORDER BY "total" DESC
+    `,
+    prisma.$queryRaw<Array<{ hour: Date }>>`
+      SELECT DISTINCT date_trunc('hour', "timestamp") AS "hour"
+      FROM "Log"
+      WHERE "workspaceId" = ${filters.workspaceId} AND "fingerprint" = ${target.fingerprint}
+        AND "timestamp" >= ${week} ${scope}
+    `,
+    // Desde cuando se puede observar el fallo: antes de que la aplicacion
+    // enviara logs no podia ocurrir, y contar esas horas bajaria la probabilidad.
+    prisma.log.findFirst({
+      where: { workspaceId: filters.workspaceId, application: target.application, timestamp: { gte: week } },
+      orderBy: { timestamp: "asc" },
+      select: { timestamp: true },
+    }),
+    // El log ya esta dentro del alcance de la clave, y con el su aplicacion.
+    prisma.$queryRaw<Array<{ operations: number; failed: number }>>`
+      SELECT
+        COUNT(DISTINCT "traceId")::int AS "operations",
+        COUNT(DISTINCT "traceId") FILTER (WHERE "fingerprint" = ${target.fingerprint})::int AS "failed"
+      FROM "Log"
+      WHERE "workspaceId" = ${filters.workspaceId} AND "application" = ${target.application}
+        AND "service" IS NOT DISTINCT FROM ${target.service}::text
+        AND "environment" = ${target.environment}::"Environment"
+        AND "timestamp" >= ${week} AND "traceId" IS NOT NULL
+    `,
+  ]);
 
   const environments = rows.map((row) => ({
     ...row,
@@ -260,6 +345,12 @@ export const getFailureOccurrences = async (
   // Solo vacia si la retencion borro el log entre las dos consultas.
   if (environments.length === 0) return { occurrences: null };
   const sum = (key: "total" | "last24h" | "last7d") => environments.reduce((acc, row) => acc + row[key], 0);
+  const activeHours = hours.map((row) => row.hour);
+  const observedFrom = new Date(
+    Math.min((appFirst?.timestamp ?? week).getTime(), ...activeHours.map((hour) => hour.getTime())),
+  );
+  const operationCount = Number(operations[0]?.operations ?? 0);
+  const failedCount = Number(operations[0]?.failed ?? 0);
 
   return {
     occurrences: {
@@ -270,6 +361,15 @@ export const getFailureOccurrences = async (
       firstSeen: new Date(Math.min(...environments.map((row) => row.firstSeen.getTime()))),
       lastSeen: new Date(Math.max(...environments.map((row) => row.lastSeen.getTime()))),
       environments,
+      recurrence: recurrenceOf(activeHours, observedFrom, now),
+      failureRate: {
+        application: target.application,
+        service: target.service,
+        environment: target.environment,
+        operations: operationCount,
+        failed: failedCount,
+        rate: operationCount > 0 ? failedCount / operationCount : null,
+      },
     },
   };
 };

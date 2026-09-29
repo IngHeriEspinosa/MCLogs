@@ -16,14 +16,14 @@ export const traceOffsets = (logs: LogEntry[]) => {
   return logs.map((log) => new Date(log.timestamp).getTime() - origin);
 };
 
-type TraceRowProps = { log: LogEntry; offset: number; previous: number; duration: number };
+type TraceRowProps = { log: LogEntry; offset: number; previous: number; duration: number; active: boolean };
 
 /**
  * Una linea de la traza. La pista de la derecha va de 0 a la duracion total:
  * el tramo coloreado es el tiempo desde el paso anterior, que es donde se ve
  * de un vistazo "aqui se fue el tiempo".
  */
-const TraceRow: React.FC<TraceRowProps> = ({ log, offset, previous, duration }) => {
+const TraceRow: React.FC<TraceRowProps> = ({ log, offset, previous, duration, active }) => {
   const { t, fmt } = useI18n();
   const [open, setOpen] = useState(false);
   const scale = (value: number) => (duration > 0 ? (value / duration) * 100 : 0);
@@ -31,7 +31,7 @@ const TraceRow: React.FC<TraceRowProps> = ({ log, offset, previous, duration }) 
   const level = isLevel(log.level) ? log.level : "debug";
 
   return (
-    <li className="border-b border-line last:border-b-0">
+    <li aria-current={active || undefined} className={`border-b border-line last:border-b-0 ${active ? "bg-brand-soft/60" : ""}`}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -157,8 +157,11 @@ export const TraceKpis: React.FC<{ stats: TraceStats; loading?: boolean }> = ({ 
   );
 };
 
-/** La operacion en cascada: cada paso con su desfase, el salto desde el anterior y su detalle al pulsarlo. */
-export const TraceTimeline: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
+/**
+ * La operacion en cascada: cada paso con su desfase, el salto desde el anterior
+ * y su detalle al pulsarlo. `activeId` resalta el log desde el que se abrio.
+ */
+export const TraceTimeline: React.FC<{ logs: LogEntry[]; activeId?: number }> = ({ logs, activeId }) => {
   const { t } = useI18n();
   const offsets = traceOffsets(logs);
   const duration = offsets.length > 0 ? offsets[offsets.length - 1] : 0;
@@ -170,7 +173,14 @@ export const TraceTimeline: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
       </header>
       <ol>
         {logs.map((log, index) => (
-          <TraceRow key={log.id} log={log} offset={offsets[index]} previous={index > 0 ? offsets[index - 1] : 0} duration={duration} />
+          <TraceRow
+            key={log.id}
+            log={log}
+            offset={offsets[index]}
+            previous={index > 0 ? offsets[index - 1] : 0}
+            duration={duration}
+            active={log.id === activeId}
+          />
         ))}
       </ol>
     </section>

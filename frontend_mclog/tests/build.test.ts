@@ -240,6 +240,15 @@ const occurrences = (environments: FailureOccurrences["environments"]): FailureO
     firstSeen: FROM,
     lastSeen: TO,
     environments,
+    recurrence: { observedFrom: FROM, observedHours: 45, activeHours: 5, nextHour: 6 / 47, next24h: 1 - (1 - 6 / 47) ** 24 },
+    failureRate: {
+      application: "mcsupport-production",
+      service: "next-server",
+      environment: "production",
+      operations: 400,
+      failed: 9,
+      rate: 9 / 400,
+    },
   },
 });
 
@@ -293,6 +302,15 @@ describe("briefs rápidos", () => {
     assert.match(brief, /^retention_months: 3$/m);
     assert.match(brief, /^environments: \["production"\]$/m);
     assert.ok(brief.includes("`total_retained` y `first_seen` solo abarcan"));
+    assert.match(brief, /^observed_hours: 45$/m);
+    assert.match(brief, /^active_hours: 5$/m);
+    assert.match(brief, /^p_next_hour: 0\.1277$/m);
+    assert.match(brief, /^p_next_24h: 0\.9623$/m);
+    assert.match(brief, /^operations_scope: \{application: "mcsupport-production", service: "next-server", environment: "production"\}$/m);
+    assert.match(brief, /^operations_7d: 400$/m);
+    assert.match(brief, /^failed_operations_7d: 9$/m);
+    assert.match(brief, /^failure_rate: 0\.0225$/m);
+    assert.ok(brief.includes("`p_next_hour` y `p_next_24h` son estimaciones"));
     // Con un solo entorno, el desglose sobra.
     assert.ok(!brief.includes("Por entorno"));
   });
@@ -309,6 +327,7 @@ describe("briefs rápidos", () => {
     const pending = buildLogBrief(logEntry(1, { fingerprint: "f1" }), noExtras, "es");
     assert.ok(pending.includes("pídelas con `search_logs`"));
     assert.ok(!pending.includes("total_retained` y"));
+    assert.ok(!pending.includes("p_next_hour"));
     assert.ok(!buildLogBrief(logEntry(1), noExtras, "es").includes("Ocurrencias del fallo"));
   });
 

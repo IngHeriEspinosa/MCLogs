@@ -228,7 +228,14 @@ Lo ocurrido alrededor de un log, en su misma aplicación, servicio y entorno. Qu
 Va en dos consultas, hacia atrás y hacia delante desde el log (los empates de `timestamp` se deshacen por `id`). `limit` se reparte entre ambos lados: lo anterior se lleva la mitad mayor, porque suele ser lo que explica un error, y si un lado no llena su parte el otro usa el hueco. Antes era una sola consulta ascendente desde `from`: con tráfico, el límite se llenaba con lo más antiguo de la ventana y el log podía quedarse fuera.
 
 #### `GET /api/logs/:id/occurrences`
-Cuántas veces ha ocurrido el fallo de un log (su huella): en las últimas 24 h, en 7 días y en todo lo que conserva la retención, con primera y última aparición, en total y por entorno. La huella no incluye el entorno, así que el mismo fallo en desarrollo y en producción cuenta en ambos; el desglose lo separa. Una sola consulta sobre el índice `(workspaceId, fingerprint, timestamp)`.
+Cuántas veces ha ocurrido el fallo de un log (su huella): en las últimas 24 h, en 7 días y en todo lo que conserva la retención, con primera y última aparición, en total y por entorno. La huella no incluye el entorno, así que el mismo fallo en desarrollo y en producción cuenta en ambos; el desglose lo separa.
+
+Con los últimos 7 días estima además dos probabilidades:
+
+- **`recurrence`**: cada hora de reloj observada es un ensayo (hubo ocurrencia o no). La observación empieza en el primer log de la aplicación dentro de la semana: antes de eso el fallo no podía ocurrir, y contar esas horas bajaría la cifra. `nextHour` es la regla de sucesión de Laplace, `(activeHours + 1) / (observedHours + 2)`, que con pocos datos no afirma ni 0 % ni 100 %. `next24h = 1 − (1 − nextHour)^24` supone horas independientes, así que en fallos que llegan en ráfagas es un techo.
+- **`failureRate`**: operaciones (traceId distintos) de la misma aplicación, servicio y entorno que el log, y cuántas registraron el fallo. La ingesta da a cada petición sin traceId el suyo (`requestContext`), así que en una aplicación que no lo envía, cada envío cuenta como una operación. `rate` es null si no hay ninguna operación.
+
+Son cuatro consultas en paralelo. Las ocurrencias y sus horas usan el índice `(workspaceId, fingerprint, timestamp)`, y el inicio de la observación y las operaciones, `(workspaceId, application, timestamp)`. Las fórmulas son funciones puras (`laplace`, `recurrenceOf`) con sus propias pruebas.
 
 ```json
 {
@@ -240,7 +247,12 @@ Cuántas veces ha ocurrido el fallo de un log (su huella): en las últimas 24 h,
     "environments": [
       { "environment": "production", "total": 40, "last24h": 2, "last7d": 10, "firstSeen": "…", "lastSeen": "…" },
       { "environment": "development", "total": 3, "last24h": 1, "last7d": 2, "firstSeen": "…", "lastSeen": "…" }
-    ]
+    ],
+    "recurrence": { "observedFrom": "…", "observedHours": 45, "activeHours": 5, "nextHour": 0.1277, "next24h": 0.9623 },
+    "failureRate": {
+      "application": "facturacion", "service": "cobros", "environment": "production",
+      "operations": 400, "failed": 9, "rate": 0.0225
+    }
   }
 }
 ```

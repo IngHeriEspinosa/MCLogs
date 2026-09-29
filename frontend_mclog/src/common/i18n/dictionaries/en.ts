@@ -261,7 +261,16 @@ export const en: Dictionary = {
       id: "ID",
     },
     viewTrace: "View trace",
+    viewTraceCount: (count: number, formatted: string) => (count === 1 ? "View 1 trace" : `View ${formatted} traces`),
     similar: "Same failure",
+    backToDetail: "Back to details",
+    openTraceTab: "Open in new tab",
+    traceTruncated: (shown: string, total: string) => `Showing the first ${shown} of ${total} logs in this trace.`,
+    similarAll: (count: number, formatted: string) => (count === 1 ? "1 occurrence" : `${formatted} occurrences`),
+    similarLatest: (shown: string, total: string) => `The ${shown} most recent of ${total}`,
+    similarOnlyThis: "This is the only occurrence of this failure that retention keeps.",
+    filterTable: "Filter the table",
+    filterTableHint: "Closes the details and filters the table by this fingerprint",
     copyJson: "Copy JSON",
     copyAi: "Copy for AI",
     copyAiHint: "Markdown brief with the log and its context, ready to paste into an agent",
@@ -274,12 +283,26 @@ export const en: Dictionary = {
     occurrencesHint: "Same fingerprint",
     occurrences24h: "24 h",
     occurrences7d: "7 days",
-    occurrencesTotal: (months: string) => `${months} months`,
+    occurrencesTotal: "Total",
     occurrencesSeen: (first: string, last: string) => `First seen ${first} · last ${last}`,
     occurrencesRetention: (months: string) =>
       `The total covers what retention keeps (${months} months): first seen is the oldest one left.`,
     occurrencesByEnv: "By environment",
     occurrencesError: "We couldn't load the occurrences.",
+    probability: "Probability",
+    probabilityHint: "Based on the last 7 days",
+    probabilityNextHour: "Next hour",
+    probabilityNext24h: "Next 24 h",
+    probabilityPerOperation: "Per operation",
+    probabilityAbove: (value: string) => `> ${value}`,
+    probabilityHours: (active: string, observed: string) => `It happened in ${active} of ${observed} observed hours.`,
+    probabilityOperations: (failed: string, operations: number, formatted: string, scope: string) =>
+      operations === 1
+        ? `${failed} of 1 operation in ${scope} ended in this failure.`
+        : `${failed} of ${formatted} operations in ${scope} ended in this failure.`,
+    probabilityLowData: "There is little data yet: take it as a rough guide.",
+    probabilityInfo:
+      "Next hour and 24 h: hours in which the failure happened over the hours observed since the application started sending logs (7 days at most), using Laplace's rule of succession so it never claims 0 % or 100 % on little data. The 24 h figure treats each hour as independent: if the failure comes in bursts, the real one is lower. Per operation: of the operations (distinct traceIds) of the same service and environment in 7 days, how many logged this failure. If the application doesn't send a traceId, MCLog assigns one per request and the figure counts requests.",
     contextError: "We couldn't load the context.",
     liveRow: "This log arrived through the live stream: full details will appear when the table refreshes.",
     prev: "Previous log",
@@ -648,6 +671,8 @@ export const en: Dictionary = {
         "Occurrences were not loaded when this brief was copied; fetch them with `search_logs` and the log's `fingerprint` before stating whether the failure is isolated or recurring.",
       occurrencesRule:
         "`total_retained` and `first_seen` only cover what retention keeps (`retention_months`): `first_seen` is the oldest occurrence left, not necessarily the first one ever.",
+      probabilityRule:
+        "`p_next_hour` and `p_next_24h` are estimates, not certainties: hours with the failure over hours observed in 7 days (`active_hours`/`observed_hours`), using Laplace's rule of succession; `p_next_24h` assumes independent hours and overstates failures that come in bursts. `failure_rate` is the share of operations (distinct traceIds) of the same service and environment that ended in the failure in 7 days; if the application doesn't send a traceId, each request counts as one operation.",
       contextUnavailable: (id: string) =>
         `Context was not loaded when this brief was copied; fetch it with \`get_log_context\` (id ${id}) before concluding the error was isolated.`,
       traceLogs: "Trace logs",
@@ -1413,7 +1438,7 @@ export const en: Dictionary = {
         "Where the code was running: production, staging or development. Keeps what affects real users apart from test noise.",
       host: "Machine, container or instance that emitted the log. Useful to see whether a failure is concentrated on one server.",
       traceId:
-        "Identifier shared by every log of the same operation, even across applications. “View trace” shows the whole operation in chronological order.",
+        "Identifier shared by every log of the same operation, even across applications. “View N traces” shows the whole operation in chronological order.",
       spanId: "Identifier of one specific step inside the trace: a call, a query or a stage of the operation.",
       error: "Error class (e.g. TypeError) and, in parentheses, its code (e.g. ECONNRESET), if the application sent them.",
       fingerprint:

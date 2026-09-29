@@ -278,7 +278,7 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Búsqueda con debounce** | 350 ms de espera: no lanza una consulta por cada tecla |
 | **Ordenación** | Por fecha, aplicación, nivel, host o entorno, asc/desc |
 | **Paginación** | 10 / 25 / 50 / 100 por página, con navegación anterior/siguiente |
-| **Inspector del log** | Un diálogo casi a pantalla completa, igual en Logs y en Registros: propiedades, stack con el código propio resaltado, metadata, ocurrencias del fallo (24 h, 7 días y retención, por entorno), contexto de ±2 min y "Copiar para IA"; ←/→ recorren la página |
+| **Inspector del log** | Un diálogo casi a pantalla completa, igual en Logs y en Registros: propiedades, stack con el código propio resaltado, metadata, ocurrencias del fallo (24 h, 7 días y total, por entorno), su probabilidad (próxima hora, 24 h y por operación), contexto de ±2 min y "Copiar para IA"; la traza (con su número de registros en el botón) y los fallos iguales se abren dentro del propio diálogo; ←/→ recorren la página |
 | **Registros** | La tabla sin resumen, con **búsqueda avanzada** por campo (mensaje, servicio, host, traceId exacto, nombre y código del error) y el detalle del log a pantalla completa, con ←/→ para recorrer la página |
 | **Snapshots** | **Compartir** en Logs, Registros, Errores y Traza guarda una copia congelada de la pantalla con su enlace, de equipo o pública; la página **Snapshots** los lista con sus vistas y permite borrarlos (ver [23](#23-snapshots-compartibles)) |
 | **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición y brief para IA |
@@ -471,7 +471,7 @@ Con eso, «Timeout cobrando el pedido 991» y «Timeout cobrando el pedido 1428�
 | `GET /api/logs?fingerprint=…` | Las ocurrencias concretas de un grupo |
 | `GET /api/logs/trace/:traceId` | Una operación completa, aunque cruce aplicaciones |
 | `GET /api/logs/:id/context` | Lo ocurrido justo antes y después de un log, en su aplicación, servicio y entorno |
-| `GET /api/logs/:id/occurrences` | Cuántas veces ha ocurrido su fallo (24 h, 7 días y retención), por entorno |
+| `GET /api/logs/:id/occurrences` | Cuántas veces ha ocurrido su fallo (24 h, 7 días y retención), por entorno, y la probabilidad de que se repita y de que una operación acabe en él |
 | `GET /api/logs/applications` | Qué aplicaciones existen, con sus servicios y errores recientes |
 
 `errors/groups` y `applications` admiten además los filtros del listado (servicio, host, texto, clase de error…). `errors/groups` agrupa solo errores salvo que se pida otra cosa: `level=error,warn` junta errores y warnings.

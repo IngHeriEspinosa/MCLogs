@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { Alert } from "@/components/atoms/Alert";
 import { Button, ButtonLink, IconButton } from "@/components/atoms/Button";
 import { LevelBadge, LevelDot } from "@/components/atoms/LevelBadge";
@@ -8,16 +8,19 @@ import { EnvTag } from "@/components/atoms/Tag";
 import { CodeBlock } from "@/components/molecules/CodeBlock";
 import { CopyButton } from "@/components/molecules/CopyButton";
 import { InfoTip } from "@/components/molecules/InfoTip";
-import type { LogRow } from "@/components/organisms/LogTable";
+import { LogRow, rowKey } from "@/components/organisms/LogTable";
+import { TraceKpis, TraceTimeline, traceStatsOf } from "@/components/organisms/TraceTimeline";
+import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { buildLogBrief } from "@/common/reports/build";
 import type { LogEntry } from "@/hooks/useAuth";
-import { useFailureOccurrences, useLogContext } from "@/hooks/useErrors";
+import { useFailureOccurrences, useFailureSamples, useLogContext, useTrace, useTraceCount } from "@/hooks/useErrors";
 
 type LogInspectorProps = {
   log: LogRow;
   onClose: () => void;
   onSelect: (log: LogEntry) => void;
+  /** Desde "Fallos iguales": cerrar el detalle y filtrar la tabla por la huella. */
   onFilterFingerprint: (fingerprint: string) => void;
   /** Recorrer la pagina sin cerrar el detalle. */
   onPrev?: () => void;
@@ -31,10 +34,164 @@ type LogInspectorProps = {
   readOnly?: boolean;
 };
 
+/** Lo que muestra la columna izquierda bajo el mensaje: el detalle del log, su traza o sus fallos iguales. */
+type Panel = "detail" | "trace" | "similar";
+
+/** Ocurrencias que lista "Fallos iguales"; para ver todas se filtra la tabla. */
+const SIMILAR_LIMIT = 50;
+
+type PanelFrameProps = { title: string; actions?: React.ReactNode; onBack: () => void; children: React.ReactNode };
+
+/** Marco de las vistas que sustituyen al detalle: titulo, acciones y la vuelta al detalle. */
+const PanelFrame: React.FC<PanelFrameProps> = ({ title, actions, onBack, children }) => {
+  const { t } = useI18n();
+  const headingId = useId();
+  return (
+    <section aria-labelledby={headingId} className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id={headingId} className="eyebrow">
+          {title}
+        </h3>
+        <div className="flex flex-wrap items-center gap-1">
+          {actions}
+          <Button size="xs" variant="ghost" icon="arrowLeft" onClick={onBack}>
+            {t.inspector.backToDetail}
+          </Button>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+};
+
+type TracePanelProps = { traceId: string; activeId?: number; total?: number; onBack: () => void };
+
+/** La traza del log dentro del dialogo, con el log resaltado. */
+const TracePanel: React.FC<TracePanelProps> = ({ traceId, activeId, total, onBack }) => {
+  const { t, fmt } = useI18n();
+  const trace = useTrace(traceId);
+  const logs = trace.data?.data ?? [];
+  return (
+    <PanelFrame
+      title={t.trace.title}
+      onBack={onBack}
+      actions={
+        <ButtonLink
+          href={`/trace/${encodeURIComponent(traceId)}`}
+          target="_blank"
+          rel="noopener"
+          size="xs"
+          variant="ghost"
+          icon="externalLink"
+        >
+          {t.inspector.openTraceTab}
+        </ButtonLink>
+      }
+    >
+      {trace.isError ? (
+        <Alert variant="error" title={t.trace.notFound}>
+          {errorMessage(trace.error, t.common.unknownError)}
+        </Alert>
+      ) : (
+        <TraceKpis stats={traceStatsOf(logs)} loading={trace.isLoading} />
+      )}
+      {trace.isLoading && (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton key={index} className="h-14 w-full" />
+          ))}
+        </div>
+      )}
+      {total !== undefined && logs.length > 0 && total > logs.length && (
+        <p className="text-xs text-ink-3">{t.inspector.traceTruncated(fmt.number(logs.length), fmt.number(total))}</p>
+      )}
+      {logs.length > 0 && <TraceTimeline logs={logs} activeId={activeId} />}
+    </PanelFrame>
+  );
+};
+
+type SimilarPanelProps = {
+  fingerprint: string;
+  currentId?: number;
+  onSelect: (log: LogEntry) => void;
+  onFilter: () => void;
+  onBack: () => void;
+};
+
+/** Las ocurrencias mas recientes del mismo fallo; al pulsar una se abre su detalle. */
+const SimilarPanel: React.FC<SimilarPanelProps> = ({ fingerprint, currentId, onSelect, onFilter, onBack }) => {
+  const { t, fmt } = useI18n();
+  const samples = useFailureSamples(fingerprint, SIMILAR_LIMIT);
+  const rows = samples.data?.data ?? [];
+  const total = samples.data?.total ?? 0;
+  return (
+    <PanelFrame
+      title={t.inspector.similar}
+      onBack={onBack}
+      actions={
+        <Button size="xs" variant="ghost" icon="filter" title={t.inspector.filterTableHint} onClick={onFilter}>
+          {t.inspector.filterTable}
+        </Button>
+      }
+    >
+      {samples.isLoading ? (
+        <div className="flex flex-col gap-1.5">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton key={index} className="h-6 w-full" />
+          ))}
+        </div>
+      ) : samples.isError ? (
+        <p className="text-sm text-ink-3">{t.inspector.occurrencesError}</p>
+      ) : total <= 1 ? (
+        <p className="text-sm text-ink-3">{t.inspector.similarOnlyThis}</p>
+      ) : (
+        <>
+          <p className="text-xs text-ink-3">
+            {total > rows.length
+              ? t.inspector.similarLatest(fmt.number(rows.length), fmt.number(total))
+              : t.inspector.similarAll(total, fmt.number(total))}
+          </p>
+          <ol className="-mx-2 flex flex-col">
+            {rows.map((entry) => {
+              const current = entry.id === currentId;
+              return (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    disabled={current}
+                    aria-current={current || undefined}
+                    onClick={() => onSelect(entry)}
+                    className={`flex w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
+                      current ? "bg-brand-soft/70" : "hover:bg-surface-2"
+                    }`}
+                  >
+                    <span className="shrink-0 whitespace-nowrap font-mono tabular-nums text-ink-3">{fmt.dateTime(entry.timestamp)}</span>
+                    <LevelDot level={entry.level} />
+                    {/* En pantallas estrechas el mensaje baja a su propia linea para no quedar recortado. */}
+                    <span
+                      className={`order-2 min-w-0 basis-full truncate sm:order-1 sm:flex-1 sm:basis-0 ${current ? "font-medium text-ink" : "text-ink-2"}`}
+                    >
+                      {entry.message}
+                    </span>
+                    <span className="order-1 ml-auto shrink-0 sm:order-2">
+                      <EnvTag environment={entry.environment} label={t.envs.names[entry.environment] ?? entry.environment} />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </>
+      )}
+    </PanelFrame>
+  );
+};
+
 /**
  * Detalle de un log en un dialogo modal al 90 % de la pantalla, con el detalle
  * a dos columnas: mensajes, stacks y metadata largos se leen sin recortes, y
- * las flechas recorren la pagina sin cerrarlo.
+ * las flechas recorren la pagina sin cerrarlo. La traza y los fallos iguales se
+ * abren en la columna izquierda, sin salir del dialogo.
  */
 export const LogInspector: React.FC<LogInspectorProps> = ({
   log,
@@ -51,6 +208,19 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   const full: LogEntry | null = "streamKey" in log ? null : log;
   const context = useLogContext(readOnly ? null : full?.id ?? null);
   const occurrences = useFailureOccurrences(readOnly || !full?.fingerprint ? null : full.id);
+  const traceCount = useTraceCount(readOnly ? null : log.traceId ?? null);
+
+  // El panel va ligado al log: al pasar a otro (flechas, contexto, un fallo igual) vuelve al detalle.
+  const key = rowKey(log);
+  const [panelState, setPanelState] = useState<{ key: string; panel: Panel }>({ key, panel: "detail" });
+  const panel = panelState.key === key ? panelState.panel : "detail";
+  const toggles = useRef<Partial<Record<Panel, HTMLButtonElement | null>>>({});
+  const togglePanel = (next: Panel) => setPanelState({ key, panel: panel === next ? "detail" : next });
+  const backToDetail = () => {
+    // El boton "Volver" desaparece: el foco vuelve al que abrio el panel.
+    toggles.current[panel]?.focus();
+    setPanelState({ key, panel: "detail" });
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -106,12 +276,32 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   const actionsBar = (
     <div className="flex flex-wrap gap-2">
       {log.traceId && !readOnly && (
-        <ButtonLink href={`/trace/${encodeURIComponent(log.traceId)}`} size="sm" icon="route">
-          {t.inspector.viewTrace}
-        </ButtonLink>
+        <Button
+          ref={(node) => {
+            toggles.current.trace = node;
+          }}
+          size="sm"
+          icon="route"
+          variant={panel === "trace" ? "primary" : "secondary"}
+          aria-pressed={panel === "trace"}
+          onClick={() => togglePanel("trace")}
+        >
+          {traceCount.data === undefined
+            ? t.inspector.viewTrace
+            : t.inspector.viewTraceCount(traceCount.data, fmt.number(traceCount.data))}
+        </Button>
       )}
       {log.fingerprint && !readOnly && (
-        <Button size="sm" icon="hash" onClick={() => onFilterFingerprint(log.fingerprint as string)}>
+        <Button
+          ref={(node) => {
+            toggles.current.similar = node;
+          }}
+          size="sm"
+          icon="hash"
+          variant={panel === "similar" ? "primary" : "secondary"}
+          aria-pressed={panel === "similar"}
+          onClick={() => togglePanel("similar")}
+        >
           {t.inspector.similar}
         </Button>
       )}
@@ -177,7 +367,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   const occurrenceColumns = [
     { key: "last24h", label: t.inspector.occurrences24h },
     { key: "last7d", label: t.inspector.occurrences7d },
-    { key: "total", label: t.inspector.occurrencesTotal(retention) },
+    { key: "total", label: t.inspector.occurrencesTotal },
   ] as const;
 
   const occurrencesSection = full?.fingerprint && !readOnly && (
@@ -233,6 +423,77 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
                 </tbody>
               </table>
             )}
+          </>
+        )}
+      </section>
+    );
+
+  // Laplace nunca da 1, pero un 99,97 % redondeado se leeria como certeza.
+  const probabilityPercent = (value: number) =>
+    value >= 0.9995 ? t.inspector.probabilityAbove(fmt.percent(0.999)) : fmt.percent(value);
+  const failureRate = frequency?.failureRate;
+  const operationScope = failureRate
+    ? [
+        failureRate.service && failureRate.service !== failureRate.application
+          ? `${failureRate.application} › ${failureRate.service}`
+          : failureRate.application,
+        t.envs.names[failureRate.environment] ?? failureRate.environment,
+      ].join(" · ")
+    : "";
+  const probabilities = frequency
+    ? [
+        { key: "nextHour", label: t.inspector.probabilityNextHour, value: probabilityPercent(frequency.recurrence.nextHour) },
+        { key: "next24h", label: t.inspector.probabilityNext24h, value: probabilityPercent(frequency.recurrence.next24h) },
+        ...(failureRate && failureRate.rate !== null
+          ? [{ key: "perOperation", label: t.inspector.probabilityPerOperation, value: fmt.percent(failureRate.rate) }]
+          : []),
+      ]
+    : [];
+  // Menos de un dia observado, o una tasa sobre muy pocas operaciones.
+  const lowData =
+    !!frequency &&
+    (frequency.recurrence.observedHours < 24 || (frequency.failureRate.rate !== null && frequency.failureRate.operations < 30));
+
+  const probabilitySection = full?.fingerprint && !readOnly && (occurrences.isLoading || frequency) && (
+      <section>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <h3 className="eyebrow">{t.inspector.probability}</h3>
+            <InfoTip label={t.inspector.probability}>{t.inspector.probabilityInfo}</InfoTip>
+          </div>
+          <span className="text-[0.6875rem] text-ink-3">{t.inspector.probabilityHint}</span>
+        </div>
+        {!frequency ? (
+          <Skeleton className="h-16 w-full" />
+        ) : (
+          <>
+            <dl className={`grid gap-2 ${probabilities.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+              {probabilities.map((item) => (
+                <div key={item.key} className="rounded-xl border border-line bg-surface px-3 py-2">
+                  <dt className="text-[0.6875rem] text-ink-3">{item.label}</dt>
+                  <dd className="font-mono text-base tabular-nums text-ink">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-2 flex flex-col gap-0.5 text-xs text-ink-3">
+              <p>
+                {t.inspector.probabilityHours(
+                  fmt.number(frequency.recurrence.activeHours),
+                  fmt.number(frequency.recurrence.observedHours),
+                )}
+              </p>
+              {failureRate && failureRate.rate !== null && (
+                <p>
+                  {t.inspector.probabilityOperations(
+                    fmt.number(failureRate.failed),
+                    failureRate.operations,
+                    fmt.number(failureRate.operations),
+                    operationScope,
+                  )}
+                </p>
+              )}
+              {lowData && <p className="text-ink-2">{t.inspector.probabilityLowData}</p>}
+            </div>
           </>
         )}
       </section>
@@ -321,12 +582,27 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           {!full && <Alert variant="info">{t.inspector.liveRow}</Alert>}
           {messageSection}
           {actionsBar}
-          {stackSection}
-          {metadataSection}
+          {panel === "trace" && log.traceId ? (
+            <TracePanel traceId={log.traceId} activeId={full?.id} total={traceCount.data} onBack={backToDetail} />
+          ) : panel === "similar" && log.fingerprint ? (
+            <SimilarPanel
+              fingerprint={log.fingerprint}
+              currentId={full?.id}
+              onSelect={onSelect}
+              onFilter={() => onFilterFingerprint(log.fingerprint as string)}
+              onBack={backToDetail}
+            />
+          ) : (
+            <>
+              {stackSection}
+              {metadataSection}
+            </>
+          )}
         </div>
         <div className="flex min-w-0 flex-col gap-5 border-t border-line bg-surface-2/40 px-6 py-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
           {propertiesSection}
           {occurrencesSection}
+          {probabilitySection}
           {contextSection}
         </div>
       </div>

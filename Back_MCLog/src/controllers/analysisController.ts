@@ -135,6 +135,7 @@ export const occurrences = async (req: Request, res: Response) => {
           firstSeen: row.firstSeen.toISOString(),
           lastSeen: row.lastSeen.toISOString(),
         })),
+        recurrence: { ...data.recurrence, observedFrom: data.recurrence.observedFrom.toISOString() },
       },
     });
   } catch (error) {

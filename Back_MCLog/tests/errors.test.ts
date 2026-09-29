@@ -4,6 +4,7 @@ import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
 import { config } from "../src/config/env";
+import { laplace, recurrenceOf } from "../src/services/analysisService";
 
 process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
@@ -345,6 +346,44 @@ describe("Ocurrencias de un fallo", () => {
     ]);
   });
 
+  it("estima la probabilidad de que se repita con las horas de los ultimos 7 dias", async () => {
+    const { recurrence } = (await request(app).get(`/api/logs/${latestId}/occurrences`).set(auth())).body.data;
+    // La ocurrencia de hace 10 dias queda fuera: la observacion empieza en el
+    // primer log de la aplicacion dentro de la semana.
+    expect(Date.now() - new Date(recurrence.observedFrom).getTime()).toBeLessThan(60 * 60 * 1000);
+    expect(recurrence.activeHours).toBeGreaterThanOrEqual(1);
+    expect(recurrence.observedHours).toBeGreaterThanOrEqual(recurrence.activeHours);
+    expect(recurrence.nextHour).toBeCloseTo(laplace(recurrence.activeHours, recurrence.observedHours));
+    expect(recurrence.next24h).toBeCloseTo(1 - (1 - recurrence.nextHour) ** 24);
+  });
+
+  it("calcula que parte de las operaciones del servicio y entorno acaba en el fallo", async () => {
+    const base = { application: "tasa-fallo", service: "cobros", environment: "production" };
+    const rechazo = { ...base, level: "error", message: "Tarjeta rechazada", errorStack: STACK };
+    for (const traceId of ["op-1", "op-2", "op-3", "op-4"]) {
+      await ingest({ ...base, level: "info", message: "Cobro iniciado", traceId });
+    }
+    await ingest({ ...rechazo, traceId: "op-1" });
+    await ingest({ ...rechazo, traceId: "op-1" });
+    // Sin traceId propio, la ingesta le da el de la peticion: cuenta como otra operacion.
+    await ingest(rechazo);
+    // No cuentan: otro entorno y otro servicio.
+    await ingest({ ...rechazo, environment: "staging", traceId: "op-9" });
+    await ingest({ ...base, service: "otro", level: "info", message: "Otro servicio", traceId: "op-5" });
+    const target = (await ingest({ ...rechazo, traceId: "op-2" })).body.id;
+
+    const { data } = (await request(app).get(`/api/logs/${target}/occurrences`).set(auth())).body;
+    expect(data.total).toBe(5);
+    expect(data.failureRate).toEqual({
+      application: "tasa-fallo",
+      service: "cobros",
+      environment: "production",
+      operations: 5,
+      failed: 3,
+      rate: 0.6,
+    });
+  });
+
   it("devuelve data null si el log no tiene huella", async () => {
     const info = await ingest({ application: "ocurrencias", level: "info", environment: "production", message: "ok" });
     const res = await request(app).get(`/api/logs/${info.body.id}/occurrences`).set(auth());
@@ -355,6 +394,38 @@ describe("Ocurrencias de un fallo", () => {
   it("devuelve 404 para un log inexistente y 400 para un id invalido", async () => {
     expect((await request(app).get("/api/logs/999999/occurrences").set(auth())).status).toBe(404);
     expect((await request(app).get("/api/logs/abc/occurrences").set(auth())).status).toBe(400);
+  });
+});
+
+describe("Probabilidad de repeticion", () => {
+  const now = new Date("2026-09-29T12:30:00Z");
+  const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 60 * 60 * 1000);
+
+  it("aplica la regla de sucesion de Laplace", () => {
+    expect(laplace(0, 0)).toBe(0.5);
+    expect(laplace(5, 45)).toBeCloseTo(6 / 47);
+  });
+
+  it("cuenta horas de reloj, y varias ocurrencias en la misma hora cuentan una vez", () => {
+    const recurrence = recurrenceOf(
+      [hoursAgo(0), new Date("2026-09-29T12:05:00Z"), hoursAgo(3), hoursAgo(20)],
+      hoursAgo(44),
+      now,
+    );
+    expect(recurrence).toMatchObject({ observedHours: 45, activeHours: 3 });
+    expect(recurrence.nextHour).toBeCloseTo(4 / 47);
+    expect(recurrence.next24h).toBeCloseTo(1 - (1 - 4 / 47) ** 24);
+  });
+
+  it("con pocos datos no afirma ni 0 % ni 100 %", () => {
+    const quiet = recurrenceOf([], hoursAgo(168), now);
+    expect(quiet.activeHours).toBe(0);
+    expect(quiet.nextHour).toBeGreaterThan(0);
+    expect(quiet.nextHour).toBeLessThan(0.01);
+
+    const always = recurrenceOf([hoursAgo(0), hoursAgo(1)], hoursAgo(1), now);
+    expect(always).toMatchObject({ observedHours: 2, activeHours: 2 });
+    expect(always.nextHour).toBe(0.75);
   });
 });
 

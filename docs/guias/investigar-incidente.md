@@ -65,9 +65,9 @@ El detalle se abre en una ventana casi a pantalla completa. <kbd>←</kbd> <kbd>
 
 ## Paso 5 — Sigue la operación completa
 
-Si el fallo es parte de algo que cruza sistemas (un pedido que pasa por la tienda, el inventario y la facturación), pulsa **Ver traza** en el detalle.
+Si el fallo es parte de algo que cruza sistemas (un pedido que pasa por la tienda, el inventario y la facturación), pulsa **Ver N trazas** en el detalle (N es cuántos registros tiene la operación).
 
-La pantalla **Traza** muestra todos los logs de esa operación en orden, **de todas las aplicaciones**:
+La traza se abre en la columna izquierda del mismo detalle, con el log resaltado, y muestra todos los logs de esa operación en orden, **de todas las aplicaciones**:
 
 - Cada línea lleva el tiempo desde el primer registro y el salto desde el anterior (Δ).
 - La pista de la derecha muestra dónde se fue el tiempo: **un tramo largo es un cuello de botella**.
@@ -106,7 +106,7 @@ Al terminar deberías poder responder:
 |---|---|
 | "Ningún fallo en este rango" y sabes que hay errores | Amplía el **rango de tiempo** y revisa el **Entorno**. Mira también **Warnings** |
 | El mismo fallo aparece en varias filas | El emisor manda el error solo en el mensaje, sin clase ni stack. Hay que enviar la excepción entera ([INTEGRATION.md](../INTEGRATION.md#manda-la-excepción-no-solo-su-mensaje)) |
-| **Ver traza** no aparece | Ese log no tiene traceId compartido con otros |
+| **Ver N trazas** no aparece | Ese log no tiene traceId |
 | La traza solo tiene un log | Las demás aplicaciones no propagan el mismo traceId |
 
 ## Siguiente paso

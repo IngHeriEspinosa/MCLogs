@@ -881,8 +881,12 @@ const logForAgent = (log: LogEntry, stackLines = 60) => ({
   ...(log.metadata ? { metadata: redactValue(log.metadata) } : {}),
 });
 
-/** Frecuencia del fallo: resumen en YAML y, si hay varios entornos, su desglose. */
+/**
+ * Frecuencia del fallo y su probabilidad: resumen en YAML y, si hay varios
+ * entornos, su desglose.
+ */
 const occurrencesBlock = (data: FailureOccurrences, retentionMonths: number, a: Dictionary["reportDoc"]["agent"]) => {
+  const { recurrence, failureRate } = data;
   const summary = mdFence(
     [
       `last_24h: ${data.last24h}`,
@@ -892,6 +896,14 @@ const occurrencesBlock = (data: FailureOccurrences, retentionMonths: number, a: 
       `first_seen: ${yamlScalar(data.firstSeen)}`,
       `last_seen: ${yamlScalar(data.lastSeen)}`,
       `environments: [${data.environments.map((row) => yamlScalar(row.environment)).join(", ")}]`,
+      `observed_hours: ${recurrence.observedHours}`,
+      `active_hours: ${recurrence.activeHours}`,
+      `p_next_hour: ${ratio(recurrence.nextHour)}`,
+      `p_next_24h: ${ratio(recurrence.next24h)}`,
+      `operations_scope: {application: ${yamlScalar(failureRate.application)}, service: ${yamlScalar(failureRate.service)}, environment: ${yamlScalar(failureRate.environment)}}`,
+      `operations_7d: ${failureRate.operations}`,
+      `failed_operations_7d: ${failureRate.failed}`,
+      `failure_rate: ${failureRate.rate === null ? "null" : ratio(failureRate.rate)}`,
     ].join("\n"),
     "yaml",
   );
@@ -921,7 +933,10 @@ export const buildLogBrief = (log: LogEntry, extras: LogBriefExtras, locale: Loc
   const a = dictionaries[locale].reportDoc.agent;
   const origin = new Date(log.timestamp).getTime();
   const frequency = extras.occurrences?.data ?? null;
-  const rules = [...(frequency ? [a.occurrencesRule] : []), ...(log.errorStack ? [a.minifiedRule] : [])];
+  const rules = [
+    ...(frequency ? [a.occurrencesRule, a.probabilityRule] : []),
+    ...(log.errorStack ? [a.minifiedRule] : []),
+  ];
   const out = briefHeader(a.logTitle, a.logTask, locale, rules);
   out.push("<mclog_data>");
   out.push(`### log\n\n${json(logForAgent(log))}`);

@@ -96,12 +96,14 @@ En la cabecera de la tabla eliges el **orden**, la **densidad** (cómoda o compa
 
 | En el detalle | Qué hace |
 |---|---|
-| **Ver traza** | Abre la operación entera, de todos los sistemas por los que pasó |
-| **Fallos iguales** | Filtra a las demás ocurrencias de este mismo fallo |
+| **Ver N trazas** | Muestra la operación entera, de todos los sistemas por los que pasó, en la columna izquierda del mismo detalle. N es el número de registros de la traza, este incluido |
+| **Fallos iguales** | Lista en la columna izquierda las 50 ocurrencias más recientes de este mismo fallo; al pulsar una se abre su detalle. **Filtrar la tabla** cierra el detalle y filtra la tabla a todas |
 | **Copiar JSON** | Copia el registro entero al portapapeles |
 | **Copiar para IA** | Copia un brief en Markdown con el log, su stack, sus ocurrencias y su contexto, con los datos sensibles enmascarados |
 
-Debajo tienes las propiedades (con botón de copiar en trace ID, huella e ID), el **stack trace** con las líneas de tu propio código resaltadas, la **metadata**, las **ocurrencias de este fallo** (cuántas veces en 24 h, en 7 días y en lo que conserva la retención, con primera y última vez y desglose por entorno si hay varios) y el **contexto**: lo que pasó en la misma aplicación, servicio y entorno dos minutos antes y después.
+**Ver N trazas** y **Fallos iguales** no salen del detalle: ocupan el lugar del stack y la metadata, y el botón pulsado queda resaltado. Púlsalo otra vez, o **Volver al detalle**, para regresar. Al pasar a otro registro, el detalle vuelve a mostrar su stack y su metadata.
+
+Debajo tienes las propiedades (con botón de copiar en trace ID, huella e ID), el **stack trace** con las líneas de tu propio código resaltadas, la **metadata**, las **ocurrencias de este fallo** (cuántas veces en 24 h, en 7 días y en total, con primera y última vez y desglose por entorno si hay varios), su **probabilidad** (de que se repita en la próxima hora y en 24 h, y de que una operación del servicio acabe en él, con los últimos 7 días) y el **contexto**: lo que pasó en la misma aplicación, servicio y entorno dos minutos antes y después.
 
 ### Exportar
 
@@ -201,7 +203,7 @@ El PDF lleva la cabecera de MCLog, el nombre del informe y el número de página
 
 ## Traza: seguir una operación
 
-Se llega con **Ver traza** desde cualquier log que tenga traceId.
+Desde el detalle de cualquier log con traceId, **Ver N trazas** la muestra en el propio detalle, con ese log resaltado. **Abrir en pestaña nueva** lleva a esta pantalla completa.
 
 Muestra todos los registros de una misma operación en orden cronológico, **aunque haya pasado por varias aplicaciones**. Cada línea lleva el tiempo desde el primer registro y el salto desde el anterior (Δ), y a la derecha una pista con la duración total: el tramo coloreado es el tiempo entre un paso y el siguiente. Si un tramo ocupa media pista, ahí está el cuello de botella. Pulsa cualquier línea para ver su detalle, stack y metadata.
 

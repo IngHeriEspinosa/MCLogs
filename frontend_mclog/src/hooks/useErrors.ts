@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import client from "@/common/api/client";
-import type { LogEntry } from "@/hooks/useAuth";
+import type { LogEntry, LogsResponse } from "@/hooks/useAuth";
 
 export type ErrorGroup = {
   fingerprint: string;
@@ -47,6 +47,25 @@ export const useTrace = (traceId: string) =>
     retry: false,
   });
 
+/** Cuantos registros tiene una traza, sin traerlos: basta el total de una pagina de uno. Con `traceId` null no se pide nada. */
+export const useTraceCount = (traceId: string | null) =>
+  useQuery<number>({
+    queryKey: ["trace-count", traceId],
+    queryFn: async () => (await client.get<LogsResponse>("/api/logs", { params: { traceId, pageSize: 1 } })).data.total,
+    enabled: traceId !== null,
+    retry: false,
+  });
+
+/** Las ocurrencias mas recientes de un fallo (misma huella). Con `fingerprint` null no se pide nada. */
+export const useFailureSamples = (fingerprint: string | null, limit: number) =>
+  useQuery<LogsResponse>({
+    queryKey: ["failure-samples", fingerprint, limit],
+    queryFn: async () =>
+      (await client.get<LogsResponse>("/api/logs", { params: { fingerprint, pageSize: limit, sort: "timestamp:desc" } })).data,
+    enabled: fingerprint !== null,
+    retry: false,
+  });
+
 export type LogContext = {
   target: LogEntry;
   from: string;
@@ -72,11 +91,35 @@ type OccurrenceCounts = {
   lastSeen: string;
 };
 
+/** Probabilidad de que el fallo se repita, con las horas en que ocurrio en los ultimos 7 dias. */
+export type FailureRecurrence = {
+  /** Primer log de la aplicacion en los ultimos 7 dias. */
+  observedFrom: string;
+  observedHours: number;
+  activeHours: number;
+  /** Probabilidades de 0 a 1 (regla de sucesion de Laplace). */
+  nextHour: number;
+  next24h: number;
+};
+
+/** Operaciones (traceId distintos) del mismo servicio y entorno que acabaron en el fallo, en 7 dias. */
+export type FailureRate = {
+  application: string;
+  service: string | null;
+  environment: LogEntry["environment"];
+  operations: number;
+  failed: number;
+  /** Null si no hay operaciones con traceId. */
+  rate: number | null;
+};
+
 /** Cuantas veces ha ocurrido el fallo de un log, en total y por entorno. */
 export type FailureOccurrences = OccurrenceCounts & {
   fingerprint: string;
   /** Del entorno con mas ocurrencias al que menos. */
   environments: Array<OccurrenceCounts & { environment: LogEntry["environment"] }>;
+  recurrence: FailureRecurrence;
+  failureRate: FailureRate;
 };
 
 export type FailureOccurrencesResponse = {

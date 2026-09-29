@@ -267,7 +267,16 @@ export const es = {
       id: "ID",
     },
     viewTrace: "Ver traza",
+    viewTraceCount: (count: number, formatted: string) => (count === 1 ? "Ver 1 traza" : `Ver ${formatted} trazas`),
     similar: "Fallos iguales",
+    backToDetail: "Volver al detalle",
+    openTraceTab: "Abrir en pestaña nueva",
+    traceTruncated: (shown: string, total: string) => `Se muestran los primeros ${shown} de ${total} registros de la traza.`,
+    similarAll: (count: number, formatted: string) => (count === 1 ? "1 ocurrencia" : `${formatted} ocurrencias`),
+    similarLatest: (shown: string, total: string) => `Las ${shown} más recientes de ${total}`,
+    similarOnlyThis: "Es la única ocurrencia de este fallo que conserva la retención.",
+    filterTable: "Filtrar la tabla",
+    filterTableHint: "Cierra el detalle y filtra la tabla por esta huella",
     copyJson: "Copiar JSON",
     copyAi: "Copiar para IA",
     copyAiHint: "Brief en Markdown con el log y su contexto, listo para pegar en un agente",
@@ -281,12 +290,26 @@ export const es = {
     occurrencesHint: "Misma huella",
     occurrences24h: "24 h",
     occurrences7d: "7 días",
-    occurrencesTotal: (months: string) => `${months} meses`,
+    occurrencesTotal: "Total",
     occurrencesSeen: (first: string, last: string) => `Primera vez ${first} · última ${last}`,
     occurrencesRetention: (months: string) =>
       `El total abarca lo que conserva la retención (${months} meses): la primera vez es la más antigua que queda.`,
     occurrencesByEnv: "Por entorno",
     occurrencesError: "No pudimos cargar las ocurrencias.",
+    probability: "Probabilidad",
+    probabilityHint: "Con los últimos 7 días",
+    probabilityNextHour: "Próxima hora",
+    probabilityNext24h: "Próximas 24 h",
+    probabilityPerOperation: "Por operación",
+    probabilityAbove: (value: string) => `> ${value}`,
+    probabilityHours: (active: string, observed: string) => `Ocurrió en ${active} de ${observed} h observadas.`,
+    probabilityOperations: (failed: string, operations: number, formatted: string, scope: string) =>
+      operations === 1
+        ? `${failed} de 1 operación de ${scope} acabó en este fallo.`
+        : `${failed} de ${formatted} operaciones de ${scope} acabaron en este fallo.`,
+    probabilityLowData: "Todavía hay pocos datos: tómalo como una orientación.",
+    probabilityInfo:
+      "Próxima hora y 24 h: horas en que ocurrió el fallo sobre las horas observadas desde que la aplicación envía logs (máximo 7 días), con la regla de sucesión de Laplace para no afirmar 0 % ni 100 % con pocos datos. Las 24 h tratan cada hora como independiente: si el fallo llega en ráfagas, la real será menor. Por operación: de las operaciones (traceId distintos) del mismo servicio y entorno en 7 días, cuántas registraron este fallo. Si la aplicación no envía traceId, MCLog asigna uno por envío y la cifra cuenta envíos.",
     liveRow: "Este registro llegó por el stream en vivo: el detalle completo aparecerá al refrescar la tabla.",
     prev: "Registro anterior",
     next: "Registro siguiente",
@@ -660,6 +683,8 @@ export const es = {
         "Las ocurrencias no estaban cargadas al copiar este brief; pídelas con `search_logs` y el `fingerprint` del log antes de afirmar si el fallo es aislado o recurrente.",
       occurrencesRule:
         "`total_retained` y `first_seen` solo abarcan lo que conserva la retención (`retention_months`): `first_seen` es la ocurrencia más antigua que queda, no necesariamente la primera de la historia.",
+      probabilityRule:
+        "`p_next_hour` y `p_next_24h` son estimaciones, no certezas: horas con el fallo sobre horas observadas en 7 días (`active_hours`/`observed_hours`), con la regla de sucesión de Laplace; `p_next_24h` supone horas independientes y sobrestima los fallos que llegan en ráfagas. `failure_rate` es la parte de las operaciones (traceId distintos) del mismo servicio y entorno que acabó en el fallo en 7 días; si la aplicación no envía traceId, cada envío cuenta como una operación.",
       contextUnavailable: (id: string) =>
         `El contexto no estaba cargado al copiar este brief; pídelo con \`get_log_context\` (id ${id}) antes de concluir que el error fue aislado.`,
       traceLogs: "Registros de la traza",
@@ -1440,7 +1465,7 @@ export const es = {
         "Dónde se ejecutaba el código: producción, staging o desarrollo. Separa lo que afecta a usuarios reales del ruido de las pruebas.",
       host: "Máquina, contenedor o instancia que emitió el log. Útil para ver si un fallo se concentra en un servidor concreto.",
       traceId:
-        "Identificador que comparten todos los logs de una misma operación, aunque pase por varias aplicaciones. Con «Ver traza» ves la operación completa en orden cronológico.",
+        "Identificador que comparten todos los logs de una misma operación, aunque pase por varias aplicaciones. Con «Ver N trazas» ves la operación completa en orden cronológico.",
       spanId: "Identificador del tramo concreto dentro de la traza: una llamada, una consulta o un paso de la operación.",
       error: "Clase del error (p. ej. TypeError) y, entre paréntesis, su código (p. ej. ECONNRESET), si la aplicación los envió.",
       fingerprint:

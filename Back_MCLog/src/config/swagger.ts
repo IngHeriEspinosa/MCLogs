@@ -244,7 +244,7 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["análisis"],
           summary: "Cuántas veces ha ocurrido el fallo de un log (su huella), por entorno",
           description:
-            "Ocurrencias en las últimas 24 h, en 7 días y en todo lo que conserva la retención (`retentionMonths`), con primera y última aparición. `data` es null si el log no tiene huella.",
+            "Ocurrencias en las últimas 24 h, en 7 días y en todo lo que conserva la retención (`retentionMonths`), con primera y última aparición. `recurrence` estima la probabilidad de que se repita en la próxima hora y en 24 h (horas con el fallo sobre horas observadas en 7 días, con la regla de sucesión de Laplace). `failureRate` es la parte de las operaciones (traceId distintos) de la misma aplicación, servicio y entorno que acabó en el fallo en 7 días; `rate` es null si no envían traceId. `data` es null si el log no tiene huella.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
           responses: {
