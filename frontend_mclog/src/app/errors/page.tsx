@@ -99,6 +99,7 @@ function ErrorsView() {
       title={t.errors.title}
       eyebrow={t.errors.eyebrow}
       description={t.errors.description}
+      presentable
       actions={
         <>
           <Button variant="secondary" icon="share" title={t.snapshots.shareHint} onClick={() => setSharing(true)}>

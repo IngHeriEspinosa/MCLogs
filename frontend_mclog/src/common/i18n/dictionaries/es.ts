@@ -87,6 +87,8 @@ export const es = {
     mainNav: "Navegación principal",
     lab: "Lab",
     snapshots: "Snapshots",
+    present: "Modo presentación",
+    exitPresent: "Salir del modo presentación",
     roles: { admin: "Admin de plataforma", user: "Usuario" },
   },
 

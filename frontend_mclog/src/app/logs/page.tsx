@@ -201,6 +201,7 @@ function LogsView() {
       title={t.logs.title}
       eyebrow={t.logs.eyebrow}
       description={t.logs.description}
+      presentable
       actions={
         <>
           <IconButton

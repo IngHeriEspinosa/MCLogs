@@ -26,6 +26,8 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
   - **Sitio**: página `/docs/skill-ia` con botón "Descargar .md".
 - **API:** copia del skill en `Back_MCLog/skill/`, que la imagen Docker incluye. Se regenera con `npm run sync:skill`, y la CI y un test fallan si difiere de `docs/`.
 
+- **Dashboard — Modo presentación** en Logs, Registros, Errores, Traza, Reportes y Snapshots. Un botón en la barra superior pone la vista a pantalla completa (Fullscreen API sobre `<html>`, para que menús y diálogos sigan visibles) y oculta la barra lateral y la superior. Se sale con Esc o con el botón flotante; el foco pasa al botón que sustituye al pulsado. Si el navegador no concede la pantalla completa, se ocultan igualmente las barras. `DashboardLayout` gana la prop `presentable` y la variable CSS `--sticky-top` para los paneles fijos.
+
 - **Dashboard — Panel "Conectar una IA"** en **Espacio → API keys**, solo para el dueño del espacio. Muestra:
   - el estado del MCP en la plataforma (`GET /api/settings/public`);
   - la URL del endpoint `/mcp`;

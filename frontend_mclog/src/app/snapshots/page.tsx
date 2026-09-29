@@ -29,7 +29,7 @@ export default function SnapshotsPage() {
   const data = snapshots.data ?? [];
 
   return (
-    <DashboardLayout title={t.snapshots.title} eyebrow={t.snapshots.eyebrow} description={t.snapshots.description}>
+    <DashboardLayout title={t.snapshots.title} eyebrow={t.snapshots.eyebrow} description={t.snapshots.description} presentable>
       <Card title={`${t.snapshots.list} · ${data.length}`} divider flush>
         {snapshots.isLoading ? (
           <div className="flex flex-col gap-2 p-5">

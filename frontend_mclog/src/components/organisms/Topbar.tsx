@@ -144,9 +144,21 @@ type TopbarProps = {
   me?: CurrentUser;
   /** Rol en el espacio activo, que es el que decide lo que se puede hacer. */
   workspaceRole?: WorkspaceRole;
+  /** Solo en las vistas que admiten el modo presentacion. */
+  onPresent?: () => void;
+  /** Recibe el foco al salir del modo, para no dejar al teclado en <body>. */
+  presentButtonRef?: React.Ref<HTMLButtonElement>;
 };
 
-export const Topbar: React.FC<TopbarProps> = ({ title, section, onOpenMenu, me, workspaceRole }) => {
+export const Topbar: React.FC<TopbarProps> = ({
+  title,
+  section,
+  onOpenMenu,
+  me,
+  workspaceRole,
+  onPresent,
+  presentButtonRef,
+}) => {
   const { t } = useI18n();
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-canvas/80 px-4 backdrop-blur-md sm:px-6 xl:px-8 3xl:px-10">
@@ -163,6 +175,7 @@ export const Topbar: React.FC<TopbarProps> = ({ title, section, onOpenMenu, me, 
         </span>
       </nav>
       <div className="ml-auto flex items-center gap-0.5">
+        {onPresent && <IconButton ref={presentButtonRef} icon="maximize" label={t.nav.present} onClick={onPresent} />}
         <LanguageMenu />
         <ThemeMenu />
         {me && <UserMenu me={me} workspaceRole={workspaceRole} />}

@@ -263,6 +263,7 @@ Se borra tu usuario y se cierran todas tus sesiones; las API keys que creaste si
 - **Primera aparición reciente = sospechoso principal.** Es la señal más barata que tienes.
 - **La metadata es donde está lo bueno.** El mensaje dice *qué* falló; la metadata suele decir *con qué datos*.
 - **Comparte la URL, no capturas de pantalla.** Quien la reciba puede seguir filtrando desde ahí.
+- **Para proyectar o dejarlo en un monitor, usa el modo presentación.** En Logs, Registros, Errores, Traza, Reportes y Snapshots, el botón de las cuatro esquinas de la barra superior pone la vista a pantalla completa, sin la barra lateral ni la superior. Se sale con **Esc** o con el botón de la esquina superior derecha. Los filtros y los enlaces siguen funcionando: si abres una traza desde los logs, sigue en modo presentación. En Safari de iPhone el navegador no permite la pantalla completa; la vista se queda sin barras, pero con las del navegador.
 
 ---
 

@@ -1,8 +1,8 @@
 "use client";
 // Template: DashboardLayout (riel de navegacion, barra superior y cabecera de pagina)
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button } from "@/components/atoms/Button";
+import { Button, IconButton } from "@/components/atoms/Button";
 import { EmptyState } from "@/components/atoms/EmptyState";
 import { Card } from "@/components/molecules/Card";
 import { Sidebar } from "@/components/organisms/Sidebar";
@@ -11,6 +11,7 @@ import { CreateWorkspaceDialog } from "@/components/organisms/WorkspaceSwitcher"
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { useMe } from "@/hooks/useAuth";
 import { usePreference } from "@/hooks/usePreference";
+import { usePresentationMode } from "@/hooks/usePresentationMode";
 import { useWorkspace } from "@/hooks/useWorkspaces";
 import { usePublicSettings } from "@/hooks/useSettings";
 
@@ -57,6 +58,8 @@ type DashboardLayoutProps = {
   description?: React.ReactNode;
   actions?: React.ReactNode;
   width?: keyof typeof WIDTH;
+  /** Ofrece el modo presentacion: pantalla completa sin barra lateral ni superior. */
+  presentable?: boolean;
   children: React.ReactNode;
 };
 
@@ -87,6 +90,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   description,
   actions,
   width = "full",
+  presentable = false,
   children,
 }) => {
   const { t } = useI18n();
@@ -96,6 +100,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = usePreference<boolean>("sidebarCollapsed", false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { presenting, enter: startPresenting, exit: stopPresenting } = usePresentationMode(presentable);
+  const presentButtonRef = useRef<HTMLButtonElement>(null);
+  const exitPresentButtonRef = useRef<HTMLButtonElement>(null);
+  const wasPresenting = useRef(presenting);
 
   // /auth/me falla cuando no hay cookie de sesion o ha caducado. El destino
   // viaja en ?next= para volver aqui despues de entrar, con su query: el
@@ -110,6 +118,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     document.title = `${title} · MCLog`;
   }, [title]);
 
+  // El boton pulsado desaparece al cambiar de modo: el foco pasa al que lo
+  // sustituye para que quien navega con teclado no vuelva al principio.
+  useEffect(() => {
+    if (wasPresenting.current === presenting) return;
+    wasPresenting.current = presenting;
+    (presenting ? exitPresentButtonRef : presentButtonRef).current?.focus();
+  }, [presenting]);
+
   useEffect(() => {
     if (!mobileOpen) return;
     const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setMobileOpen(false);
@@ -117,8 +133,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [mobileOpen]);
 
+  // --sticky-top: donde se paran los paneles fijos al hacer scroll, bajo la
+  // barra superior o, presentando, junto al borde de la pantalla.
   return (
-    <div className="flex min-h-screen">
+    <div className={`flex min-h-screen ${presenting ? "[--sticky-top:1rem]" : "[--sticky-top:4.5rem]"}`}>
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[90] focus:rounded-lg focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-white"
@@ -126,25 +144,40 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         {t.nav.skip}
       </a>
 
-      <Sidebar
-        collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed(!collapsed)}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-        hasWorkspace={workspace.current !== null}
-        isOwner={workspace.isOwner}
-        isPlatformAdmin={workspace.isPlatformAdmin}
-        isRoot={workspace.isRoot}
-      />
+      {presenting ? (
+        <IconButton
+          ref={exitPresentButtonRef}
+          icon="minimize"
+          label={t.nav.exitPresent}
+          variant="secondary"
+          onClick={stopPresenting}
+          className="fixed right-3 top-3 z-40 shadow-pop"
+        />
+      ) : (
+        <Sidebar
+          collapsed={collapsed}
+          onToggleCollapsed={() => setCollapsed(!collapsed)}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
+          hasWorkspace={workspace.current !== null}
+          isOwner={workspace.isOwner}
+          isPlatformAdmin={workspace.isPlatformAdmin}
+          isRoot={workspace.isRoot}
+        />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar
-          title={title}
-          section={eyebrow}
-          onOpenMenu={() => setMobileOpen(true)}
-          me={me.data}
-          workspaceRole={workspace.current?.role}
-        />
+        {!presenting && (
+          <Topbar
+            title={title}
+            section={eyebrow}
+            onOpenMenu={() => setMobileOpen(true)}
+            me={me.data}
+            workspaceRole={workspace.current?.role}
+            onPresent={presentable ? startPresenting : undefined}
+            presentButtonRef={presentButtonRef}
+          />
+        )}
         <main id="content" className="relative flex-1">
           <div
             aria-hidden

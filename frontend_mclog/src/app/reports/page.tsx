@@ -261,7 +261,7 @@ function ReportsView() {
   const sectionHints: Partial<Record<ReportSection, string>> = t.reports.sectionHints;
 
   return (
-    <DashboardLayout title={t.reports.title} eyebrow={t.reports.eyebrow} description={t.reports.description}>
+    <DashboardLayout title={t.reports.title} eyebrow={t.reports.eyebrow} description={t.reports.description} presentable>
       <div className="grid items-start gap-4 xl:grid-cols-[25rem_minmax(0,1fr)] 3xl:grid-cols-[28rem_minmax(0,1fr)] 3xl:gap-5">
         <Card
           title={t.reports.config}
@@ -271,7 +271,7 @@ function ReportsView() {
               {t.reports.reset}
             </Button>
           }
-          className="xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto"
+          className="xl:sticky xl:top-[var(--sticky-top)] xl:max-h-[calc(100vh_-_var(--sticky-top)_-_1rem)] xl:overflow-y-auto"
         >
           <form
             className="flex flex-col gap-6"

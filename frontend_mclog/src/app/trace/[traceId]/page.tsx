@@ -37,6 +37,7 @@ export default function TracePage() {
       title={t.trace.title}
       eyebrow={t.trace.eyebrow}
       description={t.trace.description}
+      presentable
       actions={
         <>
           <ButtonLink href="/logs" icon="arrowLeft" variant="ghost">

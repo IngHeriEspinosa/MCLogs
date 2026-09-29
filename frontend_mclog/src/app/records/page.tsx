@@ -108,6 +108,7 @@ function RecordsView() {
       title={t.records.title}
       eyebrow={t.records.eyebrow}
       description={t.records.description}
+      presentable
       actions={
         <>
           <IconButton icon="refresh" label={t.common.refresh} variant="secondary" onClick={refresh} />

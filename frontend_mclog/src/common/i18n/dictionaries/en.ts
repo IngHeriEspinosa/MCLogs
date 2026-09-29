@@ -82,6 +82,8 @@ export const en: Dictionary = {
     mainNav: "Main navigation",
     lab: "Lab",
     snapshots: "Snapshots",
+    present: "Presentation mode",
+    exitPresent: "Exit presentation mode",
     roles: { admin: "Platform admin", user: "User" },
   },
 
