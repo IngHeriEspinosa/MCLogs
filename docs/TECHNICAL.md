@@ -146,7 +146,7 @@ Base: `http://localhost:3000`. Swagger interactivo en `/docs`.
   "service": "orders-worker",       // opcional, ≤120  (default: application)
   "host": "node-1",                 // opcional, ≤255  (default: hostname de la petición)
   "timestamp": "2026-08-08T10:00:00Z", // opcional ISO-8601 (default: ahora)
-  "traceId": "req-8842",            // opcional, ≤128  (default: UUID generado)
+  "traceId": "req-8842",            // opcional, ≤128  (default: cabecera x-trace-id, o ninguno)
   "spanId": "span-1",               // opcional, ≤128
   "metadata": { "orderId": 991 },   // opcional, objeto JSON (no array)
   "error": { "name": "…", "message": "…", "code": "…", "stack": "…" }, // opcional: atajo que rellena los 4 siguientes
@@ -188,7 +188,7 @@ Body `{ "logs": [ ...entradas... ] }`. Array no vacío, máximo `MAX_BATCH_SIZE`
 
 Todos los filtros se combinan con **Y**. La búsqueda libre (`search`) y la avanzada (un campo por parámetro) pueden usarse a la vez. Una clave acotada a ciertas aplicaciones solo ve las suyas.
 
-Los mismos filtros (de `application` a `errorCode`, salvo `from`/`to`) valen en `/api/logs/stats`, `/api/logs/errors/groups` y `/api/logs/applications`: así un reporte o una vista acotada cuadra en todas sus cifras. Las consultas en crudo (serie por hora, inventario) los aplican con `buildWhereSql`, que replica `buildWhere` en SQL; un filtro nuevo tiene que llegar a los dos. Ver [logService.ts](../Back_MCLog/src/services/logService.ts).
+Los mismos filtros (de `application` a `errorCode`, salvo `from`/`to`) valen en `/api/logs/stats`, `/api/logs/errors/groups` y `/api/logs/applications`: así un reporte o una vista acotada cuadra en todas sus cifras. Las consultas en crudo (serie temporal, inventario) los aplican con `buildWhereSql`, que replica `buildWhere` en SQL; un filtro nuevo tiene que llegar a los dos. Ver [logService.ts](../Back_MCLog/src/services/logService.ts).
 
 **Respuesta JSON:**
 ```json
@@ -230,10 +230,10 @@ Va en dos consultas, hacia atrás y hacia delante desde el log (los empates de `
 #### `GET /api/logs/:id/occurrences`
 Cuántas veces ha ocurrido el fallo de un log (su huella): en las últimas 24 h, en 7 días y en todo lo que conserva la retención, con primera y última aparición, en total y por entorno. La huella no incluye el entorno, así que el mismo fallo en desarrollo y en producción cuenta en ambos; el desglose lo separa.
 
-Con los últimos 7 días estima además dos probabilidades:
+Estima además dos probabilidades, las dos en la misma aplicación, servicio y entorno que el log:
 
-- **`recurrence`**: cada hora de reloj observada es un ensayo (hubo ocurrencia o no). La observación empieza en el primer log de la aplicación dentro de la semana: antes de eso el fallo no podía ocurrir, y contar esas horas bajaría la cifra. `nextHour` es la regla de sucesión de Laplace, `(activeHours + 1) / (observedHours + 2)`, que con pocos datos no afirma ni 0 % ni 100 %. `next24h = 1 − (1 − nextHour)^24` supone horas independientes, así que en fallos que llegan en ráfagas es un techo.
-- **`failureRate`**: operaciones (traceId distintos) de la misma aplicación, servicio y entorno que el log, y cuántas registraron el fallo. La ingesta da a cada petición sin traceId el suyo (`requestContext`), así que en una aplicación que no lo envía, cada envío cuenta como una operación. `rate` es null si no hay ninguna operación.
+- **`recurrence`**: cada periodo de reloj (UTC) observado es un ensayo: hubo ocurrencia o no. La observación empieza en el primer log de ese servicio y entorno en los últimos 30 días; antes el fallo no podía ocurrir, y contar esos periodos bajaría la cifra. `nextHour` usa las horas de los últimos 7 días y `next24h`, los días de los últimos 30, los dos con la regla de sucesión de Laplace, `(aciertos + 1) / (ensayos + 2)`, que con pocos datos no afirma ni 0 % ni 100 %. El periodo en curso solo cuenta como ensayo si ya tuvo el fallo (`countTrials`): si no, su resultado aún no se conoce. Antes `next24h` era `1 − (1 − nextHour)^24`, que suponía horas independientes: un incidente de un día daba casi un 100 % a un error que llevaba una semana callado. También mezclaba entornos.
+- **`failureRate`**: operaciones (traceId distintos) del mismo ámbito en 7 días, y cuántas registraron el fallo. Solo cuentan los traceId que envió la aplicación: MCLog ya no inventa uno por petición. `rate` es null si no hay ninguna operación, es decir, si el servicio no envía traceId.
 
 Son cuatro consultas en paralelo. Las ocurrencias y sus horas usan el índice `(workspaceId, fingerprint, timestamp)`, y el inicio de la observación y las operaciones, `(workspaceId, application, timestamp)`. Las fórmulas son funciones puras (`laplace`, `recurrenceOf`) con sus propias pruebas.
 

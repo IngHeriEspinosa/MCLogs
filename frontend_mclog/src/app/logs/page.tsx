@@ -15,11 +15,12 @@ import { ShareSnapshotDialog } from "@/components/organisms/ShareSnapshotDialog"
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { downloadLogs } from "@/common/api/download";
 import { useI18n } from "@/common/i18n/I18nProvider";
-import { isRelative, rangeToParams, resolveRange } from "@/common/time/range";
+import { isRelative, queryWindow, rangeToParams, resolveRange } from "@/common/time/range";
 import { useLogs } from "@/hooks/useAuth";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useLogFilters } from "@/hooks/useLogFilters";
+import { ADVANCED_FIELDS, useLogFilters } from "@/hooks/useLogFilters";
 import { useLogStream } from "@/hooks/useLogStream";
+import { useNow } from "@/hooks/useNow";
 import { usePreference } from "@/hooks/usePreference";
 
 /** Boton "En vivo" con su indicador de estado de la conexion. */
@@ -68,24 +69,17 @@ function LogsView() {
   const router = useRouter();
   const notify = useToast();
   const queryClient = useQueryClient();
-  const { filters, setFilters, activeCount } = useLogFilters();
+  const { filters, setFilters, activeCount, advancedCount } = useLogFilters();
   const searchParams = useSearchParams();
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Instante de referencia de los rangos relativos: se fija al elegir el
-  // rango y al refrescar, no en cada render, para que la consulta sea estable.
-  const [now, setNow] = useState(() => Date.now());
-  const rangeKey = JSON.stringify(filters.range);
-  // Solo al cambiar de rango, no al montar: el estado inicial ya trae un
-  // instante valido, y recalcularlo unos milisegundos despues cambiaba `from`,
-  // con lo que todas las consultas de la pagina salian dos veces.
-  const lastRangeKey = useRef(rangeKey);
-  useEffect(() => {
-    if (lastRangeKey.current === rangeKey) return;
-    lastRangeKey.current = rangeKey;
-    setNow(Date.now());
-  }, [rangeKey]);
+  // Instante de referencia de los rangos relativos. Avanza cada minuto en la
+  // primera pagina, para que tabla y resumen sigan al reloj; en las demas se
+  // queda quieto, para que las filas no se muevan mientras se pagina.
+  const relative = isRelative(filters.range);
+  const [now, setNow] = useNow(60_000, relative && filters.page === 1, JSON.stringify(filters.range));
   const resolved = resolveRange(filters.range, now);
+  const span = queryWindow(filters.range, now);
 
   // La busqueda se escribe en local y llega a la URL con retardo.
   const [search, setSearch] = useState(filters.search);
@@ -109,8 +103,12 @@ function LogsView() {
     application: filters.application,
     search: filters.search,
     fingerprint: filters.fingerprint || undefined,
-    from: resolved.from?.toISOString(),
-    to: resolved.to?.toISOString(),
+    // Los campos de la busqueda avanzada, si llegan en la URL (desde Registros
+    // o desde el enlace de una alerta): antes se ignoraban aqui y la tabla
+    // enseñaba mas de lo que decia el enlace.
+    ...Object.fromEntries(ADVANCED_FIELDS.map((key) => [key, filters[key] || undefined])),
+    from: span.from?.toISOString(),
+    to: span.to?.toISOString(),
     sort: `${filters.sortField}:${filters.sortDir}`,
   };
   const logs = useLogs({ page: filters.page, pageSize: filters.pageSize, ...queryFilters });
@@ -118,28 +116,44 @@ function LogsView() {
   /**
    * El modo en vivo antepone los logs que llegan al principio de la tabla, asi
    * que solo tiene sentido en la primera pagina, con el orden por defecto y un
-   * rango abierto hasta ahora. En cualquier otra vista se desactiva solo.
+   * rango abierto hasta ahora. En cualquier otra vista se desactiva solo. El
+   * stream filtra por nivel, entorno, aplicacion, busqueda y huella; con un
+   * filtro de la busqueda avanzada activo anteponeria filas que no lo cumplen.
    */
   const liveAllowed =
-    filters.page === 1 && filters.sortField === "timestamp" && filters.sortDir === "desc" && !resolved.to;
+    filters.page === 1 &&
+    filters.sortField === "timestamp" &&
+    filters.sortDir === "desc" &&
+    !resolved.to &&
+    ADVANCED_FIELDS.every((key) => !filters[key]);
   const liveOn = live && liveAllowed;
   const stream = useLogStream(
     liveOn,
-    { level: filters.level, environment: filters.environment, application: filters.application },
+    {
+      level: filters.level,
+      environment: filters.environment,
+      application: filters.application,
+      search: filters.search,
+      fingerprint: filters.fingerprint,
+    },
     filters.pageSize,
   );
 
   // En vivo se refresca la tabla cada 15 s y se vacia el buffer: las filas
   // recien llegadas se sustituyen por las del servidor, con id y metadata.
+  // Depende de `clear` y no del objeto `stream`, que cambia en cada render: con
+  // logs llegando a menudo el temporizador se reiniciaba antes de cumplirse y
+  // la tabla no se refrescaba nunca.
+  const clearStream = stream.clear;
   useEffect(() => {
     if (!liveOn) return;
     const timer = setInterval(() => {
       setNow(Date.now());
       void queryClient.invalidateQueries({ queryKey: ["logs"] });
-      stream.clear();
+      clearStream();
     }, 15_000);
     return () => clearInterval(timer);
-  }, [liveOn, queryClient, stream]);
+  }, [liveOn, queryClient, clearStream, setNow]);
 
   const rows: LogRow[] = liveOn ? [...stream.logs, ...(logs.data?.data ?? [])].slice(0, filters.pageSize) : logs.data?.data ?? [];
   // El detalle se recorre con las flechas mientras el log siga en la pagina; el
@@ -190,6 +204,10 @@ function LogsView() {
     if (filters.fingerprint) params.set("fingerprint", filters.fingerprint);
     router.push(`/reports?${params.toString()}`);
   };
+
+  const rangeQuery = new URLSearchParams(
+    Object.entries(rangeToParams(filters.range)).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  ).toString();
 
   const filterFingerprint = (fingerprint: string) => {
     setFilters({ fingerprint });
@@ -242,9 +260,16 @@ function LogsView() {
           onSearchChange={setSearch}
           onReset={() => {
             setSearch("");
-            setFilters({ level: "", environment: "", application: "", search: "", fingerprint: "" });
+            setFilters({
+              level: "",
+              environment: "",
+              application: "",
+              search: "",
+              fingerprint: "",
+              ...Object.fromEntries(ADVANCED_FIELDS.map((key) => [key, ""])),
+            });
           }}
-          activeCount={activeCount}
+          activeCount={activeCount + advancedCount}
         />
 
         {filters.fingerprint && (
@@ -256,7 +281,8 @@ function LogsView() {
               <Button size="xs" variant="secondary" icon="x" onClick={() => setFilters({ fingerprint: "" })}>
                 {t.logs.removeFilter}
               </Button>
-              <Link href="/errors" className="text-xs font-medium">
+              {/* Con el mismo rango: volver a Errores con otro contaria otros grupos. */}
+              <Link href={rangeQuery ? `/errors?${rangeQuery}` : "/errors"} className="text-xs font-medium">
                 {t.logs.backToGroups}
               </Link>
             </div>

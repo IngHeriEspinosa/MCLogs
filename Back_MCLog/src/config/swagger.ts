@@ -141,15 +141,22 @@ export const swaggerSpec = swaggerJSDoc({
         get: {
           tags: ["consulta"],
           summary: "Estadísticas: totales, últimas 24h, por nivel, por aplicación, por entorno y línea temporal",
-          description: "Admite los mismos filtros que GET /api/logs. La ventana (hours o from/to) solo acota la línea temporal.",
+          description:
+            "Admite los mismos filtros que GET /api/logs. Con `from`/`to`, los totales y los repartos son los de esa ventana; solo con `hours`, los de todo lo que conserva la retención. `last24h` cuenta las 24 h anteriores a `to`. La serie va en intervalos de `bucketSeconds`: 5 min hasta 6 h de ventana, 15 min hasta 48 h, 1 h hasta 31 días y 1 día por encima, alineados en UTC. `to` anterior a `from` responde 400.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [
             ...logFilterParams,
             { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744 }, description: "Ventana relativa en horas" },
             { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
             { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
+            {
+              in: "query",
+              name: "bucket",
+              schema: { type: "string", enum: ["5m", "15m", "1h", "1d"] },
+              description: "Intervalo de la serie; sin él, se elige según la ventana",
+            },
           ],
-          responses: { 200: { description: "OK" }, 401: { description: "Token inválido" } },
+          responses: { 200: { description: "OK" }, 400: { description: "Ventana invertida o intervalo desconocido" }, 401: { description: "Token inválido" } },
         },
       },
       "/api/logs/{id}": {
@@ -177,7 +184,7 @@ export const swaggerSpec = swaggerJSDoc({
             { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
             ...logFilterParams.filter((param) => param !== levelParam),
             { ...levelParam, schema: { ...levelParam.schema, default: "error" } },
-            { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
+            { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 200, default: 50 } },
           ],
           responses: {
             200: {
@@ -205,7 +212,10 @@ export const swaggerSpec = swaggerJSDoc({
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [{ in: "path", name: "traceId", required: true, schema: { type: "string", maxLength: 128 } }],
           responses: {
-            200: { description: "OK (máximo 1000 registros)" },
+            200: {
+              description:
+                "OK. `total` es la traza entera. Si pasa de 1000 registros, `truncated` es true y `data` lleva los 500 primeros y los 500 últimos; faltan `omitted` del medio.",
+            },
             404: { description: "No hay logs con esa traza" },
           },
         },
@@ -244,7 +254,7 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["análisis"],
           summary: "Cuántas veces ha ocurrido el fallo de un log (su huella), por entorno",
           description:
-            "Ocurrencias en las últimas 24 h, en 7 días y en todo lo que conserva la retención (`retentionMonths`), con primera y última aparición. `recurrence` estima la probabilidad de que se repita en la próxima hora y en 24 h (horas con el fallo sobre horas observadas en 7 días, con la regla de sucesión de Laplace). `failureRate` es la parte de las operaciones (traceId distintos) de la misma aplicación, servicio y entorno que acabó en el fallo en 7 días; `rate` es null si no envían traceId. `data` es null si el log no tiene huella.",
+            "Ocurrencias en las últimas 24 h, en 7 días y en todo lo que conserva la retención (`retentionMonths`), con primera y última aparición. `recurrence` estima la probabilidad de que se repita en la misma aplicación, servicio y entorno, con la regla de sucesión de Laplace: la próxima hora con las horas con el fallo sobre las observadas en 7 días, y las próximas 24 h con los días con el fallo sobre los observados en 30. La hora o el día en curso solo cuentan si ya tuvieron el fallo. `failureRate` es la parte de las operaciones (traceId distintos) del mismo ámbito que acabó en el fallo en 7 días; `rate` es null si no envían traceId. `data` es null si el log no tiene huella.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
           responses: {
@@ -258,7 +268,7 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["análisis"],
           summary: "Inventario de aplicaciones con sus servicios, entornos y errores recientes",
           description:
-            "Solo incluye las aplicaciones con logs en la ventana, y `count` son los logs dentro de ella. `errorsLast24h` cuenta siempre las últimas 24 h. Con los filtros de GET /api/logs, solo cuenta los logs que los cumplen.",
+            "Solo incluye las aplicaciones con logs en la ventana (`hours`, o `from`/`to`), y `count` y `errors` son los logs y los errores dentro de ella. `errorsLast24h` cuenta siempre las últimas 24 h. Con los filtros de GET /api/logs, solo cuenta los logs que los cumplen.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [
             {
@@ -267,6 +277,8 @@ export const swaggerSpec = swaggerJSDoc({
               description: "Ventana hacia atras en horas",
               schema: { type: "integer", minimum: 24, maximum: 744, default: 168 },
             },
+            { in: "query", name: "from", schema: { type: "string", format: "date-time" }, description: "Sustituye a hours" },
+            { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
             ...logFilterParams,
           ],
           responses: { 200: { description: "OK" }, 400: { description: "hours fuera de rango" } },
@@ -659,7 +671,7 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["alertas"],
           summary: "Crear un canal de aviso",
           description:
-            "La forma de `config` depende del tipo: webhook `{ url, secret? }`, email `{ to: [] }`, telegram `{ botToken, chatId }`.",
+            "La forma de `config` depende del tipo: webhook `{ url, secret?, format? }` (`format`: generic, slack, discord o teams; sin él se deduce de la URL), email `{ to: [] }`, telegram `{ botToken, chatId }`.",
           security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
@@ -894,8 +906,16 @@ export const swaggerSpec = swaggerJSDoc({
             level: { type: "string", enum: ["debug", "info", "warn", "error"] },
             environment: { type: "string", enum: ["development", "staging", "production"] },
             message: { type: "string", example: "Factura 1234 sincronizada" },
-            timestamp: { type: "string", format: "date-time", description: "Opcional; por defecto ahora" },
-            traceId: { type: "string", maxLength: 128 },
+            timestamp: {
+              type: "string",
+              format: "date-time",
+              description: "Opcional; por defecto ahora. Más de 5 min en el futuro se trae a ahora y el original queda en metadata.mclogClockSkew",
+            },
+            traceId: {
+              type: "string",
+              maxLength: 128,
+              description: "Opcional. Sin él se usa la cabecera x-trace-id de la petición, si viene; MCLog no inventa uno",
+            },
             spanId: { type: "string", maxLength: 128 },
             metadata: { type: "object", description: "Objeto JSON libre con contexto adicional" },
             error: {

@@ -221,7 +221,7 @@ export const en: Dictionary = {
     ofRecords: (share: string) => `${share} of logs`,
     errorRateHint: (errors: string, total: string) => `${errors} of ${total}`,
     appsHint: (count: number) =>
-      count === 0 ? "none with errors in 24 h" : count === 1 ? "1 with errors in 24 h" : `${count} with errors in 24 h`,
+      count === 0 ? "none with errors in the range" : count === 1 ? "1 with errors in the range" : `${count} with errors in the range`,
     distinctHint: "grouped by fingerprint",
     distinctCapped: "or more",
     activity: "Activity",
@@ -233,7 +233,6 @@ export const en: Dictionary = {
     last31d: "Last 31 days",
     levelMix: "By level",
     topApps: "Most active applications",
-    topAppsHint: "All time",
     environments: "By environment",
     topErrors: "Top failures",
     topErrorsEmpty: "No errors in this range.",
@@ -242,6 +241,8 @@ export const en: Dictionary = {
     scopeNote: "The overview follows the time range, application and environment; not the search or level.",
     chartLabel: (from: string, to: string, summary: string) => `Logs per interval between ${from} and ${to}. ${summary}.`,
     interval: "Interval",
+    partialBin: "partial",
+    partialBinHint: "Partial interval: still in progress, or cut by the start of the range. Its bar isn't comparable with the others.",
   },
 
   inspector: {
@@ -261,11 +262,13 @@ export const en: Dictionary = {
       id: "ID",
     },
     viewTrace: "View trace",
-    viewTraceCount: (count: number, formatted: string) => (count === 1 ? "View 1 trace" : `View ${formatted} traces`),
+    viewTraceCount: (count: number, formatted: string) =>
+      count === 1 ? "View trace (1 log)" : `View trace (${formatted} logs)`,
     similar: "Same failure",
     backToDetail: "Back to details",
     openTraceTab: "Open in new tab",
-    traceTruncated: (shown: string, total: string) => `Showing the first ${shown} of ${total} logs in this trace.`,
+    traceTruncated: (half: string, total: string) =>
+      `This trace has ${total} logs: showing the first ${half} and the last ${half}.`,
     similarAll: (count: number, formatted: string) => (count === 1 ? "1 occurrence" : `${formatted} occurrences`),
     similarLatest: (shown: string, total: string) => `The ${shown} most recent of ${total}`,
     similarOnlyThis: "This is the only occurrence of this failure that retention keeps.",
@@ -290,19 +293,23 @@ export const en: Dictionary = {
     occurrencesByEnv: "By environment",
     occurrencesError: "We couldn't load the occurrences.",
     probability: "Probability",
-    probabilityHint: "Based on the last 7 days",
+    probabilityHint: "Same service and environment",
     probabilityNextHour: "Next hour",
     probabilityNext24h: "Next 24 h",
     probabilityPerOperation: "Per operation",
     probabilityAbove: (value: string) => `> ${value}`,
-    probabilityHours: (active: string, observed: string) => `It happened in ${active} of ${observed} observed hours.`,
+    probabilityHours: (active: string, observed: string) =>
+      `Next hour: it happened in ${active} of ${observed} observed hours (last 7 days).`,
+    probabilityDays: (active: string, observed: string) =>
+      `Next 24 h: it happened on ${active} of ${observed} observed days (last 30).`,
+    probabilityNoTrace: "Per operation: this service doesn't send a traceId, so there are no operations to count.",
     probabilityOperations: (failed: string, operations: number, formatted: string, scope: string) =>
       operations === 1
         ? `${failed} of 1 operation in ${scope} ended in this failure.`
         : `${failed} of ${formatted} operations in ${scope} ended in this failure.`,
     probabilityLowData: "There is little data yet: take it as a rough guide.",
     probabilityInfo:
-      "Next hour and 24 h: hours in which the failure happened over the hours observed since the application started sending logs (7 days at most), using Laplace's rule of succession so it never claims 0 % or 100 % on little data. The 24 h figure treats each hour as independent: if the failure comes in bursts, the real one is lower. Per operation: of the operations (distinct traceIds) of the same service and environment in 7 days, how many logged this failure. If the application doesn't send a traceId, MCLog assigns one per request and the figure counts requests.",
+      "Computed from the occurrences in the same application, service and environment as the log.\nNext hour: hours with the failure over the hours observed since the service started sending logs (7 days at most). Next 24 h: days with the failure over the observed days (30 at most); it isn't derived from the hourly figure, because failures come in bursts. Both use Laplace's rule of succession so they never claim 0 % or 100 % on little data, and the current hour or day only counts once it has had the failure.\nPer operation: of the operations (distinct traceIds) of the same service and environment in 7 days, how many logged this failure. It only shows up if the application sends a traceId.",
     contextError: "We couldn't load the context.",
     liveRow: "This log arrived through the live stream: full details will appear when the table refreshes.",
     prev: "Previous log",
@@ -357,7 +364,7 @@ export const en: Dictionary = {
     },
     noClass: "No error class",
     lastSeen: (when: string) => `last ${when}`,
-    firstSeen: (when: string) => `first ${when}`,
+    firstSeen: (when: string) => `first in range ${when}`,
     viewOccurrences: "View occurrences",
     copyAi: "Copy for AI",
     empty: "No failures in this range",
@@ -372,7 +379,8 @@ export const en: Dictionary = {
     eyebrow: "Observability",
     title: "Trace",
     description: "Every log of one operation, in chronological order and timed relative to the first one.",
-    back: "Back to logs",
+    back: "Back",
+    truncatedTitle: "Trace truncated",
     copyId: "Copy trace ID",
     records: "Logs",
     apps: "Applications",
@@ -531,7 +539,7 @@ export const en: Dictionary = {
     errorsInWindow: "Errors",
     lastActivity: "Last activity",
     applicationsNote: (since: string) =>
-      `Logs counted from ${since} until now, across all environments. Errors are those in the window, from the grouped failures.`,
+      `Logs and errors counted in the report window, from ${since}.`,
     errorGroups: "Grouped failures",
     warnGroups: "Grouped warnings",
     warning: "Warning",
@@ -546,6 +554,7 @@ export const en: Dictionary = {
     newFailuresNote:
       "They did not appear in the previous period. They may have before that: to claim they are truly new, query a wider range.",
     worsened: "Failures that got worse",
+    improved: "Failures that improved",
     gone: "Failures that stopped appearing",
     goneUnknown: "This window had more than 100 distinct failures: there is no telling which ones stopped.",
     noPrevious: "There were no logs in the previous period: nothing to compare against.",
@@ -672,7 +681,7 @@ export const en: Dictionary = {
       occurrencesRule:
         "`total_retained` and `first_seen` only cover what retention keeps (`retention_months`): `first_seen` is the oldest occurrence left, not necessarily the first one ever.",
       probabilityRule:
-        "`p_next_hour` and `p_next_24h` are estimates, not certainties: hours with the failure over hours observed in 7 days (`active_hours`/`observed_hours`), using Laplace's rule of succession; `p_next_24h` assumes independent hours and overstates failures that come in bursts. `failure_rate` is the share of operations (distinct traceIds) of the same service and environment that ended in the failure in 7 days; if the application doesn't send a traceId, each request counts as one operation.",
+        "`p_next_hour` and `p_next_24h` are estimates, not certainties, for the same application, service and environment as the log, using Laplace's rule of succession: `p_next_hour` is hours with the failure over hours observed in 7 days (`active_hours`/`observed_hours`) and `p_next_24h` is days with the failure over days observed in 30 (`active_days`/`observed_days`). `failure_rate` is the share of operations (distinct traceIds) of the same service and environment that ended in the failure in 7 days; it is `null` if the application doesn't send a traceId.",
       contextUnavailable: (id: string) =>
         `Context was not loaded when this brief was copied; fetch it with \`get_log_context\` (id ${id}) before concluding the error was isolated.`,
       traceLogs: "Trace logs",
@@ -1201,6 +1210,14 @@ export const en: Dictionary = {
     secret: "Signing secret",
     secretHint:
       "Optional. When set, each alert is signed with HMAC-SHA256 in the x-mclog-signature header so the receiver can verify it comes from MCLog.",
+    format: "Format",
+    formats: {
+      auto: "Automatic (from the URL)",
+      generic: "Generic JSON",
+      slack: "Slack",
+      discord: "Discord",
+      teams: "Microsoft Teams",
+    },
     recipients: "Recipients",
     recipientsHint: "Comma separated. Outgoing mail (SMTP or Microsoft Graph) is configured in the backend.",
     botToken: "Bot token",
@@ -1438,7 +1455,7 @@ export const en: Dictionary = {
         "Where the code was running: production, staging or development. Keeps what affects real users apart from test noise.",
       host: "Machine, container or instance that emitted the log. Useful to see whether a failure is concentrated on one server.",
       traceId:
-        "Identifier shared by every log of the same operation, even across applications. “View N traces” shows the whole operation in chronological order.",
+        "Identifier shared by every log of the same operation, even across applications. It only exists if the application sends it, in the log or in the x-trace-id header. “View trace” shows the whole operation in chronological order.",
       spanId: "Identifier of one specific step inside the trace: a call, a query or a stage of the operation.",
       error: "Error class (e.g. TypeError) and, in parentheses, its code (e.g. ECONNRESET), if the application sent them.",
       fingerprint:
@@ -1520,6 +1537,8 @@ export const en: Dictionary = {
       url: "Address that receives a JSON POST for each alert: title, rule, match count, samples and a dashboard link. For Slack, Discord or Teams, use an “incoming webhook” URL.",
       secret:
         "Key shared with the receiver. MCLog signs the body with it and sends the signature in x-mclog-signature (sha256=…). The receiver computes the same signature and drops anything that doesn't match. Once saved, it isn't shown again.",
+      format:
+        "Shape of the alert body. Slack, Discord and Teams only accept their own format (message with blocks, embed or adaptive card). “Automatic” picks it from the URL: hooks.slack.com, discord.com/api/webhooks, *.webhook.office.com or a Power Automate flow. “Generic JSON” sends the whole alert, for n8n, Make or your own receiver.",
       recipients: "Addresses that will receive the alert, comma separated. Delivery uses the backend's outgoing mail (SMTP or Microsoft Graph): if it isn't configured, “Send test” will fail.",
       botToken:
         "The token @BotFather gives you when you create the bot (123456:ABC-DEF…). It grants full control of the bot: once saved, only its first characters are shown.",
@@ -1586,16 +1605,16 @@ export const en: Dictionary = {
       warnings:
         "Warning-level logs in the range: signals that don't break anything yet but are worth watching. Below, their share of all records.",
       distinctErrors:
-        "How many different failures there are among the range's errors, not how many times they happened.\nRepeats are grouped by fingerprint: same application, error class and message without its variable data (IDs, numbers, dates). So 500 \"Timeout on order 123\", \"…124\"… count as a single failure. Counted up to 100.",
+        "How many different failures there are among the range's errors, not how many times they happened.\nRepeats are grouped by fingerprint: same application, service, error class and code, first stack frame and message without its variable data (IDs, numbers, URLs, emails). So 500 \"Timeout on order 123\", \"…124\"… count as a single failure. Counted up to 100; under “All time”, those of the last 31 days.",
       apps:
-        "Applications that have sent logs to this workspace, across all history: it doesn't depend on the range. Below, how many logged an error in the last 24 h.",
+        "Applications that sent logs in the range, narrowed by the application and environment filters if any (under “All time”, in the last 31 days). Below, how many logged an error in that same period.",
       activity:
         "Logs per interval, stacked by level. Drag across the chart to narrow the range or click a bar to keep just that interval.",
       levelMix:
-        "Breakdown of the range's logs by level; click one to filter the table.\nBelow, the breakdown by environment across all history; click one to filter by it.",
+        "Breakdown of the range's logs by level; click one to filter the table.\nBelow, the breakdown by environment in the same range; click one to filter by it.",
       topErrors:
         "The 5 distinct failures with the most occurrences in the range, grouped by fingerprint. Click one to see only its occurrences in the table.",
-      topApps: "The applications that have sent the most logs, across all history. Click one to filter by it.",
+      topApps: "The applications that have sent the most logs in the range. Click one to filter by it.",
       groups:
         "Distinct failures with the current filters, not occurrences. Repeats of the same failure are grouped by fingerprint even when their messages differ in IDs or dates. Up to 100 are shown.",
       occurrences: "How many times the listed failures happened in total: the sum of the \"Count\" column.",

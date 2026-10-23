@@ -3,7 +3,7 @@ import { Prisma, SnapshotKind, SnapshotVisibility } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import logger from "../config/logger";
 import { buildWhere, getLogStats, LogFilters } from "./logService";
-import { getErrorGroups, getLevelTimeline, MAX_TRACE_LOGS } from "./analysisService";
+import { getErrorGroups, getLevelTimeline, MAX_TRACE_LOGS, timelineBucketSeconds } from "./analysisService";
 import { getWorkspaceRole } from "./workspaceService";
 import { getSetting } from "./settingsService";
 import { createRedactor } from "../utils/redact";
@@ -150,6 +150,7 @@ const captureLogs = async (workspaceId: number, filters: SnapshotFilters, to: Da
   };
   const scopeFilters: LogFilters = { workspaceId, application: filters.application, environment: filters.environment, from, to };
   const timelineFrom = new Date(Math.max(from?.getTime() ?? 0, to.getTime() - MAX_TIMELINE_MS));
+  const bucketSeconds = timelineBucketSeconds(timelineFrom, to);
   const sortField = filters.sortField ?? "timestamp";
   const sortDir = filters.sortDir ?? "desc";
   const scopeWhere = buildWhere(scopeFilters);
@@ -164,12 +165,15 @@ const captureLogs = async (workspaceId: number, filters: SnapshotFilters, to: Da
     }),
     prisma.log.count({ where: tableWhere }),
     getLogStats(scopeFilters),
-    getLevelTimeline(scopeFilters, timelineFrom, to),
-    getErrorGroups({ ...scopeFilters, levels: ["error"] }, DISTINCT_CAP),
+    getLevelTimeline(scopeFilters, timelineFrom, to, bucketSeconds),
+    // Uno de mas para saber si hay mas de DISTINCT_CAP sin un recuento aparte:
+    // con exactamente 100 se decia "100+".
+    getErrorGroups({ ...scopeFilters, levels: ["error"] }, DISTINCT_CAP + 1),
     prisma.log.groupBy({ by: ["application"], where: scopeWhere }),
     prisma.log.groupBy({ by: ["application"], where: { AND: [scopeWhere, { level: "error" }] } }),
   ]);
 
+  const capped = groups.length > DISTINCT_CAP;
   const byLevel = Object.fromEntries(stats.byLevel.map((row) => [row.level, row.count]));
   return {
     summary: {
@@ -177,12 +181,14 @@ const captureLogs = async (workspaceId: number, filters: SnapshotFilters, to: Da
       byLevel: { error: byLevel.error ?? 0, warn: byLevel.warn ?? 0, info: byLevel.info ?? 0, debug: byLevel.debug ?? 0 },
       timeline,
       timelineFrom,
+      // Los snapshots anteriores no lo llevan: el visor asume 3600 (por hora).
+      bucketSeconds,
       byApplication: stats.byApplication,
       byEnvironment: stats.byEnvironment,
       applications: apps.length,
       applicationsWithErrors: appsWithErrors.length,
-      distinctErrors: groups.length,
-      distinctErrorsCapped: groups.length >= DISTINCT_CAP,
+      distinctErrors: Math.min(groups.length, DISTINCT_CAP),
+      distinctErrorsCapped: capped,
       topErrors: groups.slice(0, TOP_ERRORS).map((group) => ({
         fingerprint: group.fingerprint,
         application: group.application,
@@ -212,14 +218,16 @@ const captureLogs = async (workspaceId: number, filters: SnapshotFilters, to: Da
 const captureErrors = async (workspaceId: number, filters: SnapshotFilters, to: Date): Promise<Capture> => {
   const level = filters.level === "warn" ? "warn" : "error";
   const scope: LogFilters = { workspaceId, application: filters.application, environment: filters.environment, from: filters.from, to };
-  const groups = await getErrorGroups({ ...scope, levels: [level] }, DISTINCT_CAP);
+  const found = await getErrorGroups({ ...scope, levels: [level] }, DISTINCT_CAP + 1);
+  const capped = found.length > DISTINCT_CAP;
+  const groups = found.slice(0, DISTINCT_CAP);
   const sampleIds = groups.slice(0, getSetting("maxSnapshotRows")).map((group) => group.lastLogId);
   const samples = sampleIds.length
     ? await prisma.log.findMany({ where: { workspaceId, id: { in: sampleIds } }, select: LOG_FIELDS })
     : [];
   const occurrences = groups.reduce((sum, group) => sum + group.count, 0);
   return {
-    summary: { level, groups, capped: groups.length >= DISTINCT_CAP, occurrences },
+    summary: { level, groups, capped, occurrences },
     logs: samples,
     totalMatched: occurrences,
     filters: {

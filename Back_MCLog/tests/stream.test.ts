@@ -6,7 +6,7 @@ import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
 import { getDefaultWorkspaceId } from "../src/services/workspaceService";
 import { createApiKey, resetApiKeyCaches } from "../src/services/apiKeyService";
-import { activeStreamConnections } from "../src/controllers/streamController";
+import { activeStreamConnections, matches } from "../src/controllers/streamController";
 import { LOG_CREATED, logEvents } from "../src/events/logEvents";
 import { config } from "../src/config/env";
 
@@ -224,5 +224,33 @@ describe("Stream de logs en vivo", () => {
     // listener quedara colgado, cada reconexión filtraría memoria.
     expect(await esperarA(() => activeStreamConnections() === 0)).toBe(true);
     expect(logEvents.listenerCount(LOG_CREATED)).toBe(0);
+  });
+});
+
+describe("Filtros del stream", () => {
+  const evento = {
+    workspaceId: 1,
+    timestamp: "2026-10-01T10:00:00.000Z",
+    application: "facturacion",
+    service: "pagos",
+    host: "web-01",
+    level: "error",
+    environment: "production",
+    message: "Timeout en la pasarela",
+    traceId: "op-7",
+    errorName: null,
+    fingerprint: "f1",
+  };
+
+  it("aplica la busqueda como el listado: texto en varios campos o el traceId exacto", () => {
+    expect(matches(evento, { workspaceId: 1, search: "PASARELA" })).toBe(true);
+    expect(matches(evento, { workspaceId: 1, search: "web-0" })).toBe(true);
+    expect(matches(evento, { workspaceId: 1, search: "op-7" })).toBe(true);
+    expect(matches(evento, { workspaceId: 1, search: "op-" })).toBe(false);
+  });
+
+  it("filtra por huella exacta", () => {
+    expect(matches(evento, { workspaceId: 1, fingerprint: "f1" })).toBe(true);
+    expect(matches(evento, { workspaceId: 1, fingerprint: "f2" })).toBe(false);
   });
 });

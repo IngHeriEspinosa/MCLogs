@@ -10,18 +10,17 @@ import { useI18n } from "@/common/i18n/I18nProvider";
 import { summarizeGroups } from "@/common/errors/summary";
 import type { ErrorGroup } from "@/hooks/useErrors";
 
-/** Tope de grupos que pide la pantalla (y que guarda un snapshot). */
-export const GROUPS_CAP = 100;
-
 type KpisProps = {
   groups: ErrorGroup[];
+  /** Hay mas grupos de los que se enseñan (la pantalla pide uno de mas para saberlo). */
+  capped?: boolean;
   level: "error" | "warn";
   loading?: boolean;
   stale?: boolean;
 };
 
 /** Fallos distintos, ocurrencias, app mas afectada y concentracion. */
-export const ErrorKpis: React.FC<KpisProps> = ({ groups, level, loading, stale }) => {
+export const ErrorKpis: React.FC<KpisProps> = ({ groups, capped = false, level, loading, stale }) => {
   const { t, fmt } = useI18n();
   const summary = summarizeGroups(groups);
   return (
@@ -29,7 +28,7 @@ export const ErrorKpis: React.FC<KpisProps> = ({ groups, level, loading, stale }
       <StatTile
         label={t.errors.kpiGroups}
         info={t.fieldInfo.metrics.groups}
-        value={`${fmt.number(groups.length)}${groups.length >= GROUPS_CAP ? "+" : ""}`}
+        value={`${fmt.number(groups.length)}${capped ? "+" : ""}`}
         icon="hash"
         accent={level === "warn" ? "warn" : "error"}
         loading={loading}
@@ -70,6 +69,8 @@ export const ErrorKpis: React.FC<KpisProps> = ({ groups, level, loading, stale }
 
 type TableProps = {
   groups: ErrorGroup[];
+  /** Hay mas grupos de los que se enseñan. */
+  capped?: boolean;
   loading?: boolean;
   stale?: boolean;
   /** Botones de la ultima columna de cada fila. */
@@ -80,7 +81,7 @@ type TableProps = {
  * Una fila por fallo distinto: veces y su parte del total, clase, codigo y un
  * mensaje de ejemplo, aplicacion, nivel y primera y ultima aparicion.
  */
-export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, loading, stale, actions }) => {
+export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false, loading, stale, actions }) => {
   const { t, fmt } = useI18n();
   const { occurrences, max } = summarizeGroups(groups);
 
@@ -175,7 +176,7 @@ export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, loading, stale,
               ))}
             </tbody>
           </table>
-          {groups.length >= GROUPS_CAP && <p className="px-5 py-3 text-xs text-ink-3">{t.errors.capped}</p>}
+          {capped && <p className="px-5 py-3 text-xs text-ink-3">{t.errors.capped}</p>}
         </div>
       )}
     </section>

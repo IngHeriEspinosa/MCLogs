@@ -38,6 +38,9 @@ import { useFilterOptions } from "@/hooks/useOptions";
 type Tab = "channels" | "rules" | "history";
 const CHANNEL_TYPES: AlertChannelType[] = ["webhook", "email", "telegram"];
 const CHANNEL_ICON: Record<AlertChannelType, IconName> = { webhook: "webhook", email: "mail", telegram: "send" };
+/** "" = automatico: el backend lo deduce de la URL. */
+const WEBHOOK_FORMATS = ["", "generic", "slack", "discord", "teams"] as const;
+type WebhookFormat = (typeof WEBHOOK_FORMATS)[number];
 
 const ListSkeleton = () => (
   <div className="flex flex-col gap-2">
@@ -62,6 +65,9 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
   const [name, setName] = useState(channel?.name ?? "");
   const [url, setUrl] = useState(String(config.url ?? ""));
   const [secret, setSecret] = useState("");
+  const [format, setFormat] = useState<WebhookFormat>(
+    WEBHOOK_FORMATS.includes(config.format as WebhookFormat) ? (config.format as WebhookFormat) : "",
+  );
   const [to, setTo] = useState(((config.to as string[] | undefined) ?? []).join(", "));
   const [botToken, setBotToken] = useState("");
   const [chatId, setChatId] = useState(String(config.chatId ?? ""));
@@ -73,7 +79,7 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
     event.preventDefault();
     const nextConfig =
       type === "webhook"
-        ? { url: url.trim(), ...(secret.trim() ? { secret: secret.trim() } : {}) }
+        ? { url: url.trim(), ...(secret.trim() ? { secret: secret.trim() } : {}), ...(format ? { format } : {}) }
         : type === "email"
           ? { to: to.split(",").map((value) => value.trim()).filter(Boolean) }
           : { botToken: botToken.trim(), chatId: chatId.trim() };
@@ -88,6 +94,7 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
     setName("");
     setUrl("");
     setSecret("");
+    setFormat("");
     setTo("");
     setBotToken("");
     setChatId("");
@@ -129,6 +136,14 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
                 onChange={(event) => setSecret(event.target.value)}
                 placeholder={typeof config.secret === "string" ? config.secret : undefined}
                 className="font-mono"
+              />
+            </Field>
+            <Field label={t.alerts.format} info={t.fieldInfo.alerts.format}>
+              <Select
+                label={t.alerts.format}
+                value={format}
+                onChange={(next) => setFormat(next as WebhookFormat)}
+                options={WEBHOOK_FORMATS.map((value) => ({ value, label: t.alerts.formats[value || "auto"] }))}
               />
             </Field>
           </>

@@ -318,7 +318,7 @@ Con una **regla** de alerta y un **canal**, en Espacio → Alertas. Las reglas s
 Dos cosas: que se acumulen N coincidencias en una ventana (**umbral**), o que aparezca un error **que no se había visto nunca**. La segunda es la más útil justo después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".
 
 ### ¿Por dónde avisa?
-Webhook (vale para Slack, Discord, Teams o n8n), correo y Telegram. Una regla puede usar varios a la vez, y hay un botón de envío de prueba en cada canal.
+Webhook (Slack, Discord y Teams con su propio formato, o JSON genérico para n8n y receptores propios), correo y Telegram. Una regla puede usar varios a la vez, y hay un botón de envío de prueba en cada canal.
 
 ### ¿Cómo sé que un webhook viene de MCLog?
 Pon un **secreto** al crear el canal: cada aviso viaja firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`. El receptor recalcula la firma sobre el cuerpo y compara.

@@ -3,7 +3,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { Level, LEVEL_FILL, LEVEL_SVG_FILL, LEVELS } from "@/components/atoms/LevelBadge";
 import { useElementSize, useIsomorphicLayoutEffect } from "@/hooks/useElementSize";
 import { useI18n } from "@/common/i18n/I18nProvider";
-import { binTimeline, peakBin, sumLevels, TimelineBin } from "@/common/time/timeline";
+import { binTimeline, DAY_MS, peakBin, sumLevels, TimelineBin } from "@/common/time/timeline";
 
 /**
  * Volumen de logs por intervalo y nivel, en columnas apiladas.
@@ -41,7 +41,7 @@ const topRoundedRect = (x: number, y: number, width: number, height: number, rad
 };
 
 type ActivityChartProps = {
-  /** Serie horaria ya rellenada (fillTimeline). */
+  /** Serie ya rellenada (fillTimeline), en el intervalo que devolvio la API. */
   hours: TimelineBin[];
   loading?: boolean;
   /** Mientras se refresca, se mantiene el grafico anterior atenuado. */
@@ -77,7 +77,7 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
   // de las etiquetas, que dependen a su vez de las columnas.
   const maxBars = Math.max(12, Math.floor((width - 56) / 10));
 
-  const { bins, stepHours } = useMemo(() => binTimeline(hours, maxBars), [hours, maxBars]);
+  const { bins, stepMs } = useMemo(() => binTimeline(hours, maxBars), [hours, maxBars]);
   const totals = useMemo(() => sumLevels(bins), [bins]);
   const peak = useMemo(() => peakBin(bins), [bins]);
 
@@ -93,11 +93,11 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
   const barWidth = Math.max(2, Math.min(MAX_BAR, slot - GAP));
   const y = (value: number) => topPad + plotHeight - (value / yMax) * plotHeight;
 
-  const spanHours = hours.length;
+  const spanMs = hours.length ? hours[hours.length - 1].end - hours[0].start : 0;
   const formatTick = (time: number) =>
-    stepHours >= 24 ? fmt.dayMonth(time) : spanHours > 24 ? fmt.dateTimeShort(time) : fmt.time(time);
+    stepMs >= DAY_MS ? fmt.dayMonth(time) : spanMs > DAY_MS ? fmt.dateTimeShort(time) : fmt.time(time);
   const formatInterval = (bin: TimelineBin) =>
-    `${fmt.dateTimeShort(bin.start)} – ${stepHours >= 24 ? fmt.dateTimeShort(bin.end) : fmt.time(bin.end)}`;
+    `${fmt.dateTimeShort(bin.start)} – ${stepMs >= DAY_MS ? fmt.dateTimeShort(bin.end) : fmt.time(bin.end)}`;
 
   // Etiquetas del eje X: tantas como quepan sin tocarse. El ancho se estima
   // con la fuente monoespaciada y el tamano raiz real, que crece en 4K.
@@ -162,7 +162,7 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
       <figcaption className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         {legend}
         <div className="flex items-center gap-3 text-xs text-ink-3">
-          {bins.length > 0 && <span className="hidden font-mono sm:inline">{t.overview.resolution(t.time.hours(stepHours))}</span>}
+          {bins.length > 0 && <span className="hidden font-mono sm:inline">{t.overview.resolution(fmt.duration(stepMs))}</span>}
           <button
             type="button"
             onClick={() => setView((current) => (current === "chart" ? "table" : "chart"))}
@@ -197,7 +197,10 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
               <tbody>
                 {bins.map((bin) => (
                   <tr key={bin.start} className="border-t border-line">
-                    <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-ink-2">{formatInterval(bin)}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-ink-2">
+                      {formatInterval(bin)}
+                      {bin.partial && <span className="ml-1.5 font-sans text-ink-3">· {t.overview.partialBin}</span>}
+                    </td>
                     {LEVELS.map((level) => (
                       <td key={level} className="px-3 py-1.5 text-right tabular-nums text-ink-2">
                         {fmt.number(bin[level])}
@@ -316,7 +319,9 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
                 const top = [...LEVELS].reverse().find((level) => bin[level] > 0);
                 let cursor = topPad + plotHeight;
                 return (
-                  <g key={bin.start}>
+                  // Un intervalo parcial (el que esta en curso, o el primero si el
+                  // rango empieza a mitad) se atenua: su barra no es comparable.
+                  <g key={bin.start} opacity={bin.partial ? 0.45 : undefined}>
                     {LEVELS.map((level: Level) => {
                       const value = bin[level];
                       if (value === 0) return null;
@@ -381,6 +386,7 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
                 style={{ left: tooltipLeft }}
               >
                 <p className="mb-2 font-mono text-[0.6875rem] text-ink-3">{formatInterval(tooltipBin)}</p>
+                {tooltipBin.partial && <p className="-mt-1 mb-2 text-[0.6875rem] text-ink-3">{t.overview.partialBinHint}</p>}
                 <ul className="flex flex-col gap-1">
                   {LEVELS.map((level) => (
                     <li key={level} className="flex items-center gap-2">

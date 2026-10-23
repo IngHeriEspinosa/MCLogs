@@ -4,6 +4,7 @@ import { body, param, query, validationResult } from "express-validator";
 import logger from "../config/logger";
 import { prisma } from "../config/prisma";
 import { sendTestAlert } from "../alerts/evaluator";
+import { WEBHOOK_FORMATS } from "../alerts/notifiers/webhook";
 import { AuthenticatedRequest, requireAuth } from "../middlewares/requireAuth";
 import { requireWorkspaceOwner, workspaceIdOf } from "../middlewares/workspaceContext";
 import { queryLimiter } from "../middlewares/rateLimiters";
@@ -60,6 +61,10 @@ const validateChannelConfig = (type: string, config: Record<string, unknown>): s
   if (type === "webhook") {
     const url = config.url;
     if (typeof url !== "string" || !/^https?:\/\//.test(url)) return "webhook requiere una url http(s)";
+    const format = config.format;
+    if (format !== undefined && !(WEBHOOK_FORMATS as readonly unknown[]).includes(format)) {
+      return `format debe ser uno de: ${WEBHOOK_FORMATS.join(", ")}`;
+    }
   }
   if (type === "email") {
     const to = config.to;

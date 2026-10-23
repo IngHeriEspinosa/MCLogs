@@ -40,7 +40,11 @@ export const normalizeMessage = (message: string): string => {
     .replace(/(?<![\w.+-])[\w.+-]+@[\w-]+\.[\w.-]+/g, "<email>")
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g, "<uuid>")
     .replace(/\b0x[0-9a-f]+\b/g, "<hex>")
-    .replace(/\b[0-9a-f]{8,}\b/g, "<hex>")
+    // Un hash lleva al menos una letra. Sin el lookahead, un numero de 8 cifras
+    // o mas salia como <hex> y uno de 7 como <n>: "registro 9999999" y
+    // "registro 10000000" caian en grupos distintos. El lookahead solo se
+    // evalua al principio de cada palabra, asi que sigue siendo lineal.
+    .replace(/\b(?=[0-9a-f]*[a-f])[0-9a-f]{8,}\b/g, "<hex>")
     .replace(/'[^']*'|"[^"]*"/g, "<str>")
     .replace(/\d+/g, "<n>")
     .replace(/\s+/g, " ")

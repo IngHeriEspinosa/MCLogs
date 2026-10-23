@@ -346,15 +346,22 @@ describe("Ocurrencias de un fallo", () => {
     ]);
   });
 
-  it("estima la probabilidad de que se repita con las horas de los ultimos 7 dias", async () => {
+  it("estima la probabilidad con las horas de 7 dias y los dias de 30, en su servicio y entorno", async () => {
     const { recurrence } = (await request(app).get(`/api/logs/${latestId}/occurrences`).set(auth())).body.data;
-    // La ocurrencia de hace 10 dias queda fuera: la observacion empieza en el
-    // primer log de la aplicacion dentro de la semana.
-    expect(Date.now() - new Date(recurrence.observedFrom).getTime()).toBeLessThan(60 * 60 * 1000);
+    // El log es de produccion: la observacion empieza en el primer log de ese
+    // servicio y entorno en 30 dias, el de hace 10 dias. El de staging no cuenta.
+    const observedAgo = Date.now() - new Date(recurrence.observedFrom).getTime();
+    expect(observedAgo).toBeGreaterThan(9 * 24 * 3600 * 1000);
+    expect(observedAgo).toBeLessThan(11 * 24 * 3600 * 1000);
+    // Horas: solo los ultimos 7 dias, asi que la de hace 10 dias no esta.
     expect(recurrence.activeHours).toBeGreaterThanOrEqual(1);
-    expect(recurrence.observedHours).toBeGreaterThanOrEqual(recurrence.activeHours);
+    expect(recurrence.activeHours).toBeLessThanOrEqual(2);
+    expect(recurrence.observedHours).toBeGreaterThanOrEqual(7 * 24);
     expect(recurrence.nextHour).toBeCloseTo(laplace(recurrence.activeHours, recurrence.observedHours));
-    expect(recurrence.next24h).toBeCloseTo(1 - (1 - recurrence.nextHour) ** 24);
+    // Dias: hoy y el de hace 10 dias.
+    expect(recurrence.activeDays).toBeGreaterThanOrEqual(2);
+    expect(recurrence.observedDays).toBeGreaterThanOrEqual(10);
+    expect(recurrence.next24h).toBeCloseTo(laplace(recurrence.activeDays, recurrence.observedDays));
   });
 
   it("calcula que parte de las operaciones del servicio y entorno acaba en el fallo", async () => {
@@ -365,7 +372,7 @@ describe("Ocurrencias de un fallo", () => {
     }
     await ingest({ ...rechazo, traceId: "op-1" });
     await ingest({ ...rechazo, traceId: "op-1" });
-    // Sin traceId propio, la ingesta le da el de la peticion: cuenta como otra operacion.
+    // Sin traceId propio no hay operacion: MCLog ya no inventa una por peticion.
     await ingest(rechazo);
     // No cuentan: otro entorno y otro servicio.
     await ingest({ ...rechazo, environment: "staging", traceId: "op-9" });
@@ -378,9 +385,9 @@ describe("Ocurrencias de un fallo", () => {
       application: "tasa-fallo",
       service: "cobros",
       environment: "production",
-      operations: 5,
-      failed: 3,
-      rate: 0.6,
+      operations: 4,
+      failed: 2,
+      rate: 0.5,
     });
   });
 
@@ -412,9 +419,12 @@ describe("Probabilidad de repeticion", () => {
       hoursAgo(44),
       now,
     );
+    // 44 horas completas y la actual, que cuenta porque ya tuvo el fallo.
     expect(recurrence).toMatchObject({ observedHours: 45, activeHours: 3 });
     expect(recurrence.nextHour).toBeCloseTo(4 / 47);
-    expect(recurrence.next24h).toBeCloseTo(1 - (1 - 4 / 47) ** 24);
+    // Dias de reloj: el 27 y el 28 completos y el 29 en curso, con el fallo el 28 y el 29.
+    expect(recurrence).toMatchObject({ observedDays: 3, activeDays: 2 });
+    expect(recurrence.next24h).toBeCloseTo(3 / 5);
   });
 
   it("con pocos datos no afirma ni 0 % ni 100 %", () => {
@@ -512,5 +522,149 @@ describe("Estadisticas con linea temporal", () => {
       0,
     );
     expect(total).toBeGreaterThan(0);
+  });
+});
+
+describe("Estadisticas en una ventana", () => {
+  const application = "stats-ventana";
+
+  beforeAll(async () => {
+    const hace3Dias = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+    await ingest({ application, level: "error", environment: "staging", message: "viejo", timestamp: hace3Dias });
+    await ingest({ application, level: "info", environment: "production", message: "reciente" });
+  });
+
+  it("con from/to, los totales y los repartos son los de la ventana", async () => {
+    const from = new Date(Date.now() - 3600 * 1000).toISOString();
+    const res = await request(app).get(`/api/logs/stats?application=${application}&from=${from}`).set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.byEnvironment).toEqual([{ environment: "production", count: 1 }]);
+  });
+
+  it("solo con hours, los totales siguen siendo de todo el historico", async () => {
+    const res = await request(app).get(`/api/logs/stats?application=${application}&hours=1`).set(auth());
+    expect(res.body.total).toBe(2);
+  });
+
+  it("elige el intervalo de la serie segun la ventana", async () => {
+    const corto = await request(app).get(`/api/logs/stats?application=${application}&hours=1`).set(auth());
+    expect(corto.body.bucketSeconds).toBe(300);
+    const from = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+    const largo = await request(app).get(`/api/logs/stats?application=${application}&from=${from}`).set(auth());
+    expect(largo.body.bucketSeconds).toBe(86400);
+    // Con intervalos de un dia, cada uno empieza a medianoche UTC.
+    expect(largo.body.timeline.length).toBe(2);
+    for (const bucket of largo.body.timeline as Array<{ bucket: string }>) {
+      expect(new Date(bucket.bucket).getUTCHours()).toBe(0);
+    }
+    const explicito = await request(app).get(`/api/logs/stats?application=${application}&hours=1&bucket=1h`).set(auth());
+    expect(explicito.body.bucketSeconds).toBe(3600);
+  });
+
+  it("rechaza una ventana invertida y un intervalo desconocido", async () => {
+    const to = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+    const from = new Date().toISOString();
+    expect((await request(app).get(`/api/logs/stats?from=${from}&to=${to}`).set(auth())).status).toBe(400);
+    expect((await request(app).get("/api/logs/stats?bucket=7m").set(auth())).status).toBe(400);
+  });
+
+  it("el inventario acepta from/to y cuenta los errores de esa ventana", async () => {
+    const from = new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString();
+    const res = await request(app).get(`/api/logs/applications?application=${application}&from=${from}`).set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([
+      expect.objectContaining({ application, count: 2, errors: 1, errorsLast24h: 0 }),
+    ]);
+  });
+});
+
+describe("Ejemplo de cada grupo de error", () => {
+  it("sale de la ventana pedida, no del log mas reciente de la huella", async () => {
+    const fingerprint = "ejemplo-ventana";
+    const base = { application: "ejemplos", level: "error", environment: "production", fingerprint };
+    const hace2Dias = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+    const antiguo = await ingest({ ...base, message: "dentro", timestamp: hace2Dias });
+    await ingest({ ...base, message: "fuera" });
+
+    const to = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const from = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+    const res = await request(app).get(`/api/logs/errors/groups?application=ejemplos&from=${from}&to=${to}`).set(auth());
+    expect(res.body.data).toEqual([
+      expect.objectContaining({ fingerprint, count: 1, lastLogId: antiguo.body.id, sampleMessage: "dentro" }),
+    ]);
+  });
+});
+
+describe("traceId de la ingesta", () => {
+  it("no inventa uno si el emisor no lo manda", async () => {
+    const res = await ingest({ application: "sin-traza", level: "info", environment: "production", message: "suelto" });
+    expect(res.status).toBe(201);
+    expect(res.body.traceId).toBeNull();
+  });
+
+  it("aplica la cabecera x-trace-id a los logs que no traen el suyo", async () => {
+    const res = await request(app)
+      .post("/api/logs/batch")
+      .set("x-api-key", config.apiKey)
+      .set("x-trace-id", "traza-cabecera")
+      .send({
+        logs: [
+          { application: "con-traza", level: "info", environment: "production", message: "uno" },
+          { application: "con-traza", level: "info", environment: "production", message: "dos", traceId: "propia" },
+        ],
+      });
+    expect(res.status).toBe(201);
+    const logs = await prisma.log.findMany({ where: { application: "con-traza" }, orderBy: { id: "asc" } });
+    expect(logs.map((log) => log.traceId)).toEqual(["traza-cabecera", "propia"]);
+  });
+});
+
+describe("Fecha futura en la ingesta", () => {
+  it("la trae a ahora y guarda la original en metadata", async () => {
+    const futura = new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString();
+    const res = await ingest({
+      application: "reloj",
+      level: "info",
+      environment: "production",
+      message: "adelantado",
+      timestamp: futura,
+      metadata: { a: 1 },
+    });
+    expect(res.status).toBe(201);
+    expect(Math.abs(new Date(res.body.timestamp).getTime() - Date.now())).toBeLessThan(60 * 1000);
+    expect(res.body.metadata).toEqual({ a: 1, mclogClockSkew: { timestamp: futura } });
+  });
+
+  it("respeta un adelanto pequeno, dentro del margen", async () => {
+    const casi = new Date(Date.now() + 60 * 1000).toISOString();
+    const res = await ingest({ application: "reloj", level: "info", environment: "production", message: "casi", timestamp: casi });
+    expect(new Date(res.body.timestamp).toISOString()).toBe(casi);
+    expect(res.body.metadata).toBeNull();
+  });
+});
+
+describe("Traza larga", () => {
+  it("devuelve el principio y el final y dice cuantos faltan", async () => {
+    const { workspaceId } = await prisma.log.findFirstOrThrow({ where: { application: "facturacion" } });
+    const start = Date.now() - 3600 * 1000;
+    await prisma.log.createMany({
+      data: Array.from({ length: 1010 }, (_, index) => ({
+        workspaceId,
+        application: "traza-larga",
+        level: "info" as const,
+        environment: "production" as const,
+        message: `paso ${index}`,
+        traceId: "traza-larga",
+        timestamp: new Date(start + index * 1000),
+      })),
+    });
+
+    const res = await request(app).get("/api/logs/trace/traza-larga").set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 1010, truncated: true, omitted: 10 });
+    expect(res.body.data).toHaveLength(1000);
+    expect(res.body.data[0].message).toBe("paso 0");
+    expect(res.body.data[999].message).toBe("paso 1009");
   });
 });

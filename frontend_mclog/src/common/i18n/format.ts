@@ -78,22 +78,33 @@ export const createFormatter = (locale: Locale) => {
       if (abs < 26 * DAY) return relative.format(Math.round(diff / DAY), "day");
       return date.format(toDate(value));
     },
-    /** Duracion legible: 840 ms · 12,4 s · 3 min 12 s · 2 h 5 min. */
+    /**
+     * Duracion legible: 840 ms · 12,4 s · 3 min 12 s · 2 h 5 min.
+     *
+     * Se redondea el total a la unidad menor que se muestra y despues se
+     * reparte, para que el redondeo arrastre: redondear solo el resto daba
+     * "1 min 60 s" o "1 d 24 h". Los simbolos (ms, s, min, h, d) son del SI y
+     * se escriben igual en espanol y en ingles.
+     */
     duration: (ms: number) => {
-      if (ms < SECOND) return `${integer.format(Math.round(ms))} ms`;
-      if (ms < MINUTE) return `${decimal.format(ms / SECOND)} s`;
-      if (ms < HOUR) {
-        const minutes = Math.floor(ms / MINUTE);
-        const seconds = Math.round((ms % MINUTE) / SECOND);
+      if (Math.round(ms) < SECOND) return `${integer.format(Math.round(ms))} ms`;
+      // Por debajo de 60 s una vez redondeado a centesimas, que es lo que se escribe.
+      if (Math.round(ms / 10) < 6000) return `${decimal.format(ms / SECOND)} s`;
+      const totalSeconds = Math.round(ms / SECOND);
+      if (totalSeconds < HOUR / SECOND) {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
         return seconds ? `${minutes} min ${seconds} s` : `${minutes} min`;
       }
-      if (ms < DAY) {
-        const hours = Math.floor(ms / HOUR);
-        const minutes = Math.round((ms % HOUR) / MINUTE);
+      const totalMinutes = Math.round(ms / MINUTE);
+      if (totalMinutes < DAY / MINUTE) {
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
         return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
       }
-      const days = Math.floor(ms / DAY);
-      const hours = Math.round((ms % DAY) / HOUR);
+      const totalHours = Math.round(ms / HOUR);
+      const days = Math.floor(totalHours / 24);
+      const hours = totalHours % 24;
       return hours ? `${days} d ${hours} h` : `${days} d`;
     },
     bytes: (size: number) => {

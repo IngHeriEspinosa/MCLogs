@@ -74,6 +74,8 @@ type Comparison = {
   trend: (group: ErrorGroup) => Trend;
   fresh: ErrorGroup[];
   worsened: ErrorGroup[];
+  /** Bajan mas de un 25 % (y al menos 3) respecto al periodo anterior. */
+  improved: ErrorGroup[];
   /** Null cuando no se puede saber: la ventana actual llego al tope de grupos. */
   gone: ErrorGroup[] | null;
 };
@@ -94,6 +96,7 @@ const compare = (data: ReportData): Comparison | null => {
     trend,
     fresh: data.groups.filter((group) => trend(group) === "new"),
     worsened: data.groups.filter((group) => trend(group) === "up").sort((a, b) => growth(b) - growth(a)),
+    improved: data.groups.filter((group) => trend(group) === "down").sort((a, b) => growth(a) - growth(b)),
     gone: data.groupsCapped ? null : window.groups.filter((group) => !current.has(group.fingerprint)),
   };
 };
@@ -117,7 +120,7 @@ type Context = {
   errorRate: number;
   windowHours: number;
   comparison: Comparison | null;
-  /** Errores de la ventana por aplicacion, sumando los fallos agrupados. */
+  /** Errores de la ventana por aplicacion: los del inventario o, sin el, la suma de los fallos agrupados. */
   errorsByApp: Map<string, number>;
   /** Filtros por campo que acotan el reporte, en orden fijo y ya enmascarados si toca. */
   filters: [ReportFilter, string][];
@@ -131,8 +134,10 @@ const snakeCase = (key: string) => key.replace(/[A-Z]/g, (letter) => `_${letter.
 
 const context = (data: ReportData, options: ReportOptions, r: (text: string) => string): Context => {
   const t = dictionaries[options.locale];
-  const errorsByApp = new Map<string, number>();
-  data.groups.forEach((group) => errorsByApp.set(group.application, (errorsByApp.get(group.application) ?? 0) + group.count));
+  const errorsByApp = new Map<string, number>(data.errorsByApp ? Object.entries(data.errorsByApp) : []);
+  if (!data.errorsByApp) {
+    data.groups.forEach((group) => errorsByApp.set(group.application, (errorsByApp.get(group.application) ?? 0) + group.count));
+  }
   const picked = pickFilters(options);
   // Se enmascaran una sola vez aqui: cada llamada a r() suma al recuento de valores tapados.
   const filters = REPORT_FILTERS.flatMap((key): [ReportFilter, string][] => {
@@ -295,23 +300,25 @@ const comparisonSection = (ctx: Context, comparison: Comparison): string[] => {
     );
   }
 
+  const changeRows = (groups: ErrorGroup[]) =>
+    groups.slice(0, COMPARISON_ROWS).map((group) => {
+      const before = comparison.previousOf(group) ?? 0;
+      return [groupName(ctx, group), mdCode(group.application), fmt.number(before), fmt.number(group.count), percentChange(ctx, group.count, before)];
+    });
+
   if (comparison.worsened.length) {
     out.push(`### ${d.worsened} (${fmt.number(comparison.worsened.length)})`);
     out.push(
       mdTable(
         [d.failure, d.application, d.previous, d.current, d.change],
-        comparison.worsened.slice(0, COMPARISON_ROWS).map((group) => {
-          const before = comparison.previousOf(group) ?? 0;
-          return [
-            groupName(ctx, group),
-            mdCode(group.application),
-            fmt.number(before),
-            fmt.number(group.count),
-            percentChange(ctx, group.count, before),
-          ];
-        }),
+        changeRows(comparison.worsened),
       ),
     );
+  }
+
+  if (comparison.improved.length) {
+    out.push(`### ${d.improved} (${fmt.number(comparison.improved.length)})`);
+    out.push(mdTable([d.failure, d.application, d.previous, d.current, d.change], changeRows(comparison.improved)));
   }
 
   out.push(`### ${d.gone}${comparison.gone ? ` (${fmt.number(comparison.gone.length)})` : ""}`);
@@ -365,10 +372,10 @@ const humanReport = (ctx: Context): string => {
   if (comparison) out.push(...comparisonSection(ctx, comparison));
 
   if (wants("activity")) {
-    const { bins, stepHours } = binTimeline(data.hours, 24);
+    const { bins, stepMs } = binTimeline(data.hours, 24);
     const max = Math.max(1, ...bins.map((bin) => bin.total));
     out.push(`## ${d.activity}`);
-    out.push(d.bucketNote(t.time.hours(stepHours)));
+    out.push(d.bucketNote(fmt.duration(stepMs)));
     out.push(
       mdTable(
         [d.interval, d.total, ...LEVELS.map((level) => t.levels.names[level]), d.activity],
@@ -410,7 +417,8 @@ const humanReport = (ctx: Context): string => {
             app.services.join(", "),
             app.environments.join(", "),
             fmt.number(app.count),
-            `${fmt.number(ctx.errorsByApp.get(app.application) ?? 0)}${data.groupsCapped ? "+" : ""}`,
+            // El "+" solo si se sumaron fallos agrupados y no cabian todos.
+            `${fmt.number(ctx.errorsByApp.get(app.application) ?? 0)}${!data.errorsByApp && data.groupsCapped ? "+" : ""}`,
             utcMinute(app.lastSeen),
           ]),
         ),
@@ -543,6 +551,11 @@ const agentData = (ctx: Context) => {
           previous_occurrences: comparison.previousOf(group),
           occurrences: group.count,
         })),
+        improved_failures: comparison.improved.slice(0, AGENT_COMPARISON_ROWS).map((group) => ({
+          ...failureRef(group),
+          previous_occurrences: comparison.previousOf(group),
+          occurrences: group.count,
+        })),
         gone_failures: comparison.gone
           ? comparison.gone
               .slice(0, AGENT_COMPARISON_ROWS)
@@ -554,7 +567,8 @@ const agentData = (ctx: Context) => {
   const binned = binTimeline(data.hours, 48);
   const timeline = wants("activity")
     ? {
-        bucket_hours: binned.stepHours,
+        // En horas, como siempre; con intervalos de minutos sale fraccionario (0.25 = 15 min).
+        bucket_hours: binned.stepMs / HOUR_MS,
         rows: binned.bins.map((bin) => ({
           bucket_start: new Date(bin.start).toISOString(),
           total: bin.total,
@@ -899,6 +913,9 @@ const occurrencesBlock = (data: FailureOccurrences, retentionMonths: number, a: 
       `observed_hours: ${recurrence.observedHours}`,
       `active_hours: ${recurrence.activeHours}`,
       `p_next_hour: ${ratio(recurrence.nextHour)}`,
+      ...(recurrence.observedDays !== undefined
+        ? [`observed_days: ${recurrence.observedDays}`, `active_days: ${recurrence.activeDays ?? 0}`]
+        : []),
       `p_next_24h: ${ratio(recurrence.next24h)}`,
       `operations_scope: {application: ${yamlScalar(failureRate.application)}, service: ${yamlScalar(failureRate.service)}, environment: ${yamlScalar(failureRate.environment)}}`,
       `operations_7d: ${failureRate.operations}`,

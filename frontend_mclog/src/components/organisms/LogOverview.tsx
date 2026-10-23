@@ -8,10 +8,10 @@ import { Card } from "@/components/molecules/Card";
 import { BarList, LevelMix } from "@/components/molecules/Distribution";
 import { StatTile } from "@/components/molecules/StatTile";
 import { useI18n } from "@/common/i18n/I18nProvider";
-import { isRelative, MAX_TIMELINE_HOURS, rangeToParams, resolveRange, TimeRange } from "@/common/time/range";
-import { binTimeline, fillTimeline, sumLevels } from "@/common/time/timeline";
+import { isRelative, MAX_TIMELINE_HOURS, queryWindow, rangeToParams, TimeRange } from "@/common/time/range";
+import { fillTimeline, trendBins } from "@/common/time/timeline";
 import { useLogStats } from "@/hooks/useAuth";
-import { useApplications, useErrorGroups } from "@/hooks/useErrors";
+import { GROUPS_SHOWN, useApplications, useErrorGroups } from "@/hooks/useErrors";
 
 type LogOverviewProps = {
   range: TimeRange;
@@ -44,37 +44,50 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
 }) => {
   const { t, fmt } = useI18n();
   const isAll = isRelative(range) && range.preset === "all";
-  const resolved = resolveRange(range, now);
+  const bounds = queryWindow(range, now);
+  // "Todo el historico": totales de toda la retencion, pero la serie, los
+  // fallos y las aplicaciones de los ultimos 31 dias, que es lo que admite la API.
   const span = isAll
     ? { hours: MAX_TIMELINE_HOURS }
-    : { from: resolved.from?.toISOString(), to: resolved.to?.toISOString() };
+    : { from: bounds.from?.toISOString(), to: bounds.to?.toISOString() };
   const scope = { application: application || undefined, environment: environment || undefined };
 
   const stats = useLogStats({ ...span, ...scope });
-  const groups = useErrorGroups({ ...span, ...scope, level: "error", limit: 100 });
-  const applications = useApplications();
+  const groups = useErrorGroups({ ...span, ...scope, level: "error", limit: GROUPS_SHOWN + 1 });
+  const applications = useApplications({ ...span, ...scope });
 
   const hours = useMemo(
-    () => (stats.data ? fillTimeline(stats.data.timeline ?? [], stats.data.from, stats.data.to) : []),
+    () =>
+      stats.data
+        ? fillTimeline(stats.data.timeline ?? [], stats.data.from, stats.data.to, (stats.data.bucketSeconds ?? 3600) * 1000)
+        : [],
     [stats.data],
   );
-  const trend = useMemo(() => binTimeline(hours, 24).bins, [hours]);
+  const trend = useMemo(() => trendBins(hours, 24), [hours]);
 
-  // En "todo el historico" la serie solo cubre los ultimos 31 dias, asi que
-  // las cifras salen de los totales historicos y no de sumar la serie.
+  // Las cifras salen de los totales de la API, que siguen la ventana. Sumar la
+  // serie las dejaba cortas cuando la serie no cubria todo el rango.
   const counts = useMemo(() => {
-    if (isAll && stats.data) {
-      const byLevel = (level: string) => stats.data?.byLevel.find((row) => row.level === level)?.count ?? 0;
-      return { total: stats.data.total, error: byLevel("error"), warn: byLevel("warn"), info: byLevel("info"), debug: byLevel("debug") };
-    }
-    return sumLevels(hours);
-  }, [isAll, stats.data, hours]);
+    const byLevel = (level: string) => stats.data?.byLevel.find((row) => row.level === level)?.count ?? 0;
+    return {
+      total: stats.data?.total ?? 0,
+      error: byLevel("error"),
+      warn: byLevel("warn"),
+      info: byLevel("info"),
+      debug: byLevel("debug"),
+    };
+  }, [stats.data]);
 
   const loading = stats.isLoading;
   const stale = stats.isFetching && !stats.isLoading;
   const scopeHint = isAll ? t.overview.allTime : t.overview.inRange;
-  const groupList = groups.data?.data ?? [];
-  const appsWithErrors = (applications.data ?? []).filter((app) => app.errorsLast24h > 0).length;
+  // Fallos y aplicaciones no tienen "todo el historico": en ese modo son 31 dias.
+  const windowHint = isAll ? t.overview.last31d : t.overview.inRange;
+  // Se piden GROUPS_SHOWN + 1: si llega el de mas, hay mas de los que se enseñan.
+  const foundGroups = groups.data?.data ?? [];
+  const groupsCapped = foundGroups.length > GROUPS_SHOWN;
+  const groupList = foundGroups.slice(0, GROUPS_SHOWN);
+  const appsWithErrors = (applications.data ?? []).filter((app) => (app.errors ?? 0) > 0).length;
   const errorRate = counts.total ? counts.error / counts.total : 0;
   const rangeQuery = new URLSearchParams(
     Object.entries(rangeToParams(range)).filter((entry): entry is [string, string] => Boolean(entry[1])),
@@ -118,8 +131,8 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
         />
         <StatTile
           label={t.overview.distinctErrors}
-          value={`${fmt.number(groupList.length)}${groupList.length >= 100 ? "+" : ""}`}
-          hint={t.overview.distinctHint}
+          value={`${fmt.number(groupList.length)}${groupsCapped ? "+" : ""}`}
+          hint={isAll ? `${t.overview.distinctHint} · ${t.overview.last31d.toLowerCase()}` : t.overview.distinctHint}
           info={t.fieldInfo.metrics.distinctErrors}
           icon="hash"
           accent="neutral"
@@ -152,7 +165,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           <div className="mt-5 border-t border-line pt-4">
             <div className="mb-2 flex items-baseline justify-between gap-2 px-2">
               <h3 className="text-[0.8125rem] font-semibold text-ink">{t.overview.environments}</h3>
-              <span className="text-xs text-ink-3">{t.overview.topAppsHint}</span>
+              <span className="text-xs text-ink-3">{scopeHint}</span>
             </div>
             <BarList
               items={(stats.data?.byEnvironment ?? [])
@@ -173,7 +186,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
         <Card
           title={t.overview.topErrors}
           info={t.fieldInfo.metrics.topErrors}
-          description={scopeHint}
+          description={windowHint}
           actions={
             <Link href={`/errors${rangeQuery ? `?${rangeQuery}` : ""}`} className="text-xs font-medium">
               {t.overview.viewAll}
@@ -220,7 +233,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
         <Card
           title={t.overview.topApps}
           info={t.fieldInfo.metrics.topApps}
-          description={t.overview.topAppsHint}
+          description={scopeHint}
           className="xl:col-span-6 3xl:col-span-2"
         >
           <BarList

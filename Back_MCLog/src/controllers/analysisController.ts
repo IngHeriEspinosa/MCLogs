@@ -30,7 +30,7 @@ const resolveWindow = (req: Request, defaultHours: number) => {
 
 export const errorGroups = async (req: Request, res: Response) => {
   const { from, to } = resolveWindow(req, 24);
-  const limit = Math.min(Math.max(parseInt((req.query.limit as string) ?? "50", 10) || 50, 1), 100);
+  const limit = Math.min(Math.max(parseInt((req.query.limit as string) ?? "50", 10) || 50, 1), 200);
 
   try {
     const filters = filtersFromQuery(req);
@@ -55,7 +55,7 @@ export const errorGroups = async (req: Request, res: Response) => {
 
 export const trace = async (req: Request, res: Response) => {
   try {
-    const logs = await getTrace(req.params.traceId, {
+    const { logs, total, omitted } = await getTrace(req.params.traceId, {
       workspaceId: workspaceIdOf(req),
       applicationsIn: allowedApplications(req),
     });
@@ -63,7 +63,9 @@ export const trace = async (req: Request, res: Response) => {
       res.status(404).json({ error: "No logs found for that traceId" });
       return;
     }
-    res.json({ data: logs, traceId: req.params.traceId, total: logs.length });
+    // `total` es la traza entera; con `truncated`, `data` lleva solo su
+    // principio y su final, y faltan `omitted` logs del medio.
+    res.json({ data: logs, traceId: req.params.traceId, total, truncated: omitted > 0, omitted });
   } catch (error) {
     logger.error("Error retrieving trace", { error, traceId: req.params.traceId });
     res.status(500).json({ error: "Error retrieving trace" });
@@ -145,15 +147,18 @@ export const occurrences = async (req: Request, res: Response) => {
 };
 
 export const applications = async (req: Request, res: Response) => {
-  // Solo `hours`, sin from/to: los errores se cuentan siempre sobre las
-  // ultimas 24 h, y una ventana que no llegue a hoy los dejaria a cero.
+  // Por defecto, la ultima semana (`hours`). Con `from`/`to` explicitos, la
+  // ventana que pida el resumen del dashboard; `errors` cuenta entonces los de
+  // esa ventana, y `errorsLast24h` sigue siendo de las ultimas 24 h.
+  const explicitFrom = req.query.from as unknown as Date | undefined;
+  const explicitTo = req.query.to as unknown as Date | undefined;
   const hours = (req.query.hours as unknown as number | undefined) ?? DEFAULT_APPLICATIONS_HOURS;
-  const to = new Date();
-  const from = new Date(to.getTime() - hours * HOUR_MS);
+  const to = explicitTo ?? new Date();
+  const from = explicitFrom ?? new Date(to.getTime() - hours * HOUR_MS);
 
   try {
     res.json({
-      data: await listApplications({ ...filtersFromQuery(req), from }),
+      data: await listApplications({ ...filtersFromQuery(req), from, to: explicitTo }),
       from: from.toISOString(),
       to: to.toISOString(),
     });

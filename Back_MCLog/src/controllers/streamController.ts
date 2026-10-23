@@ -27,18 +27,33 @@ type StreamFilters = {
   levels?: string[];
   application?: string;
   environment?: string;
+  /** Igual que en el listado: texto en mensaje, aplicacion, servicio o host, o el traceId exacto. */
+  search?: string;
+  fingerprint?: string;
   /** Impuesto por la API key, no elegido por quien consulta. */
   applicationsIn?: string[];
 };
 
-const matches = (event: LogEvent, filters: StreamFilters): boolean => {
+const containsIgnoringCase = (value: string | null, needle: string) =>
+  value !== null && value.toLowerCase().includes(needle);
+
+export const matches = (event: LogEvent, filters: StreamFilters): boolean => {
   // Lo primero y lo mas barato: los logs de otro espacio no se miran siquiera.
   if (event.workspaceId !== filters.workspaceId) return false;
   if (filters.applicationsIn?.length && !filters.applicationsIn.includes(event.application)) return false;
   if (filters.levels && !filters.levels.includes(event.level)) return false;
   if (filters.environment && event.environment !== filters.environment) return false;
-  if (filters.application && !event.application.toLowerCase().includes(filters.application.toLowerCase())) {
+  if (filters.application && !containsIgnoringCase(event.application, filters.application.toLowerCase())) {
     return false;
+  }
+  if (filters.fingerprint && event.fingerprint !== filters.fingerprint) return false;
+  // Sin esto, el modo en vivo anteponia filas que no cumplian la busqueda de la tabla.
+  if (filters.search) {
+    const needle = filters.search.toLowerCase();
+    const found =
+      [event.message, event.application, event.service, event.host].some((value) => containsIgnoringCase(value, needle)) ||
+      event.traceId === filters.search;
+    if (!found) return false;
   }
   return true;
 };
@@ -58,6 +73,8 @@ export const streamLogs = (req: Request, res: Response) => {
     levels: parseLevels(req.query.level),
     application: req.query.application as string | undefined,
     environment: req.query.environment as string | undefined,
+    search: (req.query.search as string | undefined) || undefined,
+    fingerprint: (req.query.fingerprint as string | undefined) || undefined,
     applicationsIn: applications && applications.length > 0 ? applications : undefined,
   };
 

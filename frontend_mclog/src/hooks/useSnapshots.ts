@@ -52,6 +52,8 @@ export type SnapshotSummary = {
   byLevel: { error: number; warn: number; info: number; debug: number };
   timeline: { bucket: string; error: number; warn: number; info: number; debug: number }[];
   timelineFrom: string;
+  /** Intervalo de la serie; ausente en los snapshots anteriores, que son por hora. */
+  bucketSeconds?: number;
   byApplication: { application: string; count: number }[];
   byEnvironment: { environment: string; count: number }[];
   applications: number;

@@ -1,5 +1,6 @@
 import { RequestHandler } from "express";
 import { param, query, validationResult, ValidationChain } from "express-validator";
+import { TIMELINE_BUCKETS } from "../services/analysisService";
 import { isLevelList } from "../utils/levels";
 
 const handle: RequestHandler = (req, res, next) => {
@@ -16,6 +17,23 @@ const levelRule = () =>
   query("level").optional().custom(isLevelList).withMessage("level must be a comma-separated list of debug, info, warn, error");
 
 const environmentRule = () => query("environment").optional().isIn(["development", "staging", "production"]);
+
+/**
+ * `from` y `to` en ISO-8601, y `to` posterior a `from` si vienen los dos. Una
+ * ventana invertida devolvia ceros sin decir por que.
+ */
+const windowRules = (): ValidationChain[] => [
+  query("from").optional().isISO8601().toDate(),
+  query("to")
+    .optional()
+    .isISO8601()
+    .toDate()
+    .custom((to: Date, { req }) => {
+      const from: unknown = req.query?.from;
+      return !(from instanceof Date) || from.getTime() < to.getTime();
+    })
+    .withMessage("to must be later than from"),
+];
 const applicationRule = () => query("application").optional().isString().isLength({ max: 120 });
 
 /**
@@ -43,8 +61,7 @@ export const validateLogQuery: Array<ValidationChain | RequestHandler> = [
   // 200 es el tope real que aplica el controlador: validarlo aqui evita
   // aceptar un valor que luego se recorta en silencio.
   query("pageSize").optional().isInt({ min: 1, max: 200 }).toInt(),
-  query("from").optional().isISO8601().toDate(),
-  query("to").optional().isISO8601().toDate(),
+  ...windowRules(),
   query("sort").optional().matches(/^(timestamp|application|level|host|environment):(asc|desc)$/),
   query("format").optional().isIn(["json", "csv", "ndjson"]),
   ...logFilterRules(),
@@ -56,17 +73,20 @@ const hoursRule = () => query("hours").optional().isInt({ min: 1, max: 24 * 31 }
 
 export const validateErrorGroups: Array<ValidationChain | RequestHandler> = [
   hoursRule(),
-  query("from").optional().isISO8601().toDate(),
-  query("to").optional().isISO8601().toDate(),
-  query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
+  ...windowRules(),
+  query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),
   ...logFilterRules(),
   handle
 ];
 
 export const validateStatsQuery: Array<ValidationChain | RequestHandler> = [
   hoursRule(),
-  query("from").optional().isISO8601().toDate(),
-  query("to").optional().isISO8601().toDate(),
+  ...windowRules(),
+  // Intervalo de la serie; sin el, se elige segun lo que abarque la ventana.
+  query("bucket")
+    .optional()
+    .isIn(Object.keys(TIMELINE_BUCKETS))
+    .withMessage(`bucket must be one of: ${Object.keys(TIMELINE_BUCKETS).join(", ")}`),
   ...logFilterRules(),
   handle
 ];
@@ -77,15 +97,18 @@ export const validateStatsQuery: Array<ValidationChain | RequestHandler> = [
  */
 export const validateApplications: Array<ValidationChain | RequestHandler> = [
   query("hours").optional().isInt({ min: 24, max: 24 * 31 }).withMessage("hours must be 24-744").toInt(),
+  ...windowRules(),
   ...logFilterRules(),
   handle
 ];
 
-/** El stream en vivo filtra en memoria, y solo por estos tres campos. */
+/** El stream en vivo filtra en memoria, y solo por estos campos. */
 export const validateStreamQuery: Array<ValidationChain | RequestHandler> = [
   levelRule(),
   environmentRule(),
   applicationRule(),
+  query("search").optional().isString().isLength({ max: 300 }),
+  query("fingerprint").optional().isString().isLength({ max: 64 }),
   handle
 ];
 

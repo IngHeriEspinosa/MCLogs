@@ -9,6 +9,10 @@ export type AlertSample = {
   level: string;
   message: string;
   errorName: string | null;
+  /** Para buscar las demás ocurrencias del mismo fallo. */
+  fingerprint: string | null;
+  /** Para seguir la operación en la que falló. */
+  traceId: string | null;
 };
 
 /** Lo que recibe cada canal cuando una regla se dispara. */
@@ -47,5 +51,5 @@ export const formatSample = (sample: AlertSample): string => {
 /** Título de una línea, común a todos los canales. */
 export const alertTitle = (payload: AlertPayload): string =>
   payload.rule.type === "new_error_group"
-    ? `[MCLog] ${payload.count} error(es) nuevo(s): ${payload.rule.name}`
+    ? `[MCLog] ${payload.count === 1 ? "1 error nuevo" : `${payload.count} errores nuevos`}: ${payload.rule.name}`
     : `[MCLog] ${payload.rule.name}: ${payload.count} en ${payload.windowMinutes} min`;

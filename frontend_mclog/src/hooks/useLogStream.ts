@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { API_BASE } from "@/config/api";
 import { getActiveWorkspaceId, subscribeActiveWorkspace } from "@/common/workspace/active";
 import type { LogEntry } from "@/hooks/useAuth";
@@ -21,6 +21,9 @@ export type StreamFilters = {
   level?: string;
   application?: string;
   environment?: string;
+  /** Igual que en la tabla, para no anteponer filas que no cumplen la busqueda. */
+  search?: string;
+  fingerprint?: string;
 };
 
 export type StreamStatus = "off" | "connecting" | "live" | "error";
@@ -80,5 +83,8 @@ export const useLogStream = (enabled: boolean, filters: StreamFilters, max = 50)
     };
   }, [enabled, clave, workspaceId]);
 
-  return { logs, status, clear: () => setLogs([]) };
+  // Estables entre renders: quien los use como dependencia de un efecto no
+  // debe reiniciarlo cada vez que llega un log.
+  const clear = useCallback(() => setLogs([]), []);
+  return useMemo(() => ({ logs, status, clear }), [logs, status, clear]);
 };

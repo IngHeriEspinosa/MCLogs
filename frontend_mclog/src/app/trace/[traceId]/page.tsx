@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Alert } from "@/components/atoms/Alert";
-import { Button, ButtonLink } from "@/components/atoms/Button";
+import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { CopyButton } from "@/components/molecules/CopyButton";
@@ -17,13 +17,24 @@ import { buildTraceBrief, buildTraceMarkdown } from "@/common/reports/build";
 import { useTrace } from "@/hooks/useErrors";
 
 export default function TracePage() {
-  const { t, locale } = useI18n();
+  const { t, fmt, locale } = useI18n();
   const notify = useToast();
   const params = useParams<{ traceId: string }>();
   const traceId = decodeURIComponent(params.traceId ?? "");
   const trace = useTrace(traceId);
+  const router = useRouter();
 
   const logs = trace.data?.data ?? [];
+  // Con la traza recortada, los registros son los de la traza entera, no los
+  // que han llegado.
+  const stats = { ...traceStatsOf(logs), records: trace.data?.total ?? logs.length };
+
+  // Vuelve a donde se estaba (con sus filtros); si la traza se abrio en una
+  // pestaña nueva no hay a donde volver y se va a Logs.
+  const back = () => {
+    if (window.history.length > 1) router.back();
+    else router.push("/logs");
+  };
   const [sharing, setSharing] = useState(false);
 
   const download = () => {
@@ -40,9 +51,9 @@ export default function TracePage() {
       presentable
       actions={
         <>
-          <ButtonLink href="/logs" icon="arrowLeft" variant="ghost">
+          <Button icon="arrowLeft" variant="ghost" onClick={back}>
             {t.trace.back}
-          </ButtonLink>
+          </Button>
           {logs.length > 0 && (
             <>
               <Button icon="share" title={t.snapshots.shareHint} onClick={() => setSharing(true)}>
@@ -77,7 +88,13 @@ export default function TracePage() {
           </Alert>
         )}
 
-        {!trace.isError && <TraceKpis stats={traceStatsOf(logs)} loading={trace.isLoading} />}
+        {!trace.isError && <TraceKpis stats={stats} loading={trace.isLoading} />}
+
+        {trace.data?.truncated && (
+          <Alert variant="info" title={t.trace.truncatedTitle}>
+            {t.inspector.traceTruncated(fmt.number(Math.floor(logs.length / 2)), fmt.number(trace.data.total))}
+          </Alert>
+        )}
 
         {trace.isLoading && (
           <div className="flex flex-col gap-2">

@@ -4,6 +4,8 @@ import { APP_VERSION } from "../config/version";
 import {
   DEFAULT_APPLICATIONS_HOURS,
   MAX_APPLICATIONS,
+  MAX_TRACE_LOGS,
+  TIMELINE_BUCKETS,
   getErrorGroups,
   getLevelTimeline,
   getLogContext,
@@ -325,14 +327,20 @@ export const buildMcpServer = (context: McpContext): McpServer => {
       inputSchema: { traceId: z.string().min(1).max(128).describe("Identificador de correlacion") },
     },
     async ({ traceId }) => {
-      const logs = (await getTrace(traceId, { workspaceId, applicationsIn })) as unknown as AnyLog[];
+      const trace = await getTrace(traceId, { workspaceId, applicationsIn });
+      const logs = trace.logs as unknown as AnyLog[];
       if (logs.length === 0) return errorResult(`No hay logs accesibles con traceId "${traceId}".`);
 
       return jsonResult({
         traceId,
-        total: logs.length,
+        total: trace.total,
+        hint:
+          trace.omitted > 0
+            ? `La traza tiene ${trace.total} logs: se devuelven los ${MAX_TRACE_LOGS / 2} primeros y los ${MAX_TRACE_LOGS / 2} ultimos, y faltan ${trace.omitted} del medio. Usa search_logs con este traceId y un rango de fechas para verlos.`
+            : undefined,
         applications: [...new Set(logs.map((log) => log.application))],
-        logs: logs.map(compactLog),
+        // host y spanId distinguen pasos de la misma aplicacion dentro de la traza.
+        logs: logs.map((log) => ({ ...compactLog(log), host: log.host, spanId: log.spanId })),
       });
     },
   );
@@ -379,9 +387,11 @@ export const buildMcpServer = (context: McpContext): McpServer => {
       const { from, to } = windowFrom(hours ?? 24);
       const filters = scoped({ application, environment });
 
+      // La serie sigue siendo por hora, como dice la herramienta: es la
+      // resolucion que el modelo espera, sea cual sea la ventana.
       const [summary, timeline] = await Promise.all([
         getLogStats(filters),
-        getLevelTimeline(filters, from, to),
+        getLevelTimeline(filters, from, to, TIMELINE_BUCKETS["1h"]),
       ]);
 
       return jsonResult({

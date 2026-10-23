@@ -12,6 +12,13 @@ describe("Normalizacion del mensaje", () => {
     expect(normalizeMessage('Campo "nombreCliente" vacio')).toBe("campo <str> vacio");
   });
 
+  it("trata igual los numeros de cualquier longitud y deja <hex> para los hashes", () => {
+    // Antes, 8 cifras o mas salian como <hex> y 7 como <n>: dos grupos para el mismo fallo.
+    expect(normalizeMessage("Registro 9999999 bloqueado")).toBe(normalizeMessage("Registro 10000000 bloqueado"));
+    expect(normalizeMessage("Registro 10000000 bloqueado")).toBe("registro <n> bloqueado");
+    expect(normalizeMessage("Commit 3f9a2c7b4e desplegado")).toBe("commit <hex> desplegado");
+  });
+
   it("se queda con la primera linea", () => {
     expect(normalizeMessage("Error principal\n  at foo\n  at bar")).toBe("error principal");
   });

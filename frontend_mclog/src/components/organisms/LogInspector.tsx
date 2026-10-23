@@ -64,10 +64,10 @@ const PanelFrame: React.FC<PanelFrameProps> = ({ title, actions, onBack, childre
   );
 };
 
-type TracePanelProps = { traceId: string; activeId?: number; total?: number; onBack: () => void };
+type TracePanelProps = { traceId: string; activeId?: number; onBack: () => void };
 
 /** La traza del log dentro del dialogo, con el log resaltado. */
-const TracePanel: React.FC<TracePanelProps> = ({ traceId, activeId, total, onBack }) => {
+const TracePanel: React.FC<TracePanelProps> = ({ traceId, activeId, onBack }) => {
   const { t, fmt } = useI18n();
   const trace = useTrace(traceId);
   const logs = trace.data?.data ?? [];
@@ -102,8 +102,10 @@ const TracePanel: React.FC<TracePanelProps> = ({ traceId, activeId, total, onBac
           ))}
         </div>
       )}
-      {total !== undefined && logs.length > 0 && total > logs.length && (
-        <p className="text-xs text-ink-3">{t.inspector.traceTruncated(fmt.number(logs.length), fmt.number(total))}</p>
+      {trace.data?.truncated && (
+        <p className="text-xs text-ink-3">
+          {t.inspector.traceTruncated(fmt.number(Math.floor(logs.length / 2)), fmt.number(trace.data.total))}
+        </p>
       )}
       {logs.length > 0 && <TraceTimeline logs={logs} activeId={activeId} />}
     </PanelFrame>
@@ -449,10 +451,12 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           : []),
       ]
     : [];
-  // Menos de un dia observado, o una tasa sobre muy pocas operaciones.
+  // Menos de un dia o de una semana observados, o una tasa sobre muy pocas operaciones.
   const lowData =
     !!frequency &&
-    (frequency.recurrence.observedHours < 24 || (frequency.failureRate.rate !== null && frequency.failureRate.operations < 30));
+    (frequency.recurrence.observedHours < 24 ||
+      (frequency.recurrence.observedDays ?? 7) < 7 ||
+      (frequency.failureRate.rate !== null && frequency.failureRate.operations < 30));
 
   const probabilitySection = full?.fingerprint && !readOnly && (occurrences.isLoading || frequency) && (
       <section>
@@ -482,6 +486,15 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
                   fmt.number(frequency.recurrence.observedHours),
                 )}
               </p>
+              {frequency.recurrence.observedDays !== undefined && (
+                <p>
+                  {t.inspector.probabilityDays(
+                    fmt.number(frequency.recurrence.activeDays ?? 0),
+                    fmt.number(frequency.recurrence.observedDays),
+                  )}
+                </p>
+              )}
+              {failureRate && failureRate.rate === null && <p>{t.inspector.probabilityNoTrace}</p>}
               {failureRate && failureRate.rate !== null && (
                 <p>
                   {t.inspector.probabilityOperations(
@@ -583,7 +596,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           {messageSection}
           {actionsBar}
           {panel === "trace" && log.traceId ? (
-            <TracePanel traceId={log.traceId} activeId={full?.id} total={traceCount.data} onBack={backToDetail} />
+            <TracePanel traceId={log.traceId} activeId={full?.id} onBack={backToDetail} />
           ) : panel === "similar" && log.fingerprint ? (
             <SimilarPanel
               fingerprint={log.fingerprint}

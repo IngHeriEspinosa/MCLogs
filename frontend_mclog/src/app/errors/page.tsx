@@ -17,7 +17,7 @@ import { useI18n } from "@/common/i18n/I18nProvider";
 import { buildGroupBrief } from "@/common/reports/build";
 import { isRelative, MAX_TIMELINE_HOURS, Preset, rangeFromParams, rangeToParams, resolveRange, sameRange, TimeRange, DEFAULT_RANGE } from "@/common/time/range";
 import type { LogEntry } from "@/hooks/useAuth";
-import { ErrorGroup, useErrorGroups } from "@/hooks/useErrors";
+import { ErrorGroup, GROUPS_SHOWN, useErrorGroups } from "@/hooks/useErrors";
 import { useFilterOptions } from "@/hooks/useOptions";
 
 const PRESETS: readonly Preset[] = ["1h", "6h", "24h", "7d", "30d"];
@@ -65,10 +65,13 @@ function ErrorsView() {
     level,
     application: application || undefined,
     environment: environment || undefined,
-    limit: 100,
+    limit: GROUPS_SHOWN + 1,
   });
 
-  const data = groups.data?.data ?? [];
+  // Se pide uno de mas: si llega, hay mas de GROUPS_SHOWN y se dice "100+".
+  const found = groups.data?.data ?? [];
+  const capped = found.length > GROUPS_SHOWN;
+  const data = found.slice(0, GROUPS_SHOWN);
   const [sharing, setSharing] = useState(false);
   const stale = groups.isFetching && !groups.isLoading;
 
@@ -153,12 +156,13 @@ function ErrorsView() {
           </div>
         </div>
 
-        <ErrorKpis groups={data} level={level} loading={groups.isLoading} stale={stale} />
+        <ErrorKpis groups={data} capped={capped} level={level} loading={groups.isLoading} stale={stale} />
 
         {groups.isError && <Alert variant="error" title={t.errors.loadError}>{errorMessage(groups.error, t.common.unknownError)}</Alert>}
 
         <ErrorGroupsTable
           groups={data}
+          capped={capped}
           loading={groups.isLoading}
           stale={stale}
           actions={(group) => (

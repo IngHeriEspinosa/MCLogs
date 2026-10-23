@@ -226,7 +226,7 @@ export const es = {
     ofRecords: (share: string) => `${share} de los registros`,
     errorRateHint: (errors: string, total: string) => `${errors} de ${total}`,
     appsHint: (count: number) =>
-      count === 0 ? "ninguna con errores en 24 h" : count === 1 ? "1 con errores en 24 h" : `${count} con errores en 24 h`,
+      count === 0 ? "ninguna con errores en el rango" : count === 1 ? "1 con errores en el rango" : `${count} con errores en el rango`,
     distinctHint: "agrupados por huella",
     distinctCapped: "o más",
     activity: "Actividad",
@@ -238,7 +238,6 @@ export const es = {
     last31d: "Últimos 31 días",
     levelMix: "Por nivel",
     topApps: "Aplicaciones más activas",
-    topAppsHint: "Histórico",
     environments: "Por entorno",
     topErrors: "Fallos principales",
     topErrorsEmpty: "Ningún error en este rango.",
@@ -248,6 +247,8 @@ export const es = {
     chartLabel: (from: string, to: string, summary: string) =>
       `Registros por intervalo entre ${from} y ${to}. ${summary}.`,
     interval: "Intervalo",
+    partialBin: "parcial",
+    partialBinHint: "Intervalo parcial: está en curso o el rango lo corta por el principio. Su barra no se compara con las demás.",
   },
 
   inspector: {
@@ -267,11 +268,13 @@ export const es = {
       id: "ID",
     },
     viewTrace: "Ver traza",
-    viewTraceCount: (count: number, formatted: string) => (count === 1 ? "Ver 1 traza" : `Ver ${formatted} trazas`),
+    viewTraceCount: (count: number, formatted: string) =>
+      count === 1 ? "Ver traza (1 registro)" : `Ver traza (${formatted} registros)`,
     similar: "Fallos iguales",
     backToDetail: "Volver al detalle",
     openTraceTab: "Abrir en pestaña nueva",
-    traceTruncated: (shown: string, total: string) => `Se muestran los primeros ${shown} de ${total} registros de la traza.`,
+    traceTruncated: (half: string, total: string) =>
+      `La traza tiene ${total} registros: se muestran los ${half} primeros y los ${half} últimos.`,
     similarAll: (count: number, formatted: string) => (count === 1 ? "1 ocurrencia" : `${formatted} ocurrencias`),
     similarLatest: (shown: string, total: string) => `Las ${shown} más recientes de ${total}`,
     similarOnlyThis: "Es la única ocurrencia de este fallo que conserva la retención.",
@@ -297,19 +300,23 @@ export const es = {
     occurrencesByEnv: "Por entorno",
     occurrencesError: "No pudimos cargar las ocurrencias.",
     probability: "Probabilidad",
-    probabilityHint: "Con los últimos 7 días",
+    probabilityHint: "Mismo servicio y entorno",
     probabilityNextHour: "Próxima hora",
     probabilityNext24h: "Próximas 24 h",
     probabilityPerOperation: "Por operación",
     probabilityAbove: (value: string) => `> ${value}`,
-    probabilityHours: (active: string, observed: string) => `Ocurrió en ${active} de ${observed} h observadas.`,
+    probabilityHours: (active: string, observed: string) =>
+      `Próxima hora: ocurrió en ${active} de ${observed} h observadas (últimos 7 días).`,
+    probabilityDays: (active: string, observed: string) =>
+      `Próximas 24 h: ocurrió en ${active} de ${observed} días observados (últimos 30).`,
+    probabilityNoTrace: "Por operación: este servicio no envía traceId, así que no hay operaciones que contar.",
     probabilityOperations: (failed: string, operations: number, formatted: string, scope: string) =>
       operations === 1
         ? `${failed} de 1 operación de ${scope} acabó en este fallo.`
         : `${failed} de ${formatted} operaciones de ${scope} acabaron en este fallo.`,
     probabilityLowData: "Todavía hay pocos datos: tómalo como una orientación.",
     probabilityInfo:
-      "Próxima hora y 24 h: horas en que ocurrió el fallo sobre las horas observadas desde que la aplicación envía logs (máximo 7 días), con la regla de sucesión de Laplace para no afirmar 0 % ni 100 % con pocos datos. Las 24 h tratan cada hora como independiente: si el fallo llega en ráfagas, la real será menor. Por operación: de las operaciones (traceId distintos) del mismo servicio y entorno en 7 días, cuántas registraron este fallo. Si la aplicación no envía traceId, MCLog asigna uno por envío y la cifra cuenta envíos.",
+      "Se calcula con las ocurrencias de la misma aplicación, servicio y entorno que el log.\nPróxima hora: horas con el fallo sobre las horas observadas desde que el servicio envía logs (máximo 7 días). Próximas 24 h: días con el fallo sobre los días observados (máximo 30); no se deduce de la hora, porque los fallos llegan en rachas. Las dos usan la regla de sucesión de Laplace para no afirmar 0 % ni 100 % con pocos datos, y la hora o el día en curso solo cuentan si ya tuvieron el fallo.\nPor operación: de las operaciones (traceId distintos) del mismo servicio y entorno en 7 días, cuántas registraron este fallo. Solo aparece si la aplicación envía traceId.",
     liveRow: "Este registro llegó por el stream en vivo: el detalle completo aparecerá al refrescar la tabla.",
     prev: "Registro anterior",
     next: "Registro siguiente",
@@ -363,7 +370,7 @@ export const es = {
     },
     noClass: "Sin clase de error",
     lastSeen: (when: string) => `última ${when}`,
-    firstSeen: (when: string) => `primera ${when}`,
+    firstSeen: (when: string) => `primera en el rango ${when}`,
     viewOccurrences: "Ver ocurrencias",
     copyAi: "Copiar para IA",
     empty: "Ningún fallo en este rango",
@@ -378,7 +385,8 @@ export const es = {
     eyebrow: "Observabilidad",
     title: "Traza",
     description: "Todos los registros de una operación, en orden cronológico y con el tiempo relativo al primero.",
-    back: "Volver a los logs",
+    back: "Volver",
+    truncatedTitle: "Traza recortada",
     copyId: "Copiar trace ID",
     records: "Registros",
     apps: "Aplicaciones",
@@ -540,7 +548,7 @@ export const es = {
     errorsInWindow: "Errores",
     lastActivity: "Última actividad",
     applicationsNote: (since: string) =>
-      `Registros contados desde ${since} hasta ahora, en todos los entornos. Los errores son los de la ventana, según los fallos agrupados.`,
+      `Registros y errores contados en la ventana del reporte, desde ${since}.`,
     errorGroups: "Fallos agrupados",
     warnGroups: "Warnings agrupados",
     warning: "Warning",
@@ -555,6 +563,7 @@ export const es = {
     newFailuresNote:
       "No aparecían en el periodo anterior. Puede que sí antes: para afirmar que son nuevos de verdad, consulta un rango mayor.",
     worsened: "Fallos que empeoraron",
+    improved: "Fallos que mejoraron",
     gone: "Fallos que dejaron de aparecer",
     goneUnknown: "Esta ventana tuvo más de 100 fallos distintos: no se puede saber cuáles dejaron de aparecer.",
     noPrevious: "No hubo registros en el periodo anterior: no hay con qué comparar.",
@@ -684,7 +693,7 @@ export const es = {
       occurrencesRule:
         "`total_retained` y `first_seen` solo abarcan lo que conserva la retención (`retention_months`): `first_seen` es la ocurrencia más antigua que queda, no necesariamente la primera de la historia.",
       probabilityRule:
-        "`p_next_hour` y `p_next_24h` son estimaciones, no certezas: horas con el fallo sobre horas observadas en 7 días (`active_hours`/`observed_hours`), con la regla de sucesión de Laplace; `p_next_24h` supone horas independientes y sobrestima los fallos que llegan en ráfagas. `failure_rate` es la parte de las operaciones (traceId distintos) del mismo servicio y entorno que acabó en el fallo en 7 días; si la aplicación no envía traceId, cada envío cuenta como una operación.",
+        "`p_next_hour` y `p_next_24h` son estimaciones, no certezas, de la misma aplicación, servicio y entorno que el log, con la regla de sucesión de Laplace: `p_next_hour` son horas con el fallo sobre horas observadas en 7 días (`active_hours`/`observed_hours`) y `p_next_24h`, días con el fallo sobre días observados en 30 (`active_days`/`observed_days`). `failure_rate` es la parte de las operaciones (traceId distintos) del mismo servicio y entorno que acabó en el fallo en 7 días; es `null` si la aplicación no envía traceId.",
       contextUnavailable: (id: string) =>
         `El contexto no estaba cargado al copiar este brief; pídelo con \`get_log_context\` (id ${id}) antes de concluir que el error fue aislado.`,
       traceLogs: "Registros de la traza",
@@ -1218,6 +1227,14 @@ export const es = {
     secret: "Secreto de firma",
     secretHint:
       "Opcional. Si lo pones, cada aviso viaja firmado con HMAC-SHA256 en la cabecera x-mclog-signature, para que el receptor compruebe que viene de MCLog.",
+    format: "Formato",
+    formats: {
+      auto: "Automático (según la URL)",
+      generic: "JSON genérico",
+      slack: "Slack",
+      discord: "Discord",
+      teams: "Microsoft Teams",
+    },
     recipients: "Destinatarios",
     recipientsHint: "Separados por comas. El correo saliente (SMTP o Microsoft Graph) se configura en el backend.",
     botToken: "Token del bot",
@@ -1465,7 +1482,7 @@ export const es = {
         "Dónde se ejecutaba el código: producción, staging o desarrollo. Separa lo que afecta a usuarios reales del ruido de las pruebas.",
       host: "Máquina, contenedor o instancia que emitió el log. Útil para ver si un fallo se concentra en un servidor concreto.",
       traceId:
-        "Identificador que comparten todos los logs de una misma operación, aunque pase por varias aplicaciones. Con «Ver N trazas» ves la operación completa en orden cronológico.",
+        "Identificador que comparten todos los logs de una misma operación, aunque pase por varias aplicaciones. Solo existe si la aplicación lo envía, en el log o en la cabecera x-trace-id. Con «Ver traza» ves la operación completa en orden cronológico.",
       spanId: "Identificador del tramo concreto dentro de la traza: una llamada, una consulta o un paso de la operación.",
       error: "Clase del error (p. ej. TypeError) y, entre paréntesis, su código (p. ej. ECONNRESET), si la aplicación los envió.",
       fingerprint:
@@ -1551,6 +1568,8 @@ export const es = {
       url: "Dirección que recibe un POST con un JSON por cada aviso: título, regla, número de coincidencias, ejemplos y enlace al panel. En Slack, Discord o Teams, usa la URL de un «incoming webhook».",
       secret:
         "Clave compartida con el receptor. MCLog firma el cuerpo con ella y envía la firma en x-mclog-signature (sha256=…). El receptor calcula la misma firma y descarta lo que no coincida. Una vez guardado, no se vuelve a mostrar.",
+      format:
+        "Forma del cuerpo del aviso. Slack, Discord y Teams solo aceptan su propio formato (mensaje con bloques, embed o tarjeta adaptable). «Automático» lo elige por la URL: hooks.slack.com, discord.com/api/webhooks, *.webhook.office.com o un flujo de Power Automate. «JSON genérico» manda el aviso completo, para n8n, Make o un receptor propio.",
       recipients:
         "Direcciones que recibirán el aviso, separadas por comas. El envío usa el correo saliente del backend (SMTP o Microsoft Graph): si no está configurado, «Enviar prueba» fallará.",
       botToken:
@@ -1619,16 +1638,16 @@ export const es = {
       warnings:
         "Logs de nivel warning en el rango: avisos que aún no rompen nada pero conviene vigilar. Debajo, qué parte de todos los registros suponen.",
       distinctErrors:
-        "Cuántos fallos diferentes hay entre los errores del rango, no cuántas veces ocurrieron.\nLas repeticiones se agrupan por huella: la misma aplicación, clase de error y mensaje sin sus datos variables (IDs, números, fechas). Así, 500 «Timeout en el pedido 123», «…124»… cuentan como un solo fallo. Se cuentan hasta 100.",
+        "Cuántos fallos diferentes hay entre los errores del rango, no cuántas veces ocurrieron.\nLas repeticiones se agrupan por huella: la misma aplicación, servicio, clase y código de error, primer marco del stack y mensaje sin sus datos variables (IDs, números, URLs, correos). Así, 500 «Timeout en el pedido 123», «…124»… cuentan como un solo fallo. Se cuentan hasta 100; en «Todo el histórico», los de los últimos 31 días.",
       apps:
-        "Aplicaciones que han enviado logs a este espacio, en todo el histórico: no depende del rango. Debajo, cuántas registraron algún error en las últimas 24 h.",
+        "Aplicaciones que han enviado logs en el rango, acotadas por la aplicación y el entorno si hay filtro (en «Todo el histórico», en los últimos 31 días). Debajo, cuántas registraron algún error en ese mismo periodo.",
       activity:
         "Logs por intervalo, apilados por nivel. Arrastra sobre el gráfico para acotar el rango o pulsa una barra para quedarte con ese intervalo.",
       levelMix:
-        "Reparto de los logs del rango por nivel; pulsa uno para filtrar la tabla.\nDebajo, el reparto por entorno en todo el histórico; pulsa uno para filtrar por él.",
+        "Reparto de los logs del rango por nivel; pulsa uno para filtrar la tabla.\nDebajo, el reparto por entorno en el mismo rango; pulsa uno para filtrar por él.",
       topErrors:
         "Los 5 fallos distintos con más ocurrencias en el rango, agrupados por huella. Pulsa uno para ver en la tabla solo sus ocurrencias.",
-      topApps: "Las aplicaciones que más logs han enviado, en todo el histórico. Pulsa una para filtrar por ella.",
+      topApps: "Las aplicaciones que más logs han enviado en el rango. Pulsa una para filtrar por ella.",
       groups:
         "Fallos diferentes con los filtros actuales, no ocurrencias. Las repeticiones de un mismo fallo se agrupan por huella aunque sus mensajes cambien en IDs o fechas. Se muestran hasta 100.",
       occurrences: "Cuántas veces ocurrieron en total los fallos de la lista: la suma de la columna «Veces».",

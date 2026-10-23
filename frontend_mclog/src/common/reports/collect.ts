@@ -1,6 +1,6 @@
 import client from "@/common/api/client";
 import { closedWindow } from "@/common/time/range";
-import { fillTimeline, HOUR_MS, sumLevels, type TimelineBin } from "@/common/time/timeline";
+import { fillTimeline, type TimelineBin } from "@/common/time/timeline";
 import type { LogEntry, LogStats } from "@/hooks/useAuth";
 import type { ApplicationSummary, ErrorGroup } from "@/hooks/useErrors";
 import { pickFilters, type ReportOptions, type ReportSection } from "./options";
@@ -32,8 +32,14 @@ export type ReportData = {
   samples: Record<string, LogEntry>;
   recentErrors: LogEntry[];
   applications: ApplicationSummary[];
-  /** Desde cuando cuenta el inventario sus registros (hasta ahora, no hasta `to`). */
+  /** Desde cuando cuenta el inventario sus registros. */
   applicationsSince: string | null;
+  /**
+   * Errores de la ventana por aplicacion, contados por el inventario: incluye
+   * los que no tienen huella. Null si no se pidio el inventario; entonces se
+   * suman los fallos agrupados, que se quedan cortos.
+   */
+  errorsByApp?: Record<string, number> | null;
   warnGroups: ErrorGroup[];
   previous: PreviousWindow | null;
 };
@@ -44,8 +50,6 @@ export const RECENT_ERRORS = 15;
 export const MAX_SAMPLES = 20;
 /** Peticiones de ejemplos en vuelo a la vez, para no rafaguear el rate limit. */
 const SAMPLE_CONCURRENCY = 5;
-/** Limites que acepta /api/logs/applications para `hours`. */
-const INVENTORY_HOURS = { min: 24, max: 24 * 31 };
 
 const clean = (params: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== ""));
@@ -64,12 +68,11 @@ export const mapLimit = async <T, R>(items: T[], limit: number, task: (item: T) 
   return results;
 };
 
-/**
- * El inventario solo admite una ventana relativa hasta ahora. Se le pide la que
- * cubre desde el inicio del reporte, dentro de los limites del backend.
- */
-export const inventoryHours = (from: Date, now: number) =>
-  Math.min(INVENTORY_HOURS.max, Math.max(INVENTORY_HOURS.min, Math.ceil((now - from.getTime()) / HOUR_MS)));
+/** Totales por nivel de una respuesta de /api/logs/stats, que siguen la ventana pedida. */
+export const totalsOf = (stats: LogStats): LevelTotals => {
+  const byLevel = (level: string) => stats.byLevel.find((row) => row.level === level)?.count ?? 0;
+  return { total: stats.total, error: byLevel("error"), warn: byLevel("warn"), info: byLevel("info"), debug: byLevel("debug") };
+};
 
 /**
  * Reune en paralelo todo lo que necesita un reporte. Solo pide lo que usan las
@@ -89,18 +92,23 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     options.kind !== "markdown" || (["summary", "comparison", "applications", "errorGroups"] as const).some(wants);
 
   const previousSpan = { from: new Date(from.getTime() - (to.getTime() - from.getTime())).toISOString(), to: span.from };
+  // Uno de mas para saber si hay mas de GROUPS_LIMIT: con exactamente 100 se
+  // daba la ventana por recortada.
   const errorGroups = (window: { from: string; to: string }) =>
     client
       .get<{ data: ErrorGroup[] }>("/api/logs/errors/groups", {
-        params: clean({ ...window, ...scope, level: "error", limit: GROUPS_LIMIT }),
+        params: clean({ ...window, ...scope, level: "error", limit: GROUPS_LIMIT + 1 }),
       })
-      .then((response) => response.data.data);
+      .then((response) => ({
+        groups: response.data.data.slice(0, GROUPS_LIMIT),
+        capped: response.data.data.length > GROUPS_LIMIT,
+      }));
   const stats = (window: { from: string; to: string }) =>
     client.get<LogStats>("/api/logs/stats", { params: clean({ ...window, ...scope }) }).then((response) => response.data);
 
-  const [current, groups, recentErrors, inventory, warnGroups, previousStats, previousGroups] = await Promise.all([
+  const [current, found, recentErrors, inventory, warnGroups, previousStats, previousGroups] = await Promise.all([
     stats(span),
-    needsGroups ? errorGroups(span) : Promise.resolve([] as ErrorGroup[]),
+    needsGroups ? errorGroups(span) : Promise.resolve({ groups: [] as ErrorGroup[], capped: false }),
     wants("recentErrors")
       ? client
           .get<{ data: LogEntry[] }>("/api/logs", {
@@ -108,10 +116,12 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
           })
           .then((response) => response.data.data)
       : Promise.resolve([] as LogEntry[]),
-    wants("applications")
+    // La misma ventana que el resto del reporte. Tambien lo pide el resumen,
+    // que cita las aplicaciones con mas errores.
+    wants("applications") || wants("summary")
       ? client
           .get<{ data: ApplicationSummary[]; from: string }>("/api/logs/applications", {
-            params: clean({ hours: inventoryHours(from, now), ...scope }),
+            params: clean({ ...span, ...scope }),
           })
           .then((response) => response.data)
       : Promise.resolve(null),
@@ -126,6 +136,7 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     wants("comparison") ? errorGroups(previousSpan) : Promise.resolve(null),
   ]);
 
+  const { groups, capped: groupsCapped } = found;
   const samples: Record<string, LogEntry> = {};
   if (options.includeStacks && wants("errorGroups")) {
     const picked = groups.slice(0, Math.min(options.maxGroups, MAX_SAMPLES));
@@ -142,15 +153,17 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     });
   }
 
-  const hours = fillTimeline(current.timeline ?? [], current.from, current.to);
+  const hours = fillTimeline(current.timeline ?? [], current.from, current.to, (current.bucketSeconds ?? 3600) * 1000);
+  // Los totales salen de la API, que los cuenta en la ventana: sumar la serie
+  // los dejaba cortos si la serie no cubria todo el rango.
   const previous: PreviousWindow | null =
     previousStats && previousGroups
       ? {
           from: previousStats.from,
           to: previousStats.to,
-          totals: sumLevels(fillTimeline(previousStats.timeline ?? [], previousStats.from, previousStats.to)),
-          groups: previousGroups,
-          groupsCapped: previousGroups.length >= GROUPS_LIMIT,
+          totals: totalsOf(previousStats),
+          groups: previousGroups.groups,
+          groupsCapped: previousGroups.capped,
         }
       : null;
 
@@ -160,13 +173,16 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     to: current.to,
     origin: globalThis.location?.origin ?? "",
     hours,
-    totals: sumLevels(hours),
+    totals: totalsOf(current),
     groups,
-    groupsCapped: groups.length >= GROUPS_LIMIT,
+    groupsCapped,
     samples,
     recentErrors,
     applications: inventory?.data ?? [],
     applicationsSince: inventory?.from ?? null,
+    errorsByApp: inventory
+      ? Object.fromEntries(inventory.data.map((app) => [app.application, app.errors ?? 0]))
+      : null,
     warnGroups,
     previous,
   };

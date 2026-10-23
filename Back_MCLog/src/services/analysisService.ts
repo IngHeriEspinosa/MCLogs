@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type Log } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { LogFilters, buildWhere, buildWhereSql } from "./logService";
 
@@ -61,14 +61,24 @@ export const getErrorGroups = async (filters: LogFilters, limit = 50): Promise<E
   const fingerprints = groups.map((group) => group.fingerprint).filter((value): value is string => value !== null);
   if (fingerprints.length === 0) return [];
 
-  // Un ejemplo por grupo: el mas reciente, que es el que interesa al investigar.
+  // Un ejemplo por grupo: el mas reciente que cumple los mismos filtros que el
+  // conteo. Sin ellos, el ejemplo podia ser posterior a la ventana, de otro
+  // nivel o, con una huella propia del emisor, de una aplicacion que la clave
+  // no puede ver. El LATERAL con LIMIT 1 se queda en el primer log de cada
+  // huella por el indice (workspaceId, fingerprint, timestamp), en lugar de
+  // recorrer todo su historico como hacia el DISTINCT ON.
   const samples = await prisma.$queryRaw<GroupSample[]>`
-    SELECT DISTINCT ON ("fingerprint")
-      "fingerprint", "id", "application", "service", "level"::text AS "level",
-      "errorName", "errorCode", "message"
-    FROM "Log"
-    WHERE "workspaceId" = ${filters.workspaceId} AND "fingerprint" = ANY(${fingerprints})
-    ORDER BY "fingerprint", "timestamp" DESC
+    SELECT "sample".*
+    FROM UNNEST(${fingerprints}::text[]) AS "wanted"("fingerprint")
+    CROSS JOIN LATERAL (
+      SELECT
+        "fingerprint", "id", "application", "service", "level"::text AS "level",
+        "errorName", "errorCode", "message"
+      FROM "Log"
+      WHERE ${buildWhereSql(filters)} AND "fingerprint" = "wanted"."fingerprint"
+      ORDER BY "timestamp" DESC, "id" DESC
+      LIMIT 1
+    ) AS "sample"
   `;
 
   const sampleByFingerprint = new Map(samples.map((sample) => [sample.fingerprint, sample]));
@@ -95,16 +105,45 @@ export const getErrorGroups = async (filters: LogFilters, limit = 50): Promise<E
   });
 };
 
+export type TraceResult = {
+  /** En orden cronologico; con `omitted`, el principio y el final de la traza. */
+  logs: Log[];
+  /** Logs de la traza visibles para la peticion, aunque no vengan todos. */
+  total: number;
+  /** Los del medio que no se devuelven por pasar de MAX_TRACE_LOGS. */
+  omitted: number;
+};
+
 /**
  * Todos los logs de una traza, en orden cronologico. Es la forma de seguir una
  * operacion que cruza varios sistemas.
+ *
+ * Los empates de timestamp (un lote sin hora propia entra con la misma) se
+ * deshacen por id, para que el orden no cambie de una carga a otra. Si la
+ * traza pasa de MAX_TRACE_LOGS se devuelven la primera y la ultima mitad: el
+ * principio explica como empezo la operacion y el final suele ser donde fallo,
+ * asi que cortar solo por un lado perdia justo una de las dos.
  */
-export const getTrace = async (traceId: string, filters: Pick<LogFilters, "workspaceId" | "applicationsIn">) => {
-  return prisma.log.findMany({
-    where: { AND: [buildWhere({ ...filters, traceId })] },
-    orderBy: { timestamp: "asc" },
-    take: MAX_TRACE_LOGS,
+export const getTrace = async (
+  traceId: string,
+  filters: Pick<LogFilters, "workspaceId" | "applicationsIn">,
+): Promise<TraceResult> => {
+  const where: Prisma.LogWhereInput = { AND: [buildWhere({ ...filters, traceId })] };
+  // Uno de mas para saber, sin un COUNT aparte, si la traza cabe entera.
+  const head = await prisma.log.findMany({
+    where,
+    orderBy: [{ timestamp: "asc" }, { id: "asc" }],
+    take: MAX_TRACE_LOGS + 1,
   });
+  if (head.length <= MAX_TRACE_LOGS) return { logs: head, total: head.length, omitted: 0 };
+
+  const half = Math.floor(MAX_TRACE_LOGS / 2);
+  const [total, tail] = await Promise.all([
+    prisma.log.count({ where }),
+    prisma.log.findMany({ where, orderBy: [{ timestamp: "desc" }, { id: "desc" }], take: half }),
+  ]);
+  const logs = [...head.slice(0, half), ...tail.reverse()];
+  return { logs, total, omitted: Math.max(0, total - logs.length) };
 };
 
 /** Un log del espacio, o null si no existe o queda fuera del alcance de la clave. */
@@ -196,19 +235,29 @@ export type EnvironmentOccurrences = {
 };
 
 /**
- * Probabilidad de que el fallo se repita. Cada hora de reloj observada es un
- * ensayo: hubo al menos una ocurrencia o no la hubo.
+ * Probabilidad de que el fallo se repita, en la aplicacion, el servicio y el
+ * entorno del log. Cada periodo de reloj observado es un ensayo: hubo al menos
+ * una ocurrencia o no la hubo. La proxima hora se estima con las horas de los
+ * ultimos 7 dias, y las proximas 24 h con los dias de los ultimos 30.
+ *
+ * Las 24 h no salen de elevar la probabilidad horaria a 24 horas
+ * independientes: los fallos llegan en rachas, y un incidente de un dia daba
+ * casi un 100 % a un error que llevaba una semana sin aparecer.
  */
 export type FailureRecurrence = {
-  /** Inicio de la observacion: el primer log de la aplicacion en los ultimos 7 dias. */
+  /** Inicio de la observacion: el primer log de ese servicio y entorno en los ultimos 30 dias. */
   observedFrom: Date;
-  /** Horas de reloj desde `observedFrom` hasta ahora, la actual incluida. */
+  /** Horas de reloj observadas en los ultimos 7 dias (ver `countTrials`). */
   observedHours: number;
   /** De esas, en cuantas ocurrio el fallo. */
   activeHours: number;
   /** Probabilidad de al menos una ocurrencia en la proxima hora. */
   nextHour: number;
-  /** Lo mismo en las proximas 24 h, tomando cada hora como independiente. */
+  /** Dias de reloj (UTC) observados en los ultimos 30 dias. */
+  observedDays: number;
+  /** De esos, en cuantos ocurrio el fallo. */
+  activeDays: number;
+  /** Probabilidad de al menos una ocurrencia en las proximas 24 h. */
   next24h: number;
 };
 
@@ -241,6 +290,10 @@ export type FailureOccurrences = {
 };
 
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+/** Ventanas de observacion de la recurrencia. */
+const RECURRENCE_HOURS_WINDOW_MS = 7 * DAY_MS;
+const RECURRENCE_DAYS_WINDOW_MS = 30 * DAY_MS;
 
 /**
  * Regla de sucesion de Laplace: (aciertos + 1) / (ensayos + 2). Con pocos
@@ -249,17 +302,42 @@ const HOUR_MS = 60 * 60 * 1000;
 export const laplace = (hits: number, trials: number) => (hits + 1) / (trials + 2);
 
 /**
- * Probabilidad de repeticion a partir de las horas con ocurrencias (`hours`,
- * truncadas o no a la hora) entre `observedFrom` y `now`.
+ * Ensayos y aciertos en periodos de `periodMs` (horas o dias de reloj UTC)
+ * entre `observedFrom` y `now`.
+ *
+ * El periodo en curso solo cuenta si ya tuvo una ocurrencia: si no la ha
+ * tenido todavia, su resultado aun no se conoce. Contarlo como fallido, como
+ * se hacia antes, rebajaba la probabilidad en cada consulta hecha a mitad de
+ * hora.
+ */
+export const countTrials = (occurrences: Date[], observedFrom: Date, now: Date, periodMs: number) => {
+  const period = (date: Date) => Math.floor(date.getTime() / periodMs);
+  const current = period(now);
+  const first = period(observedFrom);
+  const active = new Set(occurrences.map(period).filter((value) => value >= first && value <= current));
+  const completed = Math.max(0, current - first);
+  return { trials: completed + (active.has(current) ? 1 : 0), hits: active.size };
+};
+
+/**
+ * Probabilidad de repeticion a partir de las horas con ocurrencias
+ * (`hours`, truncadas o no a la hora) de los ultimos 30 dias, observando
+ * desde `observedFrom`.
  */
 export const recurrenceOf = (hours: Date[], observedFrom: Date, now: Date): FailureRecurrence => {
-  const bucket = (date: Date) => Math.floor(date.getTime() / HOUR_MS);
-  const current = bucket(now);
-  const activeHours = new Set(hours.map(bucket).filter((hour) => hour <= current)).size;
-  // Una hora con ocurrencias siempre esta dentro de lo observado.
-  const observedHours = Math.max(current - bucket(observedFrom) + 1, activeHours, 1);
-  const nextHour = laplace(activeHours, observedHours);
-  return { observedFrom, observedHours, activeHours, nextHour, next24h: 1 - (1 - nextHour) ** 24 };
+  const hourlyFrom = new Date(Math.max(observedFrom.getTime(), now.getTime() - RECURRENCE_HOURS_WINDOW_MS));
+  const dailyFrom = new Date(Math.max(observedFrom.getTime(), now.getTime() - RECURRENCE_DAYS_WINDOW_MS));
+  const hourly = countTrials(hours, hourlyFrom, now, HOUR_MS);
+  const daily = countTrials(hours, dailyFrom, now, DAY_MS);
+  return {
+    observedFrom,
+    observedHours: hourly.trials,
+    activeHours: hourly.hits,
+    nextHour: laplace(hourly.hits, hourly.trials),
+    observedDays: daily.trials,
+    activeDays: daily.hits,
+    next24h: laplace(daily.hits, daily.trials),
+  };
 };
 
 /**
@@ -286,15 +364,16 @@ export const getFailureOccurrences = async (
   if (!target) return null;
   if (!target.fingerprint) return { occurrences: null };
 
-  const day = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const week = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const day = new Date(now.getTime() - DAY_MS);
+  const week = new Date(now.getTime() - 7 * DAY_MS);
+  const month = new Date(now.getTime() - RECURRENCE_DAYS_WINDOW_MS);
   // Una huella propia del emisor puede repetirse en varias aplicaciones: la
   // clave acotada solo cuenta las suyas.
   const scope = filters.applicationsIn?.length
     ? Prisma.sql`AND "application" = ANY(${filters.applicationsIn})`
     : Prisma.empty;
 
-  const [rows, hours, appFirst, operations] = await Promise.all([
+  const [rows, hours, serviceFirst, operations] = await Promise.all([
     prisma.$queryRaw<
       Array<{ environment: string; total: number; last24h: number; last7d: number; firstSeen: Date; lastSeen: Date }>
     >`
@@ -310,16 +389,28 @@ export const getFailureOccurrences = async (
       GROUP BY "environment"
       ORDER BY "total" DESC
     `,
+    // La recurrencia mira el mismo ambito que la tasa por operacion: la
+    // aplicacion, el servicio y el entorno del log. Mezclar entornos hacia que
+    // las ocurrencias de desarrollo subieran la probabilidad en produccion.
     prisma.$queryRaw<Array<{ hour: Date }>>`
       SELECT DISTINCT date_trunc('hour', "timestamp") AS "hour"
       FROM "Log"
       WHERE "workspaceId" = ${filters.workspaceId} AND "fingerprint" = ${target.fingerprint}
-        AND "timestamp" >= ${week} ${scope}
+        AND "application" = ${target.application}
+        AND "service" IS NOT DISTINCT FROM ${target.service}::text
+        AND "environment" = ${target.environment}::"Environment"
+        AND "timestamp" >= ${month} AND "timestamp" <= ${now}
     `,
-    // Desde cuando se puede observar el fallo: antes de que la aplicacion
+    // Desde cuando se puede observar el fallo: antes de que el servicio
     // enviara logs no podia ocurrir, y contar esas horas bajaria la probabilidad.
     prisma.log.findFirst({
-      where: { workspaceId: filters.workspaceId, application: target.application, timestamp: { gte: week } },
+      where: {
+        workspaceId: filters.workspaceId,
+        application: target.application,
+        service: target.service,
+        environment: target.environment,
+        timestamp: { gte: month },
+      },
       orderBy: { timestamp: "asc" },
       select: { timestamp: true },
     }),
@@ -347,7 +438,7 @@ export const getFailureOccurrences = async (
   const sum = (key: "total" | "last24h" | "last7d") => environments.reduce((acc, row) => acc + row[key], 0);
   const activeHours = hours.map((row) => row.hour);
   const observedFrom = new Date(
-    Math.min((appFirst?.timestamp ?? week).getTime(), ...activeHours.map((hour) => hour.getTime())),
+    Math.min((serviceFirst?.timestamp ?? month).getTime(), ...activeHours.map((hour) => hour.getTime())),
   );
   const operationCount = Number(operations[0]?.operations ?? 0);
   const failedCount = Number(operations[0]?.failed ?? 0);
@@ -381,6 +472,8 @@ export type ApplicationSummary = {
   /** Logs dentro de la ventana consultada, no el total historico. */
   count: number;
   lastSeen: Date;
+  /** Errores dentro de la ventana consultada. */
+  errors: number;
   errorsLast24h: number;
 };
 
@@ -406,7 +499,13 @@ export const DEFAULT_APPLICATIONS_HOURS = 24 * 7;
  */
 export const listApplications = async (filters: LogFilters & { from: Date }): Promise<ApplicationSummary[]> => {
   const rows = await prisma.$queryRaw<
-    Array<Omit<ApplicationSummary, "count" | "errorsLast24h"> & { count: bigint | number; errorsLast24h: bigint | number }>
+    Array<
+      Omit<ApplicationSummary, "count" | "errors" | "errorsLast24h"> & {
+        count: bigint | number;
+        errors: bigint | number;
+        errorsLast24h: bigint | number;
+      }
+    >
   >`
     WITH "combos" AS (
       SELECT
@@ -415,9 +514,10 @@ export const listApplications = async (filters: LogFilters & { from: Date }): Pr
         "environment",
         COUNT(*) AS "count",
         MAX("timestamp") AS "lastSeen",
+        COUNT(*) FILTER (WHERE "level" = 'error') AS "errors",
         COUNT(*) FILTER (
-          WHERE "level" = 'error' AND "timestamp" >= NOW() - INTERVAL '24 hours'
-        ) AS "errors"
+          WHERE "level" = 'error' AND "timestamp" >= ${new Date(Date.now() - DAY_MS)}
+        ) AS "errorsLast24h"
       FROM "Log"
       WHERE ${buildWhereSql(filters)}
       GROUP BY "application", "service", "environment"
@@ -428,7 +528,8 @@ export const listApplications = async (filters: LogFilters & { from: Date }): Pr
       ARRAY_AGG(DISTINCT "environment"::text) AS "environments",
       SUM("count")::int AS "count",
       MAX("lastSeen") AS "lastSeen",
-      SUM("errors")::int AS "errorsLast24h"
+      SUM("errors")::int AS "errors",
+      SUM("errorsLast24h")::int AS "errorsLast24h"
     FROM "combos"
     GROUP BY "application"
     ORDER BY "count" DESC
@@ -438,6 +539,7 @@ export const listApplications = async (filters: LogFilters & { from: Date }): Pr
   return rows.map((row) => ({
     ...row,
     count: Number(row.count),
+    errors: Number(row.errors),
     errorsLast24h: Number(row.errorsLast24h),
   }));
 };
@@ -450,19 +552,42 @@ export type TimelineBucket = {
   debug: number;
 };
 
+/** Intervalos admitidos en la serie, en segundos, por su nombre en la query (`bucket=`). */
+export const TIMELINE_BUCKETS = { "5m": 300, "15m": 900, "1h": 3600, "1d": 86400 } as const;
+export type TimelineBucketName = keyof typeof TIMELINE_BUCKETS;
+
 /**
- * Serie por hora de logs por nivel. Sirve para ver de un vistazo cuando empezo
- * algo a fallar, que es la primera pregunta de cualquier incidente. La ventana
- * `from`/`to` manda sobre la que traigan los filtros.
+ * Intervalo de la serie segun lo que abarca la ventana. Con horas fijas, los
+ * rangos de 5 minutos o de 1 hora salian como una o dos barras, y 90 dias como
+ * 2160, mas de las que el dashboard llega a pintar.
+ */
+export const timelineBucketSeconds = (from: Date, to: Date): number => {
+  const span = to.getTime() - from.getTime();
+  if (span <= 6 * HOUR_MS) return TIMELINE_BUCKETS["5m"];
+  if (span <= 48 * HOUR_MS) return TIMELINE_BUCKETS["15m"];
+  if (span <= 31 * DAY_MS) return TIMELINE_BUCKETS["1h"];
+  return TIMELINE_BUCKETS["1d"];
+};
+
+/**
+ * Serie de logs por nivel en intervalos de `bucketSeconds`. Sirve para ver de
+ * un vistazo cuando empezo algo a fallar, que es la primera pregunta de
+ * cualquier incidente. La ventana `from`/`to` manda sobre la que traigan los
+ * filtros.
+ *
+ * Los intervalos se alinean en UTC desde el 2000-01-01, igual que hacia
+ * DATE_TRUNC con las horas, para que el dashboard los encaje sin desfases.
+ * Solo vienen los intervalos con filas; los vacios los rellena quien pinta.
  */
 export const getLevelTimeline = async (
   filters: LogFilters,
   from: Date,
   to: Date,
+  bucketSeconds = timelineBucketSeconds(from, to),
 ): Promise<TimelineBucket[]> => {
   const rows = await prisma.$queryRaw<Array<{ bucket: Date; error: number; warn: number; info: number; debug: number }>>`
     SELECT
-      DATE_TRUNC('hour', "timestamp") AS "bucket",
+      DATE_BIN(${`${bucketSeconds} seconds`}::interval, "timestamp", TIMESTAMP '2000-01-01') AS "bucket",
       COUNT(*) FILTER (WHERE "level" = 'error')::int AS "error",
       COUNT(*) FILTER (WHERE "level" = 'warn')::int  AS "warn",
       COUNT(*) FILTER (WHERE "level" = 'info')::int  AS "info",

@@ -5,7 +5,7 @@ import { Card } from "@/components/molecules/Card";
 import { BarList, LevelMix } from "@/components/molecules/Distribution";
 import { StatTile } from "@/components/molecules/StatTile";
 import { useI18n } from "@/common/i18n/I18nProvider";
-import { binTimeline, fillTimeline } from "@/common/time/timeline";
+import { fillTimeline, trendBins } from "@/common/time/timeline";
 import type { SnapshotSummary } from "@/hooks/useSnapshots";
 
 type SnapshotOverviewProps = {
@@ -21,8 +21,13 @@ type SnapshotOverviewProps = {
  */
 export const SnapshotOverview: React.FC<SnapshotOverviewProps> = ({ summary, to }) => {
   const { t, fmt } = useI18n();
-  const hours = useMemo(() => fillTimeline(summary.timeline, summary.timelineFrom, to), [summary.timeline, summary.timelineFrom, to]);
-  const trend = useMemo(() => binTimeline(hours, 24).bins, [hours]);
+  // Los snapshots anteriores al intervalo adaptativo no guardan bucketSeconds: eran por hora.
+  const bucketMs = (summary.bucketSeconds ?? 3600) * 1000;
+  const hours = useMemo(
+    () => fillTimeline(summary.timeline, summary.timelineFrom, to, bucketMs),
+    [summary.timeline, summary.timelineFrom, to, bucketMs],
+  );
+  const trend = useMemo(() => trendBins(hours, 24), [hours]);
   const counts = summary.byLevel;
   const total = summary.total;
   const share = (count: number) => t.overview.ofRecords(fmt.percent(total ? count / total : 0));

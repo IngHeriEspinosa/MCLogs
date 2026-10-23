@@ -6,7 +6,7 @@ const FEATURES = [
   ["Agrupación de errores", "Las repeticiones del mismo fallo forman un grupo con su conteo."],
   ["Consulta con filtros combinables", "Nivel, entorno, aplicación, servicio, host, traceId, huella, fechas y texto libre."],
   ["Traza y contexto", "La operación completa por traceId y lo ocurrido alrededor de cualquier log."],
-  ["Estadísticas en vivo", "Serie por hora y nivel para ver cuándo empezó un incidente."],
+  ["Estadísticas en vivo", "Serie por nivel, de 5 minutos a días según el rango, para ver cuándo empezó un incidente."],
   ["Logs en vivo", "El dashboard recibe los logs según llegan, por Server-Sent Events."],
   ["Exportación", "CSV y NDJSON respetando los filtros activos."],
   ["Snapshots compartibles", "Una copia congelada de Logs, Errores o una Traza con su enlace, pública o de equipo, con vista previa en los chats."],

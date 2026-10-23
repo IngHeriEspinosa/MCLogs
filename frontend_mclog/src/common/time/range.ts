@@ -45,6 +45,18 @@ export const resolveRange = (range: TimeRange, now: number): ResolvedRange => {
 };
 
 /**
+ * Ventana de las consultas de una vista. Si el rango tiene principio, se
+ * cierra tambien por el final en `now` aunque sea relativo: la tabla y el
+ * resumen cuentan exactamente lo mismo, y un refresco no alarga la ventana.
+ * "Todo el historico" sigue abierto por los dos lados.
+ */
+export const queryWindow = (range: TimeRange, now: number): ResolvedRange => {
+  const resolved = resolveRange(range, now);
+  if (!resolved.from) return resolved;
+  return { from: resolved.from, to: resolved.to ?? new Date(now) };
+};
+
+/**
  * Ventana cerrada por los dos lados, para lo que necesita un final (la serie
  * del grafico, los reportes). "Todo el historico" se recorta a lo que el
  * backend acepta para la serie horaria.

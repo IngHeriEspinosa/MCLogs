@@ -68,8 +68,8 @@ Pensado para procesos masivos —Map/Reduce de NetSuite, ETL, workers—: 1 peti
 | `message` | ✅ | 100 000 chars (se recorta) | — |
 | `service` | — | 120 chars | el valor de `application` |
 | `host` | — | 255 chars | hostname de la petición |
-| `timestamp` | — | ISO-8601 | momento de la inserción |
-| `traceId` | — | 128 chars | UUID generado por petición |
+| `timestamp` | — | ISO-8601 | momento de la inserción (si llega más de 5 min en el futuro, se trae a ahora) |
+| `traceId` | — | 128 chars | el de la cabecera `x-trace-id`, si viene; si no, ninguno |
 | `spanId` | — | 128 chars | — |
 | `metadata` | — | objeto JSON libre | — |
 | `errorName` / `errorCode` / `errorStack` | — | 200 / 100 / 50 000 chars (se recortan) | — |
@@ -80,7 +80,11 @@ Pensado para procesos masivos —Map/Reduce de NetSuite, ETL, workers—: 1 peti
 
 ### 1.4 Enriquecimiento automático
 
-El servidor **completa** lo que la aplicación no envía: `service`, `host` y `traceId` se rellenan solos ([`toCreateInput`](../Back_MCLog/src/controllers/logController.ts)). Una app puede enviar únicamente los 4 campos obligatorios y aun así obtener registros útiles y correlacionables.
+El servidor **completa** lo que la aplicación no envía: `service` y `host` se rellenan solos ([`toCreateInput`](../Back_MCLog/src/controllers/logController.ts)). Una app puede enviar únicamente los 4 campos obligatorios y aun así obtener registros útiles.
+
+El `traceId` **no se inventa**: solo existe si la aplicación lo manda, en el log o en la cabecera `x-trace-id` de la petición (que vale para todos los logs del lote que no traigan el suyo). Antes el servidor generaba uno por petición, y eso convertía cada log suelto en una "traza" de un registro y todo un lote en una sola operación.
+
+Un `timestamp` más de 5 minutos en el futuro (un reloj mal puesto) se trae a la hora de llegada y el original queda en `metadata.mclogClockSkew`. Fechado en el futuro, seguía dentro de la ventana de las alertas y las disparaba una y otra vez.
 
 ### 1.5 Metadata libre
 
@@ -141,14 +145,17 @@ Devuelve un registro completo con toda su metadata. `400` si el id no es numéri
 
 | Métrica | Contenido |
 |---|---|
-| `total` | Total de logs almacenados |
-| `last24h` | Logs de las últimas 24 horas |
+| `total` | Logs de la ventana (con `from`/`to`) o de toda la retención (solo con `hours`) |
+| `last24h` | Logs de las 24 horas anteriores a `to` |
 | `byLevel` | Conteo por nivel (debug/info/warn/error) |
 | `byApplication` | **Top 10** de aplicaciones más activas |
 | `byEnvironment` | Conteo por entorno |
-| `timeline` | Serie por hora y nivel, acotada con `hours` o `from`/`to` |
+| `timeline` | Serie por nivel, acotada con `hours` o `from`/`to`, en intervalos de `bucketSeconds` |
+| `bucketSeconds` | Intervalo de la serie: 5 min hasta 6 h de ventana, 15 min hasta 48 h, 1 h hasta 31 días y 1 día por encima. `bucket=5m\|15m\|1h\|1d` lo fija a mano |
 
 Admite los mismos filtros que el listado (`application`, `service`, `host`, `level`, `search`, `errorName`…): con ellos, totales y serie cuentan solo los logs que los cumplen.
+
+Con `from`/`to`, los totales y los repartos por entorno y aplicación son los de esa ventana, igual que la serie; solo con `hours` (o nada) son los de toda la retención. Antes los totales eran siempre históricos, y en el resumen del dashboard "Por entorno" y "Aplicaciones más activas" no cuadraban con el rango. `to` anterior a `from` responde `400`.
 
 Las consultas se lanzan en paralelo con `Promise.all`. El dashboard las refresca cada 60 segundos.
 
@@ -562,13 +569,19 @@ La segunda es la señal más accionable tras un despliegue: no dice "esto falla 
 
 Cada regla filtra por aplicación, servicio, entorno y nivel mínimo (`error`, o `warn` y `error`), y lleva un **cooldown**: tras avisar se calla el tiempo indicado. Sin él, un incidente de una hora generaría sesenta avisos idénticos.
 
+Tres detalles de cómo cuentan:
+
+- La ventana acaba en el momento de la evaluación: un log con fecha futura no cuenta hasta que llega su hora (y la ingesta ya corrige los que llegan más de 5 minutos adelantados).
+- `new_error_group` cuenta todos los grupos nuevos, sin tope; el aviso lleva hasta cinco de muestra.
+- Si el cooldown es más largo que la ventana, la primera evaluación tras el cooldown se remonta al último aviso: un grupo que apareció mientras la regla callaba se avisa igualmente.
+
 ### 18.2 Canales
 
 Un **canal** define por dónde avisar. Una regla puede usar varios.
 
 | Tipo | Configuración | Notas |
 |---|---|---|
-| `webhook` | `url` y `secret` opcional | Sirve para Slack, Discord, Teams o n8n. Con `secret`, cada aviso va firmado con HMAC-SHA256 en `x-mclog-signature` |
+| `webhook` | `url`, `secret` y `format` opcionales | Slack, Discord y Teams reciben su propio formato (bloques, embed o tarjeta adaptable), deducido de la URL o fijado con `format`; n8n, Make o un receptor propio, el aviso en JSON (`generic`). Con `secret`, cada aviso va firmado con HMAC-SHA256 en `x-mclog-signature` |
 | `email` | `to` (lista) | El envío se configura en el backend: SMTP (`SMTP_*`) o Microsoft Graph (`MAIL_TRANSPORT=graph`) |
 | `telegram` | `botToken` y `chatId` | Mensaje en MarkdownV2 |
 
@@ -580,7 +593,7 @@ Hay un botón de **envío de prueba** por canal. Un canal que falla responde `20
 
 Cada disparo queda registrado con su conteo, una muestra de los logs que lo provocaron y el resultado por canal. Un canal caído no impide avisar por los demás ni frena la evaluación de las otras reglas, y **el cooldown arranca aunque el envío falle**: reintentar cada minuto contra un canal caído solo multiplica el ruido cuando vuelva.
 
-El aviso incluye un enlace al dashboard con los filtros de la regla puestos, si hay `PUBLIC_DASHBOARD_URL` configurada.
+El aviso incluye un enlace al dashboard que reproduce lo que contó la regla, si hay `PUBLIC_DASHBOARD_URL` configurada: su ventana, su nivel y los más graves, su aplicación, servicio y entorno y, si el aviso es de un único fallo nuevo, su huella. Cada muestra lleva su `fingerprint` y su `traceId`.
 
 ---
 

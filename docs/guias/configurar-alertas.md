@@ -15,7 +15,7 @@ Haz que MCLog te avise por Slack, Teams, Discord, correo o Telegram cuando algo 
 
 | Canal | Necesitas |
 |---|---|
-| **Webhook** (Slack, Discord, Teams, n8n…) | La URL de un *incoming webhook* de tu herramienta |
+| **Webhook** (Slack, Discord, Teams, n8n…) | La URL de un *incoming webhook* de tu herramienta. Slack, Discord y Teams solo aceptan su propio formato: **Formato → Automático** lo elige por la URL, o fíjalo a mano. Para n8n, Make o un receptor propio, **JSON genérico** |
 | **Correo** | Que el backend tenga configurado el correo saliente, por SMTP o por Microsoft Graph (lo pone quien despliega) |
 | **Telegram** | Un bot (créalo con @BotFather, que te da el **token**) y el **chat ID** del grupo o persona que recibirá los avisos |
 

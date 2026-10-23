@@ -4,7 +4,12 @@ import logger from '../config/logger';
 import { workspaceIdOf } from '../middlewares/workspaceContext';
 import { computeFingerprint, shouldFingerprint } from '../utils/fingerprint';
 import { allowedApplications, filtersFromQuery } from './queryFilters';
-import { getLevelTimeline } from '../services/analysisService';
+import {
+    TIMELINE_BUCKETS,
+    TimelineBucketName,
+    getLevelTimeline,
+    timelineBucketSeconds
+} from '../services/analysisService';
 import { getSetting } from '../services/settingsService';
 import {
     CreateLogInput,
@@ -64,7 +69,11 @@ const toCreateInput = (body: Record<string, unknown>, req: Request, res: Respons
         environment: environment as Environment,
         message,
         timestamp: timestamp ? new Date(timestamp) : undefined,
-        traceId: traceId ?? (res.locals.traceId as string | undefined),
+        // Solo el traceId que manda el emisor, en el log o en la cabecera
+        // x-trace-id. Antes se inventaba uno por peticion si faltaba: cada log
+        // suelto era una "traza" de un registro, todo un lote compartia la misma
+        // y la tasa por operacion contaba peticiones en lugar de operaciones.
+        traceId: traceId ?? (res.locals.ingestTraceId as string | undefined),
         spanId,
         metadata: metadata ?? undefined,
         errorName: errorName ?? undefined,
@@ -205,18 +214,29 @@ export const stats = async (req: Request, res: Response) => {
     const filters = filtersFromQuery(req);
 
     // Ventana de la linea temporal. Por defecto 24 h, que es lo que muestra el
-    // dashboard; los totales no dependen de ella.
+    // dashboard.
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const hours = Number(req.query.hours);
     const effectiveHours = Number.isFinite(hours) && hours > 0 ? Math.min(hours, 24 * 31) : 24;
     const from = req.query.from ? new Date(req.query.from as string) : new Date(to.getTime() - effectiveHours * 3600 * 1000);
+    const bucket = req.query.bucket as TimelineBucketName | undefined;
+    const bucketSeconds = bucket ? TIMELINE_BUCKETS[bucket] : timelineBucketSeconds(from, to);
+
+    // Los totales siguen la ventana explicita: con `from`/`to`, los repartos
+    // por entorno y aplicacion cuadran con el rango elegido, y no con todo el
+    // historico. Solo con `hours` (o nada) siguen siendo los de la retencion.
+    const summaryFilters = {
+        ...filters,
+        from: req.query.from ? from : undefined,
+        to: req.query.to ? to : undefined
+    };
 
     try {
         const [summary, timeline] = await Promise.all([
-            getLogStats(filters),
-            getLevelTimeline(filters, from, to)
+            getLogStats(summaryFilters),
+            getLevelTimeline(filters, from, to, bucketSeconds)
         ]);
-        res.json({ ...summary, timeline, from: from.toISOString(), to: to.toISOString() });
+        res.json({ ...summary, timeline, bucketSeconds, from: from.toISOString(), to: to.toISOString() });
     } catch (error) {
         logger.error('Error retrieving log stats', { error });
         res.status(500).json({ error: 'Error retrieving stats' });

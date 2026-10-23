@@ -48,13 +48,15 @@ export const createLog = async (input: CreateLogInput) => {
 
 export const createLogsBatch = async (inputs: CreateLogInput[]) => {
     const result = await prisma.log.createMany({ data: inputs });
-    // Se cuenta lo insertado, no lo recibido: createMany puede descartar filas.
-    if (result.count === inputs.length) {
-        for (const input of inputs) {
-            logsIngested.inc({ application: input.application, level: input.level });
-            // Sin id: createMany no devuelve las filas creadas.
-            emitLogCreated(toEvent(input));
-        }
+    // Si createMany descarta filas no se sabe cuales, asi que solo se emiten al
+    // stream los lotes completos. El contador suma lo insertado de todos modos
+    // (atribuido, por aproximacion, a las primeras entradas), para que
+    // Prometheus no pierda lotes enteros.
+    const complete = result.count === inputs.length;
+    for (const input of complete ? inputs : inputs.slice(0, result.count)) {
+        logsIngested.inc({ application: input.application, level: input.level });
+        // Sin id: createMany no devuelve las filas creadas.
+        if (complete) emitLogCreated(toEvent(input));
     }
     return result.count;
 };
@@ -217,8 +219,14 @@ export const getLogById = async (id: number, workspaceId: number) => {
     return prisma.log.findFirst({ where: { id, workspaceId } });
 };
 
+/**
+ * Totales por nivel, aplicacion (top 10) y entorno de los logs que cumplen los
+ * filtros. Si traen `from`/`to`, son los de esa ventana; si no, los de todo lo
+ * que conserva la retencion. `last24h` cuenta las 24 h anteriores al final de
+ * la ventana (o a ahora), no las anteriores a hoy.
+ */
 export const getLogStats = async (filters: LogFilters) => {
-    const since24h = new Date(Date.now() - 24 * 3600 * 1000);
+    const since24h = new Date((filters.to?.getTime() ?? Date.now()) - 24 * 3600 * 1000);
     const where = buildWhere(filters);
     const where24h: Prisma.LogWhereInput = { AND: [where, { timestamp: { gte: since24h } }] };
 

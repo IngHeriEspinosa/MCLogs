@@ -46,7 +46,7 @@ Servidor web que hace de proxy inverso en el despliegue de producción con Docke
 Plataforma de despliegue autoalojada sobre Docker, con nginx y certificados HTTPS incluidos. En la opción B de despliegue aloja la API y PostgreSQL como dos apps separadas; la API usa el `captain-definition` del backend. → [DEPLOYMENT.md](DEPLOYMENT.md#opción-b--caprover--railway)
 
 ### Canal de alerta
-Destino por el que se envía una [alerta](#alerta): **webhook** (sirve para Slack, Discord, Teams o n8n), **correo** (por SMTP) o **Telegram**. Una [regla](#regla-de-alerta) puede usar varios a la vez.
+Destino por el que se envía una [alerta](#alerta): **webhook** (Slack, Discord y Teams reciben su propio formato; n8n o un receptor propio, el aviso en JSON), **correo** (por SMTP o Microsoft Graph) o **Telegram**. Una [regla](#regla-de-alerta) puede usar varios a la vez.
 
 Un canal caído no impide avisar por los demás, y su fallo queda registrado en el historial con el motivo.
 
@@ -274,9 +274,9 @@ Comparación de secretos que tarda **lo mismo** coincidan o no. Evita que un ata
 Estándar (RFC 6238) de los códigos de 6 dígitos que cambian cada 30 segundos en apps como Google Authenticator. Se calculan a partir de un secreto compartido y la hora, por eso **el reloj del móvil tiene que estar en hora**. Es el mecanismo de la [verificación en dos pasos](#verificación-en-dos-pasos-2fa) de MCLog.
 
 ### TraceId
-Identificador que **correlaciona todos los logs de una misma operación**, aunque haya pasado por varios sistemas. Si la aplicación no lo envía, el servidor genera uno por petición.
+Identificador que **correlaciona todos los logs de una misma operación**, aunque haya pasado por varios sistemas. Solo existe si la aplicación lo envía, en el log o en la cabecera `x-trace-id`: MCLog no inventa uno.
 
-Es la herramienta más potente del dashboard: desde cualquier log con traceId, **Ver N trazas** muestra la operación entera en orden, dentro del propio detalle, con el tiempo transcurrido desde el primer registro y el salto entre pasos. Ese desglose es lo que delata dónde se fue el tiempo. → [SpanId](#spanid)
+Es la herramienta más potente del dashboard: desde cualquier log con traceId, **Ver traza (N registros)** muestra la operación entera en orden, dentro del propio detalle, con el tiempo transcurrido desde el primer registro y el salto entre pasos. Ese desglose es lo que delata dónde se fue el tiempo. → [SpanId](#spanid)
 
 ### Trust proxy
 Ajuste (`TRUST_PROXY=1`) que le dice a Express que confíe en las cabeceras `X-Forwarded-*` de un proxy o balanceador. Sin él, detrás de un proxy todas las peticiones parecen venir de la misma IP y el [rate limit](#rate-limit) se aplica mal.

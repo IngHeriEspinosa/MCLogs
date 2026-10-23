@@ -4,7 +4,7 @@ import { createPrismaClient } from "../src/config/prisma";
 import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
 import { getDefaultWorkspaceId } from "../src/services/workspaceService";
-import { evaluateRules } from "../src/alerts/evaluator";
+import { dashboardLink, evaluateRules } from "../src/alerts/evaluator";
 import { notifiers, resetNotifiers } from "../src/alerts/notifiers";
 import type { AlertPayload } from "../src/alerts/types";
 import { config } from "../src/config/env";
@@ -211,6 +211,79 @@ describe("Errores nuevos", () => {
     expect(await evaluateRules()).toBe(1);
     expect(entregados[0].rule.type).toBe("new_error_group");
     expect(entregados[0].count).toBe(1);
+    expect(entregados[0].samples[0].fingerprint).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it("cuenta todos los grupos nuevos, aunque pasen de 50", async () => {
+    const canal = await crearCanal();
+    await crearRegla(canal.id, { type: "new_error_group", threshold: 60, windowMinutes: 10 });
+    await prisma.log.createMany({
+      data: Array.from({ length: 60 }, (_, indice) => ({
+        workspaceId,
+        application: "facturacion",
+        level: "error" as const,
+        environment: "production" as const,
+        message: `fallo distinto ${indice}`,
+        fingerprint: `grupo-${indice}`,
+        timestamp: new Date(),
+      })),
+    });
+
+    expect(await evaluateRules()).toBe(1);
+    expect(entregados[0].count).toBe(60);
+    // Las muestras siguen siendo unas pocas.
+    expect(entregados[0].samples.length).toBeLessThanOrEqual(5);
+  });
+
+  it("avisa de lo que aparecio mientras la regla estaba en cooldown", async () => {
+    const canal = await crearCanal();
+    const ahora = new Date();
+    // Avisó hace 40 min, con 30 de cooldown y 10 de ventana: el grupo de hace
+    // 20 minutos ya no está en la ventana, pero nunca se avisó.
+    await crearRegla(canal.id, {
+      type: "new_error_group",
+      threshold: 1,
+      windowMinutes: 10,
+      cooldownMinutes: 30,
+      lastTriggeredAt: new Date(ahora.getTime() - 40 * 60 * 1000),
+    });
+    await insertarErrores(1, { fingerprint: "surgio-en-cooldown", timestamp: new Date(ahora.getTime() - 20 * 60 * 1000) });
+
+    expect(await evaluateRules(ahora)).toBe(1);
+    expect(entregados[0].count).toBe(1);
+  });
+});
+
+describe("Fechas y enlace del aviso", () => {
+  it("un log con fecha futura no cuenta hasta que llega su hora", async () => {
+    const canal = await crearCanal();
+    await crearRegla(canal.id, { threshold: 1 });
+    await insertarErrores(3, { timestamp: new Date(Date.now() + 60 * 60 * 1000) });
+    expect(await evaluateRules()).toBe(0);
+  });
+
+  it("el enlace reproduce la ventana, los niveles, el servicio y la huella", () => {
+    const original = config.publicDashboardUrl;
+    config.publicDashboardUrl = "https://panel.example.com";
+    try {
+      const from = new Date("2026-10-01T10:00:00.000Z");
+      const to = new Date("2026-10-01T10:10:00.000Z");
+      const rule = { workspaceId: 7, level: "warn", application: "facturacion", service: "pagos", environment: "production" };
+      const url = new URL(dashboardLink(rule as never, { from, to }, "abc")!);
+      expect(url.pathname).toBe("/logs");
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        ws: "7",
+        level: "warn,error",
+        from: from.toISOString(),
+        to: to.toISOString(),
+        application: "facturacion",
+        service: "pagos",
+        environment: "production",
+        fingerprint: "abc",
+      });
+    } finally {
+      config.publicDashboardUrl = original;
+    }
   });
 });
 

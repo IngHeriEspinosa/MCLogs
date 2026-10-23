@@ -24,9 +24,12 @@ export type ErrorGroupFilters = {
   application?: string;
   environment?: string;
   level?: string;
-  /** Maximo 100 en el backend. */
+  /** Maximo 200 en el backend. Se piden 101 para saber si hay mas de 100. */
   limit?: number;
 };
+
+/** Grupos que se enseñan; se pide uno mas para saber si hay mas ("100+"). */
+export const GROUPS_SHOWN = 100;
 
 const clean = (params: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== ""));
@@ -34,13 +37,24 @@ const clean = (params: Record<string, unknown>) =>
 export const useErrorGroups = (filters: ErrorGroupFilters, enabled = true) =>
   useQuery<{ data: ErrorGroup[]; from: string; to: string }>({
     queryKey: ["error-groups", filters],
-    queryFn: async () => (await client.get("/api/logs/errors/groups", { params: clean({ limit: 100, ...filters }) })).data,
+    queryFn: async () =>
+      (await client.get("/api/logs/errors/groups", { params: clean({ limit: GROUPS_SHOWN + 1, ...filters }) })).data,
     placeholderData: keepPreviousData,
     enabled,
   });
 
+export type TraceResponse = {
+  data: LogEntry[];
+  traceId: string;
+  /** Logs de la traza entera, aunque `data` no los traiga todos. */
+  total: number;
+  /** Si es true, `data` lleva el principio y el final, y faltan `omitted` del medio. */
+  truncated: boolean;
+  omitted: number;
+};
+
 export const useTrace = (traceId: string) =>
-  useQuery<{ data: LogEntry[]; traceId: string; total: number }>({
+  useQuery<TraceResponse>({
     queryKey: ["trace", traceId],
     queryFn: async () => (await client.get(`/api/logs/trace/${encodeURIComponent(traceId)}`)).data,
     enabled: traceId.length > 0,
@@ -91,12 +105,19 @@ type OccurrenceCounts = {
   lastSeen: string;
 };
 
-/** Probabilidad de que el fallo se repita, con las horas en que ocurrio en los ultimos 7 dias. */
+/**
+ * Probabilidad de que el fallo se repita en su aplicacion, servicio y entorno:
+ * la proxima hora con las horas de los ultimos 7 dias, y las proximas 24 h con
+ * los dias de los ultimos 30.
+ */
 export type FailureRecurrence = {
-  /** Primer log de la aplicacion en los ultimos 7 dias. */
+  /** Primer log de ese servicio y entorno en los ultimos 30 dias. */
   observedFrom: string;
   observedHours: number;
   activeHours: number;
+  /** Ausentes en una API anterior, que estimaba las 24 h con las horas. */
+  observedDays?: number;
+  activeDays?: number;
   /** Probabilidades de 0 a 1 (regla de sucesion de Laplace). */
   nextHour: number;
   next24h: number;
@@ -144,12 +165,25 @@ export type ApplicationSummary = {
   environments: string[];
   count: number;
   lastSeen: string;
+  /** Errores dentro de la ventana pedida. Ausente en una API anterior. */
+  errors?: number;
   errorsLast24h: number;
 };
 
-export const useApplications = () =>
+export type ApplicationsParams = {
+  /** Ventana relativa (24 a 744 h); por defecto, la ultima semana. */
+  hours?: number;
+  from?: string;
+  to?: string;
+  application?: string;
+  environment?: string;
+};
+
+/** Aplicaciones que han enviado logs en la ventana; sin parametros, en la ultima semana. */
+export const useApplications = (params: ApplicationsParams = {}) =>
   useQuery<ApplicationSummary[]>({
-    queryKey: ["applications"],
-    queryFn: async () => (await client.get("/api/logs/applications")).data.data,
+    queryKey: ["applications", params],
+    queryFn: async () => (await client.get("/api/logs/applications", { params: clean(params) })).data.data,
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
   });

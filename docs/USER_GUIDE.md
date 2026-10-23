@@ -90,23 +90,24 @@ Cada fila es un evento: hora con milisegundos, nivel, aplicación y servicio, en
 - **Stack trace**, con las líneas de tu propio código resaltadas y las de librerías atenuadas
 - **Metadata**: el contexto en JSON que envió la aplicación
 - **Ocurrencias de este fallo**: cuántas veces ha pasado en 24 h, en 7 días y en total (todo lo que conserva la retención), cuándo fue la primera y la última vez y, si ocurre en más de un entorno, el desglose. Dice si es algo aislado o crónico, y si pasa solo en producción
-- **Probabilidad**, con los últimos 7 días:
-  - **Próxima hora** y **próximas 24 h**: cuán probable es que vuelva a pasar. Se calcula con las horas en que ocurrió desde que la aplicación envía logs.
-  - **Por operación**: de las operaciones (traceId distintos) del mismo servicio y entorno, qué parte acabó en este fallo. En NetSuite, una operación es un documento o una ejecución.
+- **Probabilidad**, en la misma aplicación, servicio y entorno que el log:
+  - **Próxima hora**: con las horas en que ocurrió en los últimos 7 días.
+  - **Próximas 24 h**: con los días en que ocurrió en los últimos 30. No se deduce de la hora, porque los fallos llegan en rachas.
+  - **Por operación**: de las operaciones (traceId distintos) del mismo servicio y entorno en 7 días, qué parte acabó en este fallo. En NetSuite, una operación es un documento o una ejecución. Si la aplicación no envía traceId, no sale: no hay operaciones que contar.
 
-  Debajo sale la base de cada cifra y, con menos de un día observado o menos de 30 operaciones, un aviso de que hay pocos datos
+  Debajo sale la base de cada cifra y, con menos de un día o una semana observados o menos de 30 operaciones, un aviso de que hay pocos datos
 - **Contexto**: lo que pasó en la misma aplicación, servicio y entorno dos minutos antes y después
 
 Y cuatro accesos directos:
 
 | Botón | Qué hace |
 |---|---|
-| **Ver N trazas** | Muestra la operación entera, de todos los sistemas por los que pasó, en la columna izquierda del mismo detalle. N es el número de registros de la traza, este incluido |
+| **Ver traza (N registros)** | Muestra la operación entera, de todos los sistemas por los que pasó, en la columna izquierda del mismo detalle. N es el número de registros de la traza, este incluido |
 | **Fallos iguales** | Lista en la columna izquierda las 50 ocurrencias más recientes de este mismo fallo; al pulsar una se abre su detalle. **Filtrar la tabla** cierra el detalle y filtra la tabla a todas |
 | **Copiar JSON** | Copia el registro entero al portapapeles, para pegarlo en un ticket |
 | **Copiar para IA** | Copia un brief con el log, sus ocurrencias y su contexto, listo para un agente de IA, con los datos sensibles enmascarados |
 
-**Ver N trazas** y **Fallos iguales** no salen del detalle: ocupan el lugar del stack y la metadata, y el botón pulsado queda resaltado. Púlsalo otra vez, o **Volver al detalle**, para regresar. Al pasar a otro registro, el detalle vuelve a mostrar su stack y su metadata.
+**Ver traza (N registros)** y **Fallos iguales** no salen del detalle: ocupan el lugar del stack y la metadata, y el botón pulsado queda resaltado. Púlsalo otra vez, o **Volver al detalle**, para regresar. Al pasar a otro registro, el detalle vuelve a mostrar su stack y su metadata.
 
 ### Exportar
 
@@ -172,7 +173,7 @@ Arriba eliges el rango, **Errores** o **Warnings**, el entorno y la aplicación.
 
 ## A.4 La pantalla de traza
 
-Desde el detalle de cualquier log con traceId, **Ver N trazas** la muestra en el propio detalle, con ese log resaltado. **Abrir en pestaña nueva** lleva a esta pantalla completa.
+Desde el detalle de cualquier log con traceId, **Ver traza (N registros)** la muestra en el propio detalle, con ese log resaltado. **Abrir en pestaña nueva** lleva a esta pantalla completa.
 
 Muestra todos los registros de una misma operación en orden cronológico, **aunque haya pasado por varias aplicaciones**. Cada línea lleva el tiempo desde el primer registro y el salto desde el anterior (Δ), y a la derecha una pista con la duración total: el tramo coloreado es el tiempo entre un paso y el siguiente. Eso es lo que delata dónde se fue el tiempo: si un tramo ocupa media pista, ahí está el cuello de botella.
 
@@ -502,7 +503,7 @@ La segunda es la más útil justo después de un despliegue: no dice "esto falla
 
 Cada regla filtra por aplicación, entorno y nivel, y lleva un **silencio tras avisar**. Sin él, un incidente de una hora te mandaría sesenta avisos idénticos. El silencio arranca aunque el envío falle, a propósito: reintentar cada minuto contra un canal caído solo multiplica el ruido cuando vuelva.
 
-**Canales.** Webhook (sirve para Slack, Discord, Teams o n8n), correo y Telegram. Cada uno tiene un botón de **Enviar prueba**: úsalo al configurarlo, porque te dice el motivo exacto si algo falla. Con **Editar** cambias el nombre, la URL, los destinatarios o el chat sin recrear el canal; los secretos (el de firma, el token del bot) no se muestran, y dejarlos vacíos conserva el guardado.
+**Canales.** Webhook (Slack, Discord, Teams, n8n o cualquier receptor de JSON; el **Formato** se elige solo por la URL o a mano), correo y Telegram. Cada uno tiene un botón de **Enviar prueba**: úsalo al configurarlo, porque te dice el motivo exacto si algo falla. Con **Editar** cambias el nombre, la URL, los destinatarios o el chat sin recrear el canal; los secretos (el de firma, el token del bot) no se muestran, y dejarlos vacíos conserva el guardado.
 
 En un webhook puedes poner un **secreto**: cada aviso viaja firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`, para que el receptor compruebe que viene de MCLog. El correo necesita el correo saliente configurado en el backend (SMTP o Microsoft Graph); webhook y Telegram se configuran enteros desde el dashboard.
 

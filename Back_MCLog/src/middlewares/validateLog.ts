@@ -126,6 +126,32 @@ const forEachEntry = (payload: unknown, fn: (entry: Record<string, unknown>) => 
     }
 };
 
+/** Margen para relojes un poco adelantados antes de corregir la fecha de un log. */
+export const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * Trae a "ahora" un `timestamp` futuro mas alla de MAX_CLOCK_SKEW_MS y anota
+ * el original en `metadata.mclogClockSkew`. Un log fechado en el futuro, por
+ * un reloj mal puesto, seguia dentro de la ventana de las alertas hasta esa
+ * fecha y las disparaba una y otra vez. Igual que con los recortes, no se
+ * rechaza: rechazarlo tumbaria el lote entero.
+ */
+const clampEntry = (now: number) => (entry: Record<string, unknown>) => {
+    const value = entry.timestamp;
+    if (typeof value !== 'string') return;
+    const time = Date.parse(value);
+    if (Number.isNaN(time) || time - now <= MAX_CLOCK_SKEW_MS) return;
+
+    entry.timestamp = new Date(now).toISOString();
+    const metadata = entry.metadata;
+    const skew = { timestamp: value };
+    if (metadata === undefined || metadata === null) {
+        entry.metadata = { mclogClockSkew: skew };
+    } else if (typeof metadata === 'object' && !Array.isArray(metadata)) {
+        entry.metadata = { ...metadata, mclogClockSkew: skew };
+    }
+};
+
 /** Normaliza el cuerpo antes de validarlo, tanto para un log suelto como para un lote. */
 export const normalizeErrorFields: RequestHandler = (req, _res, next) => {
     forEachEntry(req.body, flattenError);
@@ -135,6 +161,12 @@ export const normalizeErrorFields: RequestHandler = (req, _res, next) => {
 /** Recorta los campos largos antes de validarlos; va despues de normalizeErrorFields. */
 export const truncateLongFields: RequestHandler = (req, _res, next) => {
     forEachEntry(req.body, truncateEntry);
+    next();
+};
+
+/** Corrige las fechas futuras; va despues de validar, cuando ya son ISO-8601. */
+export const clampFutureTimestamps: RequestHandler = (req, _res, next) => {
+    forEachEntry(req.body, clampEntry(Date.now()));
     next();
 };
 
@@ -199,6 +231,7 @@ export const validateLog: Array<ValidationChain | RequestHandler> = [
     truncateLongFields,
     ...logFieldRules(),
     validField,
+    clampFutureTimestamps,
 ];
 
 export const validateLogBatch: Array<ValidationChain | RequestHandler> = [
@@ -208,4 +241,5 @@ export const validateLogBatch: Array<ValidationChain | RequestHandler> = [
         .isArray({ min: 1 }).withMessage('logs must be a non-empty array'),
     ...logFieldRules('logs.*.'),
     validField,
+    clampFutureTimestamps,
 ];

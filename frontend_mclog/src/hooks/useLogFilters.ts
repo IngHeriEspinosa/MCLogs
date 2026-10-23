@@ -105,7 +105,13 @@ export function useLogFilters() {
       // propio cambio sea de pagina.
       const next = { ...filters, ...patch, page: "page" in patch ? (patch.page as number) : 1 };
       const query = serialize(next);
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      const url = query ? `${pathname}?${query}` : pathname;
+      // Cada filtro elegido es una entrada del historial, para que atras lo
+      // deshaga. La busqueda libre no: llega mientras se teclea, y llenaria el
+      // historial de busquedas a medio escribir.
+      const typing = Object.keys(patch).every((key) => key === "search");
+      if (typing) router.replace(url, { scroll: false });
+      else router.push(url, { scroll: false });
     },
     [filters, pathname, router],
   );

@@ -188,9 +188,10 @@ const ErrorsBody: React.FC<{ snapshot: Extract<Snapshot, { kind: "errors" }> }> 
 
   return (
     <>
-      <ErrorKpis groups={snapshot.summary.groups} level={snapshot.summary.level} />
+      <ErrorKpis groups={snapshot.summary.groups} capped={snapshot.summary.capped} level={snapshot.summary.level} />
       <ErrorGroupsTable
         groups={snapshot.summary.groups}
+        capped={snapshot.summary.capped}
         actions={(group) => {
           const sample = samples.get(group.lastLogId);
           return sample ? (

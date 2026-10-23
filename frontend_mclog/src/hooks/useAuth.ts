@@ -45,6 +45,11 @@ export type LogStats = {
   byApplication: { application: string; count: number }[];
   byEnvironment: { environment: string; count: number }[];
   timeline: TimelineBucket[];
+  /**
+   * Intervalo de la serie en segundos (5 min, 15 min, 1 h o 1 dia segun la
+   * ventana). Ausente en una API anterior, que la daba siempre por hora.
+   */
+  bucketSeconds?: number;
   from: string;
   to: string;
 };
@@ -201,9 +206,9 @@ export type StatsParams = {
 };
 
 /**
- * Totales y serie horaria. La serie respeta la ventana; los totales (`total`,
- * `byLevel`, `byApplication`...) son historicos, acotados solo por aplicacion
- * y entorno.
+ * Totales y serie. Con `from`/`to`, los totales (`total`, `byLevel`,
+ * `byApplication`...) son los de esa ventana; con `hours` solo, los de todo el
+ * historico. La serie respeta siempre la ventana.
  */
 export const useLogStats = (params: StatsParams = {}) => {
   return useQuery<LogStats>({
