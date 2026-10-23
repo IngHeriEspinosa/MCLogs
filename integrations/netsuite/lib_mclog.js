@@ -166,7 +166,7 @@ define(['N/https', 'N/log', 'N/runtime', 'N/query', 'N/cache'], (https, log, run
      * Datos comunes a todos los logs de una invocación: su id, el documento
      * que se está procesando (traceId) y la metadata fijada con setContext.
      */
-    const newScope = (metadata) => ({ executionId: newExecutionId(), document: null, metadata: metadata || {} });
+    const newScope = (metadata) => ({ executionId: newExecutionId(), startedAt: Date.now(), document: null, metadata: metadata || {} });
 
     /** Logs pendientes de enviar, cuántos se descartaron por el tope y excepciones ya registradas. */
     let buffer = [];
@@ -413,6 +413,8 @@ define(['N/https', 'N/log', 'N/runtime', 'N/query', 'N/cache'], (https, log, run
         const ctx = nsContext();
         const meta = Object.assign({}, ctx, scope.metadata, scope.document, asMetadata(metadata));
         meta.executionId = scope.executionId;
+        // Milisegundos desde que empezó la invocación: dicen dónde se fue el tiempo dentro de la ejecución.
+        meta.elapsedMs = Date.now() - scope.startedAt;
 
         const traceId = scope.document
             ? `${scope.document.recordType}:${scope.document.recordId}`
@@ -424,7 +426,10 @@ define(['N/https', 'N/log', 'N/runtime', 'N/query', 'N/cache'], (https, log, run
             timestamp: new Date().toISOString(),
             service: truncate(ctx.scriptId || 'netsuite', MAX_SERVICE_LENGTH),
             host: 'netsuite-' + (ctx.accountId || 'unknown'),
-            traceId: truncate(traceId, MAX_TRACE_ID_LENGTH)
+            traceId: truncate(traceId, MAX_TRACE_ID_LENGTH),
+            // Cada ejecución es un tramo de la traza: la historia de un documento
+            // (traceId <tipo>:<id>) se agrupa así por ejecuciones en el panel.
+            spanId: scope.executionId
         };
 
         if (error !== undefined && error !== null) {

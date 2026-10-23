@@ -51,6 +51,9 @@ const toCreateInput = (body: Record<string, unknown>, req: Request, res: Respons
         timestamp,
         traceId,
         spanId,
+        parentSpanId,
+        durationMs,
+        release,
         metadata,
         errorName,
         errorCode,
@@ -74,7 +77,11 @@ const toCreateInput = (body: Record<string, unknown>, req: Request, res: Respons
         // suelto era una "traza" de un registro, todo un lote compartia la misma
         // y la tasa por operacion contaba peticiones en lugar de operaciones.
         traceId: traceId ?? (res.locals.ingestTraceId as string | undefined),
-        spanId,
+        // Igual que el traceId: el del log o, si no trae, el de la cabecera traceparent.
+        spanId: spanId ?? (res.locals.ingestSpanId as string | undefined),
+        parentSpanId: parentSpanId ?? undefined,
+        durationMs: durationMs ?? undefined,
+        release: release ?? undefined,
         metadata: metadata ?? undefined,
         errorName: errorName ?? undefined,
         errorCode: errorCode ?? undefined,

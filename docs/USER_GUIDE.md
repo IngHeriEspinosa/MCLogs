@@ -169,11 +169,15 @@ Encima de la lista, cuatro cifras: fallos distintos, ocurrencias totales, la apl
 
 Ese par de fechas es lo más útil de la pantalla. **Primera aparición reciente suele significar error nuevo**, que casi siempre apunta a lo último que se tocó. Es la primera vez *dentro del rango elegido*: amplíalo a 30 días antes de darlo por nuevo.
 
-Arriba eliges el rango, **Errores** o **Warnings**, el entorno y la aplicación. Con **Ver ocurrencias** saltas a la tabla de logs filtrada a ese fallo, y el botón ✦ copia un brief para IA del fallo con su ejemplo más reciente.
+Arriba eliges el rango, **Errores** o **Warnings**, el entorno, la aplicación, el servicio y un texto. Con **Ver ocurrencias** saltas a la tabla de logs filtrada a ese fallo, y el botón ✦ copia un brief para IA del fallo con su ejemplo más reciente.
+
+**Estados.** Cada fallo está **activo**, **resuelto** o **ignorado**, y las pestañas filtran por estado (también **Regresiones**: los que volvieron tras resolverse). Si eres el dueño del espacio, marca fallos y usa **Resolver**, **Ignorar** (24 h, 7 días o siempre) o **Reactivar**. Un fallo resuelto que vuelve a ocurrir se reactiva solo y lleva la etiqueta **Regresión**. Cada fila muestra su mini-gráfica en el rango, la **primera vez de verdad** (no solo dentro del rango), el total y su última release. Encima, cuatro cifras más: fallos **nuevos**, **regresiones**, **resueltos** y el **tiempo medio hasta resolver**.
 
 ## A.4 La pantalla de traza
 
-Desde el detalle de cualquier log con traceId, **Ver traza (N registros)** la muestra en el propio detalle, con ese log resaltado. **Abrir en pestaña nueva** lleva a esta pantalla completa.
+Desde el detalle de cualquier log con traceId, **Ver traza (N registros)** la muestra en el propio detalle, con ese log resaltado. **Abrir en pestaña nueva** lleva a esta pantalla completa. La pantalla **Operaciones** lista todas las del rango, con su estado, y permite quedarse con las que fallaron.
+
+Arriba se resume la operación: estado, duración, servicios, tiempo hasta el primer error, mayor salto y la ruta entre servicios. Hay dos vistas: **Cronológica** (pasos anidados por tramo y repeticiones plegadas) y **Por servicio** (un carril por servicio). Se filtra por nivel, servicio o texto, **Ir al primer error** salta a él, y cada paso se abre en el detalle del log.
 
 Muestra todos los registros de una misma operación en orden cronológico, **aunque haya pasado por varias aplicaciones**. Cada línea lleva el tiempo desde el primer registro y el salto desde el anterior (Δ), y a la derecha una pista con la duración total: el tramo coloreado es el tiempo entre un paso y el siguiente. Eso es lo que delata dónde se fue el tiempo: si un tramo ocupa media pista, ahí está el cuello de botella.
 
@@ -492,12 +496,18 @@ En **Espacio → API keys**. Cada clave lleva permisos, y conviene dar los justo
 
 En **Espacio → Alertas**. Una **regla** define cuándo avisar y un **canal** por dónde. Se comprueban cada minuto.
 
-**Reglas.** Dos tipos:
+**Reglas.** Seis tipos:
 
 | Tipo | Dispara cuando |
 |---|---|
 | **Umbral** | Hay N o más coincidencias en la ventana |
 | **Error nuevo** | Aparece un fallo que no se había visto nunca |
+| **Regresión** | Un fallo que marcaste como resuelto vuelve a aparecer |
+| **Tasa de error** | El porcentaje de errores llega al umbral (con un volumen mínimo) |
+| **Silencio** | Algo que emitía logs lleva la ventana entera sin enviar ninguno: el latido de un script programado |
+| **Pico** | La ventana tiene N veces lo normal de la última semana |
+
+Umbral, tasa, silencio y pico avisan también cuando la condición **se recupera**, y en la lista salen como **Disparada** mientras dura. El icono del ojo **silencia** una regla 1 o 24 horas.
 
 La segunda es la más útil justo después de un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".
 
@@ -507,7 +517,9 @@ Cada regla filtra por aplicación, entorno y nivel, y lleva un **silencio tras a
 
 En un webhook puedes poner un **secreto**: cada aviso viaja firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`, para que el receptor compruebe que viene de MCLog. El correo necesita el correo saliente configurado en el backend (SMTP o Microsoft Graph); webhook y Telegram se configuran enteros desde el dashboard.
 
-**Historial.** La tercera pestaña muestra cada disparo con su conteo y a cuántos canales llegó, y el motivo de los que fallaron.
+**Historial.** La tercera pestaña muestra cada disparo y cada recuperación con su conteo, a cuántos canales llegó y el motivo de los que fallaron; los números de registro abren cada log de muestra.
+
+**Resúmenes.** La cuarta pestaña programa un resumen diario o semanal por los canales que elijas: registros, errores, fallos nuevos, regresiones, resueltos, tiempo medio hasta resolver y los fallos con más ocurrencias. **Enviar ahora** lo prueba.
 
 ## C.6 Acceso para asistentes de IA
 

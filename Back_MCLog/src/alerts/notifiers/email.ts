@@ -19,11 +19,18 @@ export const sendEmail: Notifier = async (channel, payload) => {
         : `ha detectado ${payload.count} errores nuevos`
       : `ha registrado ${payload.count} ${payload.count === 1 ? "coincidencia" : "coincidencias"}`;
   const umbral = payload.rule.type === "new_error_group" ? "" : ` (umbral: ${payload.threshold})`;
-  const resumen = `La regla «${payload.rule.name}» ${hallazgo} en los últimos ${payload.windowMinutes} minutos${umbral}.`;
+  // Los umbrales clásicos conservan su frase; el resto de tipos y la
+  // recuperación usan el resumen de la condición.
+  const classic = payload.kind !== "resolve" && (payload.rule.type === "threshold" || payload.rule.type === "new_error_group");
+  const resumen = classic
+    ? `La regla «${payload.rule.name}» ${hallazgo} en los últimos ${payload.windowMinutes} minutos${umbral}.`
+    : payload.kind === "resolve"
+      ? `La regla «${payload.rule.name}» se ha recuperado: ${payload.summary}.`
+      : `La regla «${payload.rule.name}» se ha disparado: ${payload.summary}.`;
 
   const detalles = [
     { label: "Regla", value: payload.rule.name },
-    { label: "Coincidencias", value: `${payload.count} (umbral ${payload.threshold} en ${payload.windowMinutes} min)` },
+    { label: "Condición", value: payload.summary },
     payload.application ? { label: "Aplicación", value: payload.application } : null,
     payload.environment ? { label: "Entorno", value: payload.environment } : null,
     { label: "Nivel", value: payload.level },

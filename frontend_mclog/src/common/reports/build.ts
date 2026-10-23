@@ -1,4 +1,5 @@
 import type { Level } from "@/components/atoms/LevelBadge";
+import { trendOf, type Trend } from "@/common/metrics/compare";
 import type { Locale } from "@/common/i18n/config";
 import { dictionaries, type Dictionary } from "@/common/i18n/dictionaries";
 import { createFormatter, type Formatter } from "@/common/i18n/format";
@@ -52,20 +53,8 @@ const TRACE_ERRORS = 10;
 // Comparacion con el periodo anterior
 // ---------------------------------------------------------------------------
 
-export type Trend = "new" | "up" | "down" | "flat" | "unknown";
-
-/** Un cambio cuenta si supera el 25 % y 3 ocurrencias: de 1 a 2 no es "empeorar". */
-const TREND_RATIO = 0.25;
-const TREND_MIN_DELTA = 3;
-
-/** `previous` null significa que no se sabe (el periodo anterior llego al tope de grupos). */
-export const trendOf = (current: number, previous: number | null): Trend => {
-  if (previous === null) return "unknown";
-  if (previous === 0) return current > 0 ? "new" : "flat";
-  const delta = current - previous;
-  if (Math.abs(delta) < TREND_MIN_DELTA || Math.abs(delta) / previous < TREND_RATIO) return "flat";
-  return delta > 0 ? "up" : "down";
-};
+// trendOf vive en common/metrics/compare.ts; se reexporta para quien ya lo importaba de aqui.
+export { trendOf, type Trend } from "@/common/metrics/compare";
 
 type Comparison = {
   window: PreviousWindow;
@@ -371,6 +360,33 @@ const humanReport = (ctx: Context): string => {
 
   if (comparison) out.push(...comparisonSection(ctx, comparison));
 
+  if (wants("lifecycle") && data.lifecycle) {
+    const life = data.lifecycle;
+    out.push(`## ${d.lifecycle}`);
+    out.push(
+      mdTable(
+        [d.metric, d.value],
+        [
+          [d.lifecycleNew, fmt.number(life.newInWindow)],
+          [d.lifecycleRegressed, fmt.number(life.regressedInWindow)],
+          [d.lifecycleResolved, fmt.number(life.resolvedInWindow)],
+          [d.lifecycleMttr, life.mttrMs === null ? "—" : fmt.duration(life.mttrMs)],
+        ],
+      ),
+    );
+    if (life.mttrMs === null) out.push(d.lifecycleMttrNote);
+    const regressed = data.regressed ?? [];
+    if (regressed.length) {
+      out.push(`### ${d.lifecycleRegressedList} (${fmt.number(regressed.length)})`);
+      out.push(
+        mdTable(
+          [d.failure, d.application, d.occurrences, d.lifecycleBackAt],
+          regressed.slice(0, COMPARISON_ROWS).map((group) => [groupName(ctx, group), mdCode(group.application), fmt.number(group.count), utcMinute(group.lastRegressedAt!)]),
+        ),
+      );
+    }
+  }
+
   if (wants("activity")) {
     const { bins, stepMs } = binTimeline(data.hours, 24);
     const max = Math.max(1, ...bins.map((bin) => bin.total));
@@ -424,6 +440,40 @@ const humanReport = (ctx: Context): string => {
         ),
       );
     }
+  }
+
+  if (wants("latency") && (data.latency?.length ?? 0) > 0) {
+    out.push(`## ${d.latency}`);
+    out.push(d.latencyNote);
+    out.push(
+      mdTable(
+        [d.application, "p50", "p95", "p99", d.latencySamples],
+        data.latency!.map((row) => [
+          mdCode(row.service && row.service !== row.application ? `${row.application} › ${row.service}` : row.application),
+          fmt.duration(row.p50),
+          fmt.duration(row.p95),
+          fmt.duration(row.p99),
+          fmt.number(row.count),
+        ]),
+      ),
+    );
+  }
+
+  if (wants("releases") && (data.releases?.length ?? 0) > 0) {
+    out.push(`## ${d.releases}`);
+    out.push(
+      mdTable(
+        [d.application, d.release, d.firstSeen, d.records, d.errorsInWindow, d.releaseNewGroups],
+        data.releases!.map((row) => [
+          mdCode(row.application),
+          mdCode(row.release),
+          utcMinute(row.firstSeen),
+          fmt.number(row.count),
+          fmt.number(row.errors),
+          fmt.number(row.newGroups),
+        ]),
+      ),
+    );
   }
 
   if (wants("errorGroups")) {
@@ -661,10 +711,30 @@ const agentData = (ctx: Context) => {
       }))
     : null;
 
+  const lifecycle =
+    wants("lifecycle") && data.lifecycle
+      ? {
+          new_in_window: data.lifecycle.newInWindow,
+          regressed_in_window: data.lifecycle.regressedInWindow,
+          resolved_in_window: data.lifecycle.resolvedInWindow,
+          mttr_ms: data.lifecycle.mttrMs,
+          regressed_failures: (data.regressed ?? []).slice(0, AGENT_COMPARISON_ROWS).map((group) => ({
+            ...failureRef(group),
+            occurrences: group.count,
+            regressed_at: group.lastRegressedAt,
+          })),
+        }
+      : null;
+  const latency = wants("latency") && data.latency?.length ? data.latency : null;
+  const releases = wants("releases") && data.releases?.length ? data.releases : null;
+
   return {
     summary,
     findings: wants("summary") ? findings(ctx).map((item) => item.replace(/\*\*|`/g, "")) : null,
     comparison: comparisonBlock,
+    lifecycle,
+    latency,
+    releases,
     timeline,
     levels,
     error_groups: errorGroups,
@@ -766,6 +836,23 @@ const agentMarkdown = (ctx: Context): string => {
   );
   if (payload.findings) out.push(`### findings\n\n${payload.findings.map((item) => `- ${item}`).join("\n")}`);
   if (payload.comparison) out.push(`### comparison\n\n${json(payload.comparison)}`);
+  if (payload.lifecycle) out.push(`### lifecycle\n\n${json(payload.lifecycle)}`);
+  if (payload.latency) {
+    out.push(
+      `### latency (ms)\n\n${mdFence(
+        toCsv(["application", "service", "count", "p50", "p95", "p99", "max"], payload.latency.map((row) => [row.application, row.service ?? "", row.count, row.p50, row.p95, row.p99, row.max])),
+        "csv",
+      )}`,
+    );
+  }
+  if (payload.releases) {
+    out.push(
+      `### releases\n\n${mdFence(
+        toCsv(["application", "release", "first_seen", "logs", "errors", "new_failures"], payload.releases.map((row) => [row.application, row.release, row.firstSeen, row.count, row.errors, row.newGroups])),
+        "csv",
+      )}`,
+    );
+  }
   if (payload.timeline) {
     out.push(
       `### timeline (bucket_hours=${payload.timeline.bucket_hours}, UTC)\n\n${mdFence(

@@ -186,6 +186,14 @@ const logFieldRules = (prefix = '') => [
     body(`${prefix}timestamp`).optional().isISO8601().withMessage('Timestamp must be an ISO-8601 date'),
     body(`${prefix}traceId`).optional().isString().isLength({ max: 128 }).withMessage('TraceId must be a string (max 128)'),
     body(`${prefix}spanId`).optional().isString().isLength({ max: 128 }).withMessage('SpanId must be a string (max 128)'),
+    body(`${prefix}release`).optional().isString().isLength({ max: 120 }).withMessage('release must be a string (max 120)'),
+    body(`${prefix}parentSpanId`).optional().isString().isLength({ max: 128 }).withMessage('parentSpanId must be a string (max 128)'),
+    // Entero de 32 bits: la columna es INTEGER, y 24 dias en ms caben de sobra.
+    body(`${prefix}durationMs`)
+        .optional()
+        .isInt({ min: 0, max: 2147483647 })
+        .withMessage('durationMs must be a non-negative integer (ms)')
+        .toInt(),
 
     // Detalle estructurado del error. Permite agrupar ocurrencias del mismo
     // fallo y darle a quien investiga el stack sin bucear en metadata.

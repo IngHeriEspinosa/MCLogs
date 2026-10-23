@@ -46,14 +46,20 @@ No sigas hasta que la prueba llegue.
 
 1. Pestaña **Reglas**, formulario **Nueva regla**.
 2. **Nombre**: qué vigila, por ejemplo `Errores de facturación en producción`.
-3. **Tipo**, uno de dos:
+3. **Tipo**, uno de seis:
 
    | Tipo | Avisa cuando | Ideal para |
    |---|---|---|
    | **Umbral de repeticiones** | Hay al menos N coincidencias dentro de la ventana | Picos: "más de 20 errores en 10 minutos" |
    | **Error nuevo** | Aparece un error que **no se había visto nunca** | Justo después de un despliegue: "esto antes no fallaba" |
+   | **Regresión** | Vuelve un fallo que marcaste como resuelto en **Errores** | Confirmar que un arreglo aguanta |
+   | **Tasa de error** | El % de errores de la ventana llega al umbral, con un **volumen mínimo** | Servicios con mucho tráfico, donde un número fijo no sirve |
+   | **Silencio (latido)** | Algo que emitía logs la semana pasada lleva toda la ventana sin enviar ninguno | Scripts programados de NetSuite o tareas nocturnas que dejan de correr sin fallar |
+   | **Pico sobre lo normal** | La ventana tiene N veces la media de la última semana | Volumen que se dispara sin un umbral fijo |
 
-4. **Filtros**: **Aplicación** (o **Todas**), **Entorno** (o **Todos**) y **Nivel mínimo**: **Solo error** o **Warning y error**.
+   Umbral, tasa, silencio y pico avisan también cuando la condición **se recupera**.
+
+4. **Filtros**: **Aplicación** (o **Todas**), **Entorno** (o **Todos**), **Servicio** (opcional) y **Nivel mínimo**: **Solo error** o **Warning y error**.
 5. **Umbral** (o **Errores nuevos**) y **Ventana (min)**: cuántas coincidencias y en cuántos minutos.
 6. **Silencio tras avisar (min)**: tras disparar, la regla calla este tiempo. Sin él, un incidente de una hora te mandaría sesenta avisos iguales.
 7. **Avisar por**: marca uno o varios canales.

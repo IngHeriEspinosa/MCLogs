@@ -277,6 +277,8 @@ group('Envío en lote por ejecución');
     check('metadata lleva el tipo de invocación', () => logs[0].metadata.invocationType === 'SCHEDULED');
     check('todos comparten executionId y traceId', () =>
         new Set(logs.map((l) => l.metadata.executionId)).size === 1 && logs[0].traceId === `exec-${logs[0].metadata.executionId}`);
+    check('la ejecución es el tramo (spanId) de la traza', () => logs.every((l) => l.spanId === l.metadata.executionId));
+    check('cada log dice cuánto llevaba la ejecución', () => logs.every((l) => typeof l.metadata.elapsedMs === 'number' && l.metadata.elapsedMs >= 0));
 }
 {
     const { lib, env } = createSandbox();

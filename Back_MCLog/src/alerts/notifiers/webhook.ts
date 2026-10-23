@@ -51,9 +51,7 @@ export const detectWebhookFormat = (url: string): WebhookFormat => {
 /** Líneas de contexto del aviso, compartidas por los formatos con texto. */
 const detailLines = (payload: AlertPayload): string[] =>
   [
-    payload.rule.type === "new_error_group"
-      ? `Grupos nuevos: ${payload.count} en ${payload.windowMinutes} min`
-      : `Coincidencias: ${payload.count} (umbral ${payload.threshold} en ${payload.windowMinutes} min)`,
+    `${payload.kind === "resolve" ? "Recuperada" : "Condición"}: ${payload.summary}`,
     payload.application ? `Aplicación: ${payload.application}` : null,
     payload.environment ? `Entorno: ${payload.environment}` : null,
     `Nivel: ${payload.level}`,
@@ -105,7 +103,7 @@ const discordBody = (payload: AlertPayload) => {
         description: clip(description, 4096),
         ...(payload.dashboardUrl ? { url: payload.dashboardUrl } : {}),
         // Rojo para errores, ámbar para el resto: el mismo código de color del panel.
-        color: payload.level === "error" ? 0xd93025 : 0xf29900,
+        color: payload.kind === "resolve" ? 0x188038 : payload.level === "error" ? 0xd93025 : 0xf29900,
         timestamp: payload.triggeredAt,
       },
     ],

@@ -7,6 +7,7 @@ import { Icon } from "@/components/atoms/Icon";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { CopyButton } from "@/components/molecules/CopyButton";
 import { useToast } from "@/components/molecules/Toast";
+import { LogInspector } from "@/components/organisms/LogInspector";
 import { ShareSnapshotDialog } from "@/components/organisms/ShareSnapshotDialog";
 import { TraceKpis, TraceTimeline, traceStatsOf } from "@/components/organisms/TraceTimeline";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
@@ -14,6 +15,7 @@ import { saveFile } from "@/common/api/download";
 import { errorMessage } from "@/common/api/errorMessage";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { buildTraceBrief, buildTraceMarkdown } from "@/common/reports/build";
+import type { LogEntry } from "@/hooks/useAuth";
 import { useTrace } from "@/hooks/useErrors";
 
 export default function TracePage() {
@@ -36,6 +38,9 @@ export default function TracePage() {
     else router.push("/logs");
   };
   const [sharing, setSharing] = useState(false);
+  // El paso pulsado se abre en el mismo detalle que en Logs, con ←/→ para recorrer la traza.
+  const [selected, setSelected] = useState<LogEntry | null>(null);
+  const selectedIndex = selected ? logs.findIndex((log) => log.id === selected.id) : -1;
 
   const download = () => {
     const name = `mclog-trace-${traceId.slice(0, 24).replace(/[^\w-]/g, "_")}.md`;
@@ -104,7 +109,25 @@ export default function TracePage() {
           </div>
         )}
 
-        {logs.length > 0 && <TraceTimeline logs={logs} />}
+        {logs.length > 0 && (
+          <TraceTimeline
+            logs={logs}
+            activeId={selected?.id}
+            onSelect={setSelected}
+            omitted={trace.data?.truncated ? { beforeIndex: Math.floor(logs.length / 2), count: trace.data.omitted } : undefined}
+          />
+        )}
+        {selected && (
+          <LogInspector
+            log={selected}
+            onClose={() => setSelected(null)}
+            onSelect={setSelected}
+            onFilterFingerprint={(fingerprint) => router.push(`/logs?fingerprint=${encodeURIComponent(fingerprint)}`)}
+            onPrev={selectedIndex > 0 ? () => setSelected(logs[selectedIndex - 1]) : undefined}
+            onNext={selectedIndex >= 0 && selectedIndex < logs.length - 1 ? () => setSelected(logs[selectedIndex + 1]) : undefined}
+            position={selectedIndex >= 0 ? { index: selectedIndex + 1, total: logs.length } : undefined}
+          />
+        )}
       </div>
       <ShareSnapshotDialog
         open={sharing}

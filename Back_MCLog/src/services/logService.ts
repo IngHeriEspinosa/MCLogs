@@ -2,6 +2,7 @@ import { Environment, LogLevel, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { logsIngested } from '../config/metrics';
 import { emitLogCreated } from '../events/logEvents';
+import { aggregateGroups, upsertGroupsSql } from './errorGroupService';
 
 export type CreateLogInput = {
     /** Espacio al que va el log: el de la API key o el de la sesion. */
@@ -15,6 +16,12 @@ export type CreateLogInput = {
     timestamp?: Date;
     traceId?: string;
     spanId?: string;
+    /** Tramo padre, para anidar los pasos de una traza. */
+    parentSpanId?: string;
+    /** Duracion del paso en milisegundos, si el emisor la mide. */
+    durationMs?: number;
+    /** Version desplegada que emitio el log. */
+    release?: string;
     metadata?: Prisma.InputJsonValue;
     errorName?: string;
     errorCode?: string;
@@ -39,15 +46,24 @@ const toEvent = (input: CreateLogInput, id?: number) => ({
     fingerprint: input.fingerprint ?? null
 });
 
+/**
+ * El upsert de los grupos de error de unos logs, para la misma transaccion que
+ * su INSERT: un log con huella que entra siempre deja su grupo al dia.
+ */
+const groupUpsertsOf = (inputs: CreateLogInput[]) => {
+    const sql = upsertGroupsSql(aggregateGroups(inputs, new Date()), new Date());
+    return sql ? [prisma.$executeRaw(sql)] : [];
+};
+
 export const createLog = async (input: CreateLogInput) => {
-    const created = await prisma.log.create({ data: input });
+    const [created] = await prisma.$transaction([prisma.log.create({ data: input }), ...groupUpsertsOf([input])]);
     logsIngested.inc({ application: input.application, level: input.level });
     emitLogCreated(toEvent(input, created.id));
     return created;
 };
 
 export const createLogsBatch = async (inputs: CreateLogInput[]) => {
-    const result = await prisma.log.createMany({ data: inputs });
+    const [result] = await prisma.$transaction([prisma.log.createMany({ data: inputs }), ...groupUpsertsOf(inputs)]);
     // Si createMany descarta filas no se sabe cuales, asi que solo se emiten al
     // stream los lotes completos. El contador suma lo insertado de todos modos
     // (atribuido, por aproximacion, a las primeras entradas), para que

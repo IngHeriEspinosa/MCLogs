@@ -228,6 +228,8 @@ export const softDeleteWorkspace = async (workspaceId: number, db: Prisma.Transa
   await db.workspace.update({ where: { id: workspaceId }, data: { deletedAt: now } });
   await db.apiKey.updateMany({ where: { workspaceId, revokedAt: null }, data: { revokedAt: now } });
   await db.alertRule.updateMany({ where: { workspaceId }, data: { enabled: false } });
+  // Los resumenes programados tampoco deben seguir saliendo de un espacio borrado.
+  await db.digestSchedule.updateMany({ where: { workspaceId }, data: { enabled: false } });
   invalidateMemberships();
 };
 

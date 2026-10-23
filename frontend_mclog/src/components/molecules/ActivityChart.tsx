@@ -49,9 +49,11 @@ type ActivityChartProps = {
   /** Arrastrar o hacer clic acota el rango a esos intervalos. */
   onSelectRange?: (from: number, to: number) => void;
   height?: number;
+  /** Marcas verticales (p. ej. la primera aparicion de cada release), con su texto. */
+  markers?: Array<{ time: number; label: string }>;
 };
 
-export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, stale, onSelectRange, height = 200 }) => {
+export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, stale, onSelectRange, height = 200, markers = [] }) => {
   const { t, fmt } = useI18n();
   const { ref, width } = useElementSize<HTMLDivElement>();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -340,6 +342,21 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
                   </g>
                 );
               })}
+
+              {/* Releases: una linea discontinua donde aparecio cada una, con su nombre al pasar. */}
+              {bins.length > 0 &&
+                markers
+                  .filter((marker) => marker.time >= bins[0].start && marker.time <= bins[bins.length - 1].end)
+                  .map((marker) => {
+                    const x = axisWidth + ((marker.time - bins[0].start) / (bins[bins.length - 1].end - bins[0].start)) * plotWidth;
+                    return (
+                      <g key={`${marker.label}-${marker.time}`}>
+                        <title>{marker.label}</title>
+                        <line x1={x} x2={x} y1={topPad} y2={topPad + plotHeight} className="stroke-accent-500" strokeWidth={1.5} strokeDasharray="4 3" />
+                        <circle cx={x} cy={topPad} r={3.5} className="fill-accent-500" />
+                      </g>
+                    );
+                  })}
 
               {/* Unica etiqueta directa: el pico. */}
               {peak && (

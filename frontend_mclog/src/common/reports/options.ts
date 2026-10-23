@@ -17,21 +17,32 @@ export type ReportSection =
   | "activity"
   | "levels"
   | "applications"
+  | "lifecycle"
   | "errorGroups"
   | "warnGroups"
-  | "recentErrors";
+  | "recentErrors"
+  | "latency"
+  | "releases";
 export const REPORT_SECTIONS: ReportSection[] = [
   "summary",
   "comparison",
+  "lifecycle",
   "activity",
   "levels",
   "applications",
   "errorGroups",
   "warnGroups",
   "recentErrors",
+  "latency",
+  "releases",
 ];
-/** Los warnings agrupados abultan y casi siempre son ruido: se piden a proposito. */
-export const DEFAULT_SECTIONS: ReportSection[] = REPORT_SECTIONS.filter((section) => section !== "warnGroups");
+/**
+ * Se piden a proposito: los warnings agrupados abultan y casi siempre son
+ * ruido, y el ciclo de vida, la latencia y las releases solo dicen algo si el
+ * equipo resuelve fallos o los logs traen durationMs o release.
+ */
+const OPT_IN_SECTIONS: ReportSection[] = ["warnGroups", "lifecycle", "latency", "releases"];
+export const DEFAULT_SECTIONS: ReportSection[] = REPORT_SECTIONS.filter((section) => !OPT_IN_SECTIONS.includes(section));
 
 export type AgentObjective = "triage" | "regression" | "incident" | "custom";
 export const AGENT_OBJECTIVES: AgentObjective[] = ["triage", "regression", "incident", "custom"];

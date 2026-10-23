@@ -36,6 +36,23 @@ export const resetNotifiers = () => Object.assign(notifiers, NOTIFIERS);
  * la evaluación. Cada resultado queda registrado para poder verlo después en
  * el historial.
  */
+/** Espera antes del único reintento de un envío fallido. */
+export const DELIVERY_RETRY_DELAY_MS = 1000;
+
+/**
+ * Un envío con un reintento: un corte de red o un 502 momentáneo no deben
+ * perder el aviso. Solo uno, y pronto: insistir contra un canal caído solo
+ * retrasa la evaluación de las demás reglas.
+ */
+const sendWithRetry = async (channel: AlertChannel, payload: AlertPayload) => {
+  try {
+    await notifiers[channel.type](channel, payload);
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, DELIVERY_RETRY_DELAY_MS));
+    await notifiers[channel.type](channel, payload);
+  }
+};
+
 export const deliverToChannels = async (
   channels: AlertChannel[],
   payload: AlertPayload,
@@ -44,7 +61,7 @@ export const deliverToChannels = async (
     channels.map(async (channel): Promise<Delivery> => {
       const base = { channelId: channel.id, channelName: channel.name };
       try {
-        await notifiers[channel.type](channel, payload);
+        await sendWithRetry(channel, payload);
         return { ...base, ok: true };
       } catch (error) {
         const detalle = error instanceof Error ? error.message : String(error);

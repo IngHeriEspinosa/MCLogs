@@ -23,7 +23,7 @@ export const sendTelegram: Notifier = async (channel, payload) => {
   }
 
   const detalles = [
-    `Coincidencias: ${payload.count} (umbral ${payload.threshold} en ${payload.windowMinutes} min)`,
+    `${payload.kind === "resolve" ? "Recuperada" : "Condición"}: ${payload.summary}`,
     payload.application ? `Aplicación: ${payload.application}` : null,
     payload.environment ? `Entorno: ${payload.environment}` : null,
   ].filter(Boolean) as string[];

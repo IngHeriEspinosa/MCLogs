@@ -12,6 +12,8 @@ import { isRelative, MAX_TIMELINE_HOURS, queryWindow, rangeToParams, TimeRange }
 import { fillTimeline, trendBins } from "@/common/time/timeline";
 import { useLogStats } from "@/hooks/useAuth";
 import { GROUPS_SHOWN, useApplications, useErrorGroups } from "@/hooks/useErrors";
+import { useLatency, useReleases } from "@/hooks/useMonitoring";
+import { previousWindow, relativeChange, trendOf } from "@/common/metrics/compare";
 
 type LogOverviewProps = {
   range: TimeRange;
@@ -53,6 +55,19 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
   const scope = { application: application || undefined, environment: environment || undefined };
 
   const stats = useLogStats({ ...span, ...scope });
+  // El periodo anterior de la misma duracion, para el cambio de cada tarjeta.
+  // "Todo el historico" no tiene periodo anterior.
+  const previousSpan = !isAll && bounds.from && bounds.to ? previousWindow(bounds.from, bounds.to) : null;
+  const previousStats = useLogStats(
+    { from: previousSpan?.from.toISOString(), to: previousSpan?.to.toISOString(), ...scope },
+    previousSpan !== null,
+  );
+  const latency = useLatency({ ...span, ...scope });
+  const releases = useReleases({ ...span, ...scope });
+  const releaseMarkers = useMemo(
+    () => (releases.data?.data ?? []).map((row) => ({ time: Date.parse(row.firstSeen), label: `${row.application} ${row.release}` })),
+    [releases.data],
+  );
   const groups = useErrorGroups({ ...span, ...scope, level: "error", limit: GROUPS_SHOWN + 1 });
   const applications = useApplications({ ...span, ...scope });
 
@@ -88,6 +103,27 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
   const groupsCapped = foundGroups.length > GROUPS_SHOWN;
   const groupList = foundGroups.slice(0, GROUPS_SHOWN);
   const appsWithErrors = (applications.data ?? []).filter((app) => (app.errors ?? 0) > 0).length;
+
+  const previousCounts = previousStats.data
+    ? {
+        total: previousStats.data.total,
+        error: previousStats.data.byLevel.find((row) => row.level === "error")?.count ?? 0,
+        warn: previousStats.data.byLevel.find((row) => row.level === "warn")?.count ?? 0,
+      }
+    : null;
+  /**
+   * Cambio de una cifra frente al periodo anterior. Con `upIsBad`, subir es
+   * rojo (errores, warnings); sin el, el volumen va en neutro.
+   */
+  const changeOf = (current: number, previous: number | undefined, upIsBad: boolean) => {
+    if (previous === undefined) return undefined;
+    const trend = trendOf(current, previous);
+    const direction = trend === "up" || trend === "new" ? ("up" as const) : trend === "down" ? ("down" as const) : ("flat" as const);
+    const ratio = relativeChange(current, previous);
+    const label = ratio === null ? (current > 0 ? t.overview.changeNew : "—") : `${ratio > 0 ? "+" : ""}${fmt.percent(ratio)}`;
+    const tone = !upIsBad || direction === "flat" ? ("neutral" as const) : direction === "up" ? ("bad" as const) : ("good" as const);
+    return { label, direction, tone, title: t.overview.changeTitle(fmt.number(previous)) };
+  };
   const errorRate = counts.total ? counts.error / counts.total : 0;
   const rangeQuery = new URLSearchParams(
     Object.entries(rangeToParams(range)).filter((entry): entry is [string, string] => Boolean(entry[1])),
@@ -104,6 +140,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           icon="logs"
           accent="brand"
           trend={trend.map((bin) => bin.total)}
+          change={changeOf(counts.total, previousCounts?.total, false)}
           loading={loading}
           stale={stale}
         />
@@ -115,6 +152,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           icon="errors"
           accent="error"
           trend={trend.map((bin) => bin.error)}
+          change={changeOf(counts.error, previousCounts?.error, true)}
           loading={loading}
           stale={stale}
         />
@@ -126,6 +164,7 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           icon="alertCircle"
           accent="warn"
           trend={trend.map((bin) => bin.warn)}
+          change={changeOf(counts.warn, previousCounts?.warn, true)}
           loading={loading}
           stale={stale}
         />
@@ -157,7 +196,8 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           description={isAll ? t.overview.last31d : isRelative(range) ? t.time.presets[range.preset] : t.time.custom}
           className="xl:col-span-8 3xl:col-span-6"
         >
-          <ActivityChart hours={hours} loading={loading} stale={stale} onSelectRange={onSelectRange} height={260} />
+          <ActivityChart hours={hours} loading={loading} stale={stale} onSelectRange={onSelectRange} height={260} markers={releaseMarkers} />
+          {releaseMarkers.length > 0 && <p className="mt-2 text-[0.6875rem] text-ink-3">{t.overview.releasesHint}</p>}
         </Card>
 
         <Card title={t.overview.levelMix} info={t.fieldInfo.metrics.levelMix} description={scopeHint} className="xl:col-span-4 3xl:col-span-2">
@@ -249,6 +289,37 @@ export const LogOverview: React.FC<LogOverviewProps> = ({
           />
         </Card>
       </div>
+      {(latency.data?.data.length ?? 0) > 0 && (
+        <Card title={t.overview.latency} info={t.overview.latencyInfo} description={windowHint}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">{t.overview.latency}</caption>
+              <thead>
+                <tr className="text-left text-xs text-ink-3">
+                  <th scope="col" className="py-1.5 font-medium">{t.overview.latencyService}</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">p50</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">p95</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">p99</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">{t.overview.latencyCount}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {latency.data!.data.slice(0, 6).map((row) => (
+                  <tr key={`${row.application}-${row.service ?? ""}`} className="border-t border-line">
+                    <td className="py-1.5 font-mono text-xs text-ink">
+                      {row.service && row.service !== row.application ? `${row.application} › ${row.service}` : row.application}
+                    </td>
+                    <td className="py-1.5 text-right font-mono text-xs tabular-nums">{fmt.duration(row.p50)}</td>
+                    <td className="py-1.5 text-right font-mono text-xs font-semibold tabular-nums text-ink">{fmt.duration(row.p95)}</td>
+                    <td className="py-1.5 text-right font-mono text-xs tabular-nums">{fmt.duration(row.p99)}</td>
+                    <td className="py-1.5 text-right text-xs tabular-nums text-ink-3">{fmt.compact(row.count)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
       <p className="-mt-1 text-[0.6875rem] text-ink-3">{t.overview.scopeNote}</p>
     </section>
   );

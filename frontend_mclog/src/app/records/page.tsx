@@ -8,6 +8,7 @@ import { LogFilterBar } from "@/components/organisms/LogFilterBar";
 import { LogInspector } from "@/components/organisms/LogInspector";
 import { Density, LogRow, LogTable, rowKey } from "@/components/organisms/LogTable";
 import { ShareSnapshotDialog } from "@/components/organisms/ShareSnapshotDialog";
+import { SavedViewsMenu } from "@/components/organisms/SavedViewsMenu";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { resolveRange } from "@/common/time/range";
@@ -111,6 +112,7 @@ function RecordsView() {
       presentable
       actions={
         <>
+          <SavedViewsMenu path="/records" />
           <IconButton icon="refresh" label={t.common.refresh} variant="secondary" onClick={refresh} />
           <Button variant="secondary" icon="share" title={t.snapshots.shareHint} onClick={() => setSharing(true)}>
             {t.snapshots.share}

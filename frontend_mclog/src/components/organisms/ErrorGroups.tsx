@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/atoms/EmptyState";
 import { LevelBadge } from "@/components/atoms/LevelBadge";
 import { Skeleton } from "@/components/atoms/Skeleton";
 import { Tag } from "@/components/atoms/Tag";
+import { Sparkline } from "@/components/molecules/Sparkline";
 import { StatTile } from "@/components/molecules/StatTile";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { summarizeGroups } from "@/common/errors/summary";
@@ -75,13 +76,45 @@ type TableProps = {
   stale?: boolean;
   /** Botones de la ultima columna de cada fila. */
   actions?: (group: ErrorGroup) => React.ReactNode;
+  /** Seleccion para las acciones en bloque (solo el dueno del espacio). */
+  selection?: { selected: Set<string>; onToggle: (fingerprint: string) => void; onToggleAll: () => void };
+  /** Inicio de la ventana: un grupo visto por primera vez despues es "Nuevo". */
+  windowFrom?: string;
+};
+
+/** Etiquetas del ciclo de vida de un grupo: nuevo en la ventana, regresion, resuelto o ignorado. */
+const LifecycleTags: React.FC<{ group: ErrorGroup; windowFrom?: string }> = ({ group, windowFrom }) => {
+  const { t, fmt } = useI18n();
+  const isNew = Boolean(windowFrom && group.firstSeenEver && Date.parse(group.firstSeenEver) >= Date.parse(windowFrom));
+  const regressed = group.status === "active" && (group.regressionCount ?? 0) > 0 && group.lastRegressedAt;
+  return (
+    <>
+      {isNew && <Tag tone="info">{t.errors.badges.new}</Tag>}
+      {regressed && (
+        <Tag tone="danger" title={t.errors.badges.regressedHint(fmt.relative(group.lastRegressedAt!), fmt.number(group.regressionCount ?? 0))}>
+          {t.errors.badges.regressed}
+        </Tag>
+      )}
+      {group.status === "resolved" && <Tag tone="success">{t.errors.badges.resolved}</Tag>}
+      {group.status === "ignored" && (
+        <Tag tone="neutral" title={group.ignoredUntil ? t.errors.badges.ignoredUntil(fmt.dateTimeShort(group.ignoredUntil)) : undefined}>
+          {t.errors.badges.ignored}
+        </Tag>
+      )}
+      {group.lastRelease && (
+        <Tag mono title={t.errors.badges.releaseHint}>
+          {group.lastRelease}
+        </Tag>
+      )}
+    </>
+  );
 };
 
 /**
  * Una fila por fallo distinto: veces y su parte del total, clase, codigo y un
  * mensaje de ejemplo, aplicacion, nivel y primera y ultima aparicion.
  */
-export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false, loading, stale, actions }) => {
+export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false, loading, stale, actions, selection, windowFrom }) => {
   const { t, fmt } = useI18n();
   const { occurrences, max } = summarizeGroups(groups);
 
@@ -100,6 +133,17 @@ export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false,
           <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr className="bg-surface-2 text-left">
+                {selection && (
+                  <th scope="col" className="w-10 border-b border-line py-2.5 pl-5">
+                    <input
+                      type="checkbox"
+                      aria-label={t.errors.selectAll}
+                      checked={groups.length > 0 && groups.every((group) => selection.selected.has(group.fingerprint))}
+                      onChange={selection.onToggleAll}
+                      className="h-4 w-4 accent-brand"
+                    />
+                  </th>
+                )}
                 {[
                   { label: t.errors.columns.count, className: "pl-5 w-32" },
                   { label: t.errors.columns.error, className: "w-full" },
@@ -121,6 +165,17 @@ export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false,
             <tbody>
               {groups.map((group) => (
                 <tr key={group.fingerprint} className="group align-top transition-colors hover:bg-surface-2">
+                  {selection && (
+                    <td className="border-b border-line py-3.5 pl-5">
+                      <input
+                        type="checkbox"
+                        aria-label={t.errors.selectOne(group.errorName ?? t.errors.noClass)}
+                        checked={selection.selected.has(group.fingerprint)}
+                        onChange={() => selection.onToggle(group.fingerprint)}
+                        className="h-4 w-4 accent-brand"
+                      />
+                    </td>
+                  )}
                   <td className="border-b border-line py-3.5 pl-5 pr-3">
                     <p className="font-mono text-lg font-semibold tabular-nums leading-none text-ink">{fmt.compact(group.count)}</p>
                     <div className="mt-2 h-1 w-20 overflow-hidden rounded-full bg-surface-3" aria-hidden>
@@ -132,6 +187,11 @@ export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false,
                     <p className="mt-1 whitespace-nowrap text-[0.6875rem] text-ink-3">
                       {t.errors.share(fmt.percent(occurrences ? group.count / occurrences : 0))}
                     </p>
+                    {group.series && group.series.some((value) => value > 0) && (
+                      <div className="mt-1.5 w-20" title={t.errors.seriesHint}>
+                        <Sparkline values={group.series} colorClass={group.level === "warn" ? "text-lvl-warn" : "text-lvl-error"} height={22} />
+                      </div>
+                    )}
                   </td>
                   <td className="w-full max-w-0 border-b border-line px-3 py-3.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -141,10 +201,17 @@ export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false,
                           {group.errorCode}
                         </Tag>
                       )}
+                      <LifecycleTags group={group} windowFrom={windowFrom} />
                     </div>
                     <p className="mt-1 line-clamp-2 break-words font-mono text-[0.8125rem] leading-relaxed text-ink-2" title={group.sampleMessage}>
                       {group.sampleMessage}
                     </p>
+                    {/* La plantilla es lo que comparten todas las ocurrencias: por eso son una sola fila. */}
+                    {group.messageTemplate && (
+                      <p className="mt-1 truncate font-mono text-[0.6875rem] text-ink-3" title={t.errors.templateHint}>
+                        <span className="font-sans">{t.errors.template}:</span> {group.messageTemplate}
+                      </p>
+                    )}
                     <p className="mt-1 font-mono text-[0.6875rem] text-ink-3">
                       #{group.fingerprint.slice(0, 12)}
                       <span className="lg:hidden"> · {group.application}</span>
@@ -163,9 +230,18 @@ export const ErrorGroupsTable: React.FC<TableProps> = ({ groups, capped = false,
                     <p className="text-ink-2" title={fmt.dateTime(group.lastSeen)}>
                       {t.errors.lastSeen(fmt.relative(group.lastSeen))}
                     </p>
-                    <p className="mt-0.5 text-ink-3" title={fmt.dateTime(group.firstSeen)}>
-                      {t.errors.firstSeen(fmt.relative(group.firstSeen))}
-                    </p>
+                    {group.firstSeenEver ? (
+                      <p className="mt-0.5 text-ink-3" title={fmt.dateTime(group.firstSeenEver)}>
+                        {t.errors.firstSeenEver(fmt.relative(group.firstSeenEver))}
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 text-ink-3" title={fmt.dateTime(group.firstSeen)}>
+                        {t.errors.firstSeen(fmt.relative(group.firstSeen))}
+                      </p>
+                    )}
+                    {group.totalCount !== undefined && group.totalCount > group.count && (
+                      <p className="mt-0.5 text-ink-3">{t.errors.totalCount(fmt.compact(group.totalCount))}</p>
+                    )}
                   </td>
                   {actions && (
                     <td className="whitespace-nowrap border-b border-line py-3.5 pl-3 pr-5 text-right">

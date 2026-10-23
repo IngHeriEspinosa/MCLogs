@@ -4,7 +4,7 @@ import { Alert } from "@/components/atoms/Alert";
 import { Button, ButtonLink, IconButton } from "@/components/atoms/Button";
 import { LevelBadge, LevelDot } from "@/components/atoms/LevelBadge";
 import { Skeleton } from "@/components/atoms/Skeleton";
-import { EnvTag } from "@/components/atoms/Tag";
+import { EnvTag, Tag } from "@/components/atoms/Tag";
 import { CodeBlock } from "@/components/molecules/CodeBlock";
 import { CopyButton } from "@/components/molecules/CopyButton";
 import { InfoTip } from "@/components/molecules/InfoTip";
@@ -64,10 +64,10 @@ const PanelFrame: React.FC<PanelFrameProps> = ({ title, actions, onBack, childre
   );
 };
 
-type TracePanelProps = { traceId: string; activeId?: number; onBack: () => void };
+type TracePanelProps = { traceId: string; activeId?: number; onSelect: (log: LogEntry) => void; onBack: () => void };
 
 /** La traza del log dentro del dialogo, con el log resaltado. */
-const TracePanel: React.FC<TracePanelProps> = ({ traceId, activeId, onBack }) => {
+const TracePanel: React.FC<TracePanelProps> = ({ traceId, activeId, onSelect, onBack }) => {
   const { t, fmt } = useI18n();
   const trace = useTrace(traceId);
   const logs = trace.data?.data ?? [];
@@ -107,7 +107,14 @@ const TracePanel: React.FC<TracePanelProps> = ({ traceId, activeId, onBack }) =>
           {t.inspector.traceTruncated(fmt.number(Math.floor(logs.length / 2)), fmt.number(trace.data.total))}
         </p>
       )}
-      {logs.length > 0 && <TraceTimeline logs={logs} activeId={activeId} />}
+      {logs.length > 0 && (
+        <TraceTimeline
+          logs={logs}
+          activeId={activeId}
+          onSelect={onSelect}
+          omitted={trace.data?.truncated ? { beforeIndex: Math.floor(logs.length / 2), count: trace.data.omitted } : undefined}
+        />
+      )}
     </PanelFrame>
   );
 };
@@ -215,6 +222,9 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   // El panel va ligado al log: al pasar a otro (flechas, contexto, un fallo igual) vuelve al detalle.
   const key = rowKey(log);
   const [panelState, setPanelState] = useState<{ key: string; panel: Panel }>({ key, panel: "detail" });
+  // En el contexto: solo las lineas de la misma operacion, para no mezclar
+  // peticiones concurrentes de un servicio con trafico.
+  const [onlyTrace, setOnlyTrace] = useState(false);
   const panel = panelState.key === key ? panelState.panel : "detail";
   const toggles = useRef<Partial<Record<Panel, HTMLButtonElement | null>>>({});
   const togglePanel = (next: Panel) => setPanelState({ key, panel: panel === next ? "detail" : next });
@@ -425,6 +435,35 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
                 </tbody>
               </table>
             )}
+            {frequency.grouping && (
+              <details className="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-xs">
+                <summary className="cursor-pointer font-medium text-ink">{t.inspector.groupingTitle}</summary>
+                {frequency.grouping.computed ? (
+                  <>
+                    <p className="mt-2 text-ink-3">{t.inspector.groupingIntro}</p>
+                    <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                      {(
+                        [
+                          [t.inspector.fields.application, frequency.grouping.application],
+                          [t.inspector.fields.service, frequency.grouping.service],
+                          [t.inspector.groupingClass, frequency.grouping.errorName],
+                          [t.inspector.groupingCode, frequency.grouping.errorCode],
+                          [t.inspector.groupingFrame, frequency.grouping.firstFrame],
+                          [t.inspector.groupingTemplate, frequency.grouping.messageTemplate],
+                        ] as const
+                      ).map(([label, value]) => (
+                        <React.Fragment key={label}>
+                          <dt className="text-ink-3">{label}</dt>
+                          <dd className="break-words font-mono text-ink">{value || "—"}</dd>
+                        </React.Fragment>
+                      ))}
+                    </dl>
+                  </>
+                ) : (
+                  <p className="mt-2 text-ink-3">{t.inspector.groupingCustom}</p>
+                )}
+              </details>
+            )}
           </>
         )}
       </section>
@@ -514,9 +553,19 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
 
   const contextSection = full && !readOnly && (
       <section>
-        <div className="mb-2 flex items-baseline justify-between gap-2">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="eyebrow">{t.inspector.context}</h3>
           <span className="text-[0.6875rem] text-ink-3">{t.inspector.contextHint}</span>
+          {full.traceId && (
+            <button
+              type="button"
+              aria-pressed={onlyTrace}
+              onClick={() => setOnlyTrace((value) => !value)}
+              className={`text-[0.6875rem] font-medium ${onlyTrace ? "text-brand" : "text-ink-2 hover:text-ink"}`}
+            >
+              {t.inspector.contextOnlyTrace}
+            </button>
+          )}
         </div>
         {context.isLoading ? (
           <div className="flex flex-col gap-1.5">
@@ -530,8 +579,11 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           <p className="text-sm text-ink-3">{t.inspector.contextEmpty}</p>
         ) : (
           <ol className="-mx-2 flex flex-col">
-            {context.data?.data.map((entry) => {
+            {context.data?.data
+              .filter((entry) => !onlyTrace || entry.traceId === full.traceId)
+              .map((entry) => {
               const target = entry.id === full.id;
+              const sameTrace = !target && Boolean(full.traceId) && entry.traceId === full.traceId;
               return (
                 <li key={entry.id}>
                   <button
@@ -546,7 +598,12 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
                       {formatOffset(new Date(entry.timestamp).getTime() - origin)}
                     </span>
                     <LevelDot level={entry.level} />
-                    <span className={`truncate ${target ? "font-medium text-ink" : "text-ink-2"}`}>{entry.message}</span>
+                    <span className={`min-w-0 flex-1 truncate ${target ? "font-medium text-ink" : "text-ink-2"}`}>{entry.message}</span>
+                    {sameTrace && (
+                      <Tag tone="brand" icon="route" title={t.inspector.contextSameTraceHint}>
+                        {t.inspector.contextSameTrace}
+                      </Tag>
+                    )}
                   </button>
                 </li>
               );
@@ -596,7 +653,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
           {messageSection}
           {actionsBar}
           {panel === "trace" && log.traceId ? (
-            <TracePanel traceId={log.traceId} activeId={full?.id} onBack={backToDetail} />
+            <TracePanel traceId={log.traceId} activeId={full?.id} onSelect={onSelect} onBack={backToDetail} />
           ) : panel === "similar" && log.fingerprint ? (
             <SimilarPanel
               fingerprint={log.fingerprint}

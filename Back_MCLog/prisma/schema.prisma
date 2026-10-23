@@ -13,20 +13,27 @@ datasource db {
 }
 
 model Log {
-  id          Int         @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   /// Espacio de trabajo al que pertenece. Toda consulta va acotada por el.
-  workspaceId Int
-  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
-  timestamp   DateTime    @default(now())
-  application String
-  service     String?
-  host        String?
-  level       LogLevel
-  environment Environment
-  message     String
-  traceId     String?     @db.VarChar(128)
-  spanId      String?     @db.VarChar(128)
-  metadata    Json?
+  workspaceId  Int
+  workspace    Workspace   @relation(fields: [workspaceId], references: [id])
+  timestamp    DateTime    @default(now())
+  application  String
+  service      String?
+  host         String?
+  level        LogLevel
+  environment  Environment
+  message      String
+  traceId      String?     @db.VarChar(128)
+  spanId       String?     @db.VarChar(128)
+  /// Tramo que contiene a este (el de la llamada que lo origino), para anidar
+  /// los pasos de una traza.
+  parentSpanId String?     @db.VarChar(128)
+  /// Duracion del paso en milisegundos, si el emisor la mide.
+  durationMs   Int?
+  /// Version desplegada que emitio el log ("2.4.1", un commit...), si el emisor la manda.
+  release      String?     @db.VarChar(120)
+  metadata     Json?
 
   /// Clase de la excepcion ("TypeError", "SuiteScriptError").
   errorName   String? @db.VarChar(200)
@@ -65,8 +72,100 @@ model Workspace {
   alertChannels AlertChannel[]
   alertRules    AlertRule[]
   snapshots     Snapshot[]
+  errorGroups   ErrorGroup[]
+  savedViews    SavedView[]
+  digests       DigestSchedule[]
 
   @@index([deletedAt])
+}
+
+/// Ciclo de vida de un fallo (una huella) en un espacio: primera y ultima vez
+/// de verdad, cuantas veces en total, su estado y sus regresiones. Se mantiene
+/// en la ingesta (un upsert por lote) y sobrevive a la retencion: es una fila
+/// por huella. Las cuentas de una ventana siguen saliendo de Log.
+model ErrorGroup {
+  id              Int              @id @default(autoincrement())
+  workspaceId     Int
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fingerprint     String           @db.VarChar(64)
+  /// Datos de la primera ocurrencia, para nombrar el fallo sin ir a Log.
+  application     String
+  service         String?
+  errorName       String?          @db.VarChar(200)
+  errorCode       String?          @db.VarChar(100)
+  /// El nivel mas grave visto (una huella del emisor puede ir en cualquiera).
+  level           LogLevel
+  firstSeen       DateTime
+  lastSeen        DateTime
+  totalCount      Int              @default(0)
+  status          ErrorGroupStatus @default(active)
+  resolvedAt      DateTime?
+  resolvedById    Int?
+  resolvedBy      User?            @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+  /// Ignorado hasta esta fecha; sin ella, para siempre.
+  ignoredUntil    DateTime?
+  /// Veces que volvio a aparecer despues de resolverse, y la ultima.
+  regressionCount Int              @default(0)
+  lastRegressedAt DateTime?
+  firstRelease    String?          @db.VarChar(120)
+  lastRelease     String?          @db.VarChar(120)
+  note            String?          @db.VarChar(2000)
+
+  @@unique([workspaceId, fingerprint])
+  @@index([workspaceId, status, lastSeen])
+  @@index([workspaceId, firstSeen])
+  @@index([workspaceId, lastRegressedAt])
+}
+
+enum ErrorGroupStatus {
+  active
+  resolved
+  ignored
+}
+
+/// Vista guardada del espacio: una pantalla con sus filtros, para volver a
+/// ella en un clic. La crea y la borra el dueno; la usan todos los miembros.
+/// Las vistas personales viven en el navegador.
+model SavedView {
+  id          Int       @id @default(autoincrement())
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String    @db.VarChar(120)
+  /// Pantalla: /logs, /records, /errors o /traces.
+  path        String    @db.VarChar(64)
+  /// Query string de la vista, sin el "?".
+  query       String    @db.VarChar(2000)
+  createdById Int?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId])
+}
+
+/// Resumen programado (diario o semanal) que se envia por canales de alerta.
+model DigestSchedule {
+  id          Int             @id @default(autoincrement())
+  workspaceId Int
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String          @db.VarChar(120)
+  frequency   DigestFrequency @default(daily)
+  /// Hora UTC del envio (0-23).
+  hourUtc     Int             @default(8)
+  /// Dia de la semana de los semanales (0 = domingo).
+  weekday     Int             @default(1)
+  environment Environment?
+  enabled     Boolean         @default(true)
+  lastSentAt  DateTime?
+  createdAt   DateTime        @default(now())
+  channels    AlertChannel[]
+
+  @@index([enabled])
+  @@index([workspaceId])
+}
+
+enum DigestFrequency {
+  daily
+  weekly
 }
 
 model WorkspaceMember {
@@ -115,6 +214,8 @@ model User {
   settingsUpdated     AppSetting[]
   settingChanges      AppSettingChange[]
   snapshots           Snapshot[]
+  resolvedErrorGroups ErrorGroup[]
+  savedViews          SavedView[]
 }
 
 /// Configuracion de la aplicacion que la cuenta root cambia en caliente, sin
@@ -264,6 +365,7 @@ model AlertChannel {
   enabled     Boolean          @default(true)
   createdAt   DateTime         @default(now())
   rules       AlertRule[]
+  digests     DigestSchedule[]
 
   @@index([workspaceId])
 }
@@ -283,12 +385,22 @@ model AlertRule {
   environment Environment?
   level       LogLevel     @default(error)
 
-  /// Se dispara con `threshold` o más coincidencias en `windowMinutes`.
+  /// Umbral, segun el tipo: coincidencias (threshold), grupos (new_error_group,
+  /// regression), porcentaje de errores (error_rate) o multiplo de lo normal
+  /// (spike). silence no lo usa.
   threshold       Int @default(1)
   windowMinutes   Int @default(10)
   /// Silencio tras dispararse, para no repetir el mismo aviso cada minuto.
   cooldownMinutes Int @default(30)
+  /// Volumen minimo de la ventana para error_rate y spike: con tres logs, un
+  /// porcentaje o un pico no significan nada.
+  minVolume       Int @default(20)
 
+  /// firing mientras la condicion se cumple; al despejarse se avisa de la
+  /// recuperacion (en los tipos de condicion continua).
+  state           AlertRuleState @default(ok)
+  /// Silenciada hasta esta fecha: no se evalua ni avisa.
+  mutedUntil      DateTime?
   lastTriggeredAt DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -301,15 +413,17 @@ model AlertRule {
 
 /// Registro de un disparo, con el resultado del envío a cada canal.
 model AlertEvent {
-  id           Int       @id @default(autoincrement())
+  id           Int            @id @default(autoincrement())
   ruleId       Int
-  rule         AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  triggeredAt  DateTime  @default(now())
+  rule         AlertRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  triggeredAt  DateTime       @default(now())
   count        Int
   /// Muestra de logs que provocaron el disparo.
   sampleLogIds Int[]
   /// [{ channelId, channelName, ok, error? }]
   deliveries   Json
+  /// trigger = se cumplio la condicion; resolve = se despejo.
+  kind         AlertEventKind @default(trigger)
 
   @@index([ruleId, triggeredAt])
 }
@@ -325,6 +439,24 @@ enum AlertRuleType {
   threshold
   /// Una huella de error vista por primera vez dentro de la ventana.
   new_error_group
+  /// Un fallo resuelto que vuelve a aparecer.
+  regression
+  /// El porcentaje de errores de la ventana llega al umbral.
+  error_rate
+  /// Ningun log en la ventana de algo que solia emitir (un script que dejo de correr).
+  silence
+  /// La ventana tiene `threshold` veces lo normal de la ultima semana.
+  spike
+}
+
+enum AlertRuleState {
+  ok
+  firing
+}
+
+enum AlertEventKind {
+  trigger
+  resolve
 }
 
 enum LogLevel {

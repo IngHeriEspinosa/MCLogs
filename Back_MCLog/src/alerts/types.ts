@@ -18,6 +18,8 @@ export type AlertSample = {
 /** Lo que recibe cada canal cuando una regla se dispara. */
 export type AlertPayload = {
   rule: { id: number; name: string; type: string };
+  /** trigger = se cumple la condición; resolve = se ha despejado (reglas continuas). */
+  kind: "trigger" | "resolve";
   triggeredAt: string;
   /** Coincidencias en la ventana (o grupos nuevos, según el tipo de regla). */
   count: number;
@@ -26,6 +28,8 @@ export type AlertPayload = {
   application: string | null;
   environment: string | null;
   level: string;
+  /** Una línea que explica la condición: "12 % de errores (30 de 250, umbral 5 %)". */
+  summary: string;
   samples: AlertSample[];
   /** Enlace al dashboard con los filtros ya puestos, si hay URL pública configurada. */
   dashboardUrl: string | null;
@@ -49,7 +53,21 @@ export const formatSample = (sample: AlertSample): string => {
 };
 
 /** Título de una línea, común a todos los canales. */
-export const alertTitle = (payload: AlertPayload): string =>
-  payload.rule.type === "new_error_group"
-    ? `[MCLog] ${payload.count === 1 ? "1 error nuevo" : `${payload.count} errores nuevos`}: ${payload.rule.name}`
-    : `[MCLog] ${payload.rule.name}: ${payload.count} en ${payload.windowMinutes} min`;
+export const alertTitle = (payload: AlertPayload): string => {
+  const { rule, count, windowMinutes } = payload;
+  if (payload.kind === "resolve") return `[MCLog] Recuperada: ${rule.name}`;
+  switch (rule.type) {
+    case "new_error_group":
+      return `[MCLog] ${count === 1 ? "1 error nuevo" : `${count} errores nuevos`}: ${rule.name}`;
+    case "regression":
+      return `[MCLog] ${count === 1 ? "1 fallo resuelto ha vuelto" : `${count} fallos resueltos han vuelto`}: ${rule.name}`;
+    case "silence":
+      return `[MCLog] ${rule.name}: sin logs en ${windowMinutes} min`;
+    case "error_rate":
+      return `[MCLog] ${rule.name}: tasa de error al alza`;
+    case "spike":
+      return `[MCLog] ${rule.name}: pico de ${count} en ${windowMinutes} min`;
+    default:
+      return `[MCLog] ${rule.name}: ${count} en ${windowMinutes} min`;
+  }
+};

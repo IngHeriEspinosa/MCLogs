@@ -36,7 +36,9 @@ Pide al administrador una clave (o créala tú si eres admin):
 | `host` | string ≤255 | — | Máquina/instancia (default: hostname de la petición) |
 | `timestamp` | ISO-8601 | — | Momento real del evento (default: ahora) |
 | `traceId` | string ≤128 | — | Id de correlación entre servicios |
-| `spanId` | string ≤128 | — | Id de operación dentro del trace |
+| `spanId` | string ≤128 | — | Tramo dentro de la traza (default: el de la cabecera `traceparent`) |
+| `parentSpanId` | string ≤128 | — | Tramo que contiene a este: la vista de traza los anida |
+| `durationMs` | entero ≥ 0 | — | Duración del paso en ms: la vista de traza la pinta |
 | `metadata` | objeto JSON | — | Contexto libre (ids de registro, usuario, etc.) |
 | `error` | objeto | — | Excepción capturada: `name`, `message`, `code`, `stack`. Se reparte en los campos de abajo |
 | `errorName` | string ≤200 | — | Clase de la excepción, si prefieres darla suelta |

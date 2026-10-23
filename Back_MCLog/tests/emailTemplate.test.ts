@@ -76,6 +76,8 @@ describe("correo de alerta", () => {
   const channel = { id: 1, name: "correo", type: "email", config: { to: ["ana@example.com", "luis@example.com"] } } as unknown as AlertChannel;
   const payload = (overrides: Partial<AlertPayload>): AlertPayload => ({
     rule: { id: 1, name: "Errores <checkout>", type: "threshold" },
+    kind: "trigger",
+    summary: "42 coincidencias en 5 min (umbral 10)",
     triggeredAt: "2026-09-28T22:00:00.000Z",
     count: 42,
     windowMinutes: 5,

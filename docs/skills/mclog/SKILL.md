@@ -362,7 +362,10 @@ Guía: [Integrar una aplicación Node.js](https://ingheriespinosa.github.io/MCLo
 | `service` | string ≤120 | | Por defecto, `application` |
 | `host` | string ≤255 | | |
 | `timestamp` | ISO-8601 | | Hora real del evento. Imprescindible si envías en diferido |
-| `traceId` / `spanId` | string ≤128 | | Correlación entre sistemas |
+| `traceId` / `spanId` | string ≤128 | | Correlación entre sistemas. Sin ellos se usan las cabeceras `x-trace-id` o `traceparent` (W3C); MCLog no inventa uno |
+| `parentSpanId` | string ≤128 | | Tramo padre: la vista de traza anida los pasos |
+| `durationMs` | entero ≥ 0 | | Duración del paso en ms |
+| `release` | string ≤120 | | Versión desplegada ("2.4.1", un commit): MCLog dice qué fallos estrenó cada una |
 | `metadata` | objeto JSON | | Objeto plano, no un array. Ids y valores, no volcados |
 | `error` | `{ name, message, code, stack }` | | Se reparte en `errorName`, `errorCode` y `errorStack`. `stack` admite un array |
 | `errorName` / `errorCode` / `errorStack` | ≤200 / ≤100 / ≤50 000 | | Alternativa plana a `error` |
@@ -397,7 +400,7 @@ Implementa esto en cualquier lenguaje que no tenga librería oficial:
 5. **Nunca lanzar** hacia la aplicación: captura, avisa por un canal local (stderr o logger) y sigue.
 6. **Normalización:** pon `timestamp` en el momento del evento. Para las excepciones, rellena `error.name`, `error.code` y `error.stack`.
 7. **Redacción de secretos:** antes de enviar, sustituye por `[REDACTED]` los valores de claves de metadata que contengan `pass`, `token`, `secret`, `apikey`, `authorization`, `cookie` o `credential`.
-8. **`traceId`:** léelo de la petición entrante (p. ej. `x-trace-id`), o genéralo, y pásalo a las llamadas salientes.
+8. **`traceId`:** léelo de la petición entrante (`traceparent` o `x-trace-id`), o genéralo, y pásalo a las llamadas salientes. Si mides cuánto dura un paso, mándalo en `durationMs`, y su tramo padre en `parentSpanId`.
 
 #### Snippets
 

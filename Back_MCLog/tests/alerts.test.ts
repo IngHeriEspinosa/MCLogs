@@ -5,6 +5,7 @@ import app from "../src/app";
 import { ensureAdminUser } from "../src/services/authService";
 import { getDefaultWorkspaceId } from "../src/services/workspaceService";
 import { dashboardLink, evaluateRules } from "../src/alerts/evaluator";
+import { Digest, digestSenders, isDigestDue, runDigestsNow } from "../src/alerts/digest";
 import { notifiers, resetNotifiers } from "../src/alerts/notifiers";
 import type { AlertPayload } from "../src/alerts/types";
 import { config } from "../src/config/env";
@@ -406,5 +407,139 @@ describe("API de alertas", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(res.body.data[0].rule.name).toBe("errores de facturacion");
+  });
+});
+
+describe("Tipos de regla con estado", () => {
+  beforeEach(async () => {
+    await prisma.errorGroup.deleteMany();
+  });
+
+  it("umbral: avisa al dispararse y otra vez al recuperarse", async () => {
+    const canal = await crearCanal();
+    const regla = await crearRegla(canal.id, { threshold: 3, windowMinutes: 10 });
+    await insertarErrores(3);
+    expect(await evaluateRules()).toBe(1);
+    expect((await prisma.alertRule.findUniqueOrThrow({ where: { id: regla.id } })).state).toBe("firing");
+
+    // Fuera de la ventana: la condicion se despeja.
+    await prisma.log.deleteMany();
+    expect(await evaluateRules()).toBe(0);
+    expect(entregados.map((aviso) => aviso.kind)).toEqual(["trigger", "resolve"]);
+    expect((await prisma.alertRule.findUniqueOrThrow({ where: { id: regla.id } })).state).toBe("ok");
+    const eventos = await prisma.alertEvent.findMany({ where: { ruleId: regla.id }, orderBy: { id: "asc" } });
+    expect(eventos.map((evento) => evento.kind)).toEqual(["trigger", "resolve"]);
+  });
+
+  it("una regla silenciada no se evalua", async () => {
+    const canal = await crearCanal();
+    await crearRegla(canal.id, { threshold: 1, mutedUntil: new Date(Date.now() + 3600 * 1000) });
+    await insertarErrores(5);
+    expect(await evaluateRules()).toBe(0);
+    expect(entregados).toHaveLength(0);
+  });
+
+  it("tasa de error: dispara con el porcentaje y respeta el volumen minimo", async () => {
+    const canal = await crearCanal();
+    await crearRegla(canal.id, { type: "error_rate", threshold: 20, minVolume: 10 });
+    await insertarErrores(3);
+    await insertarErrores(7, { level: "info" });
+    expect(await evaluateRules()).toBe(1);
+    expect(entregados[0].summary).toContain("30 % de errores (3 de 10");
+
+    await prisma.alertRule.updateMany({ data: { minVolume: 50, lastTriggeredAt: null, state: "ok" } });
+    entregados = [];
+    expect(await evaluateRules()).toBe(0);
+  });
+
+  it("silencio: avisa si algo que emitia la semana pasada deja de hacerlo", async () => {
+    const canal = await crearCanal();
+    await crearRegla(canal.id, { type: "silence", windowMinutes: 60 });
+    // Sin actividad previa no hay latido que echar de menos.
+    expect(await evaluateRules()).toBe(0);
+
+    await insertarErrores(1, { level: "info", timestamp: new Date(Date.now() - 3 * 3600 * 1000) });
+    expect(await evaluateRules()).toBe(1);
+    expect(entregados[0].rule.type).toBe("silence");
+
+    // Vuelve a emitir: se recupera.
+    await insertarErrores(1, { level: "info" });
+    await evaluateRules();
+    expect(entregados.at(-1)?.kind).toBe("resolve");
+  });
+
+  it("pico: compara la ventana con la media de la semana anterior", async () => {
+    const canal = await crearCanal();
+    await crearRegla(canal.id, { type: "spike", threshold: 3, windowMinutes: 60, minVolume: 5 });
+    // Una semana tranquila: 14 errores en 7 dias (2 al dia, menos de 1 por hora).
+    for (let dia = 1; dia <= 7; dia++) {
+      await insertarErrores(2, { timestamp: new Date(Date.now() - dia * 24 * 3600 * 1000) });
+    }
+    await insertarErrores(4);
+    expect(await evaluateRules()).toBe(0);
+    await insertarErrores(4);
+    expect(await evaluateRules()).toBe(1);
+    expect(entregados[0].summary).toMatch(/× lo normal/);
+  });
+
+  it("regresion: avisa cuando un fallo resuelto vuelve", async () => {
+    const canal = await crearCanal();
+    await crearRegla(canal.id, { type: "regression", threshold: 1 });
+    await prisma.errorGroup.create({
+      data: {
+        workspaceId,
+        fingerprint: "volvio",
+        application: "facturacion",
+        level: "error",
+        firstSeen: new Date(Date.now() - 24 * 3600 * 1000),
+        lastSeen: new Date(),
+        status: "active",
+        regressionCount: 1,
+        lastRegressedAt: new Date(),
+      },
+    });
+    await insertarErrores(1, { fingerprint: "volvio" });
+
+    expect(await evaluateRules()).toBe(1);
+    expect(entregados[0]).toMatchObject({ count: 1, kind: "trigger" });
+    expect(entregados[0].samples[0].fingerprint).toBe("volvio");
+  });
+});
+
+describe("Resumenes programados", () => {
+  it("decide cuando toca cada uno", () => {
+    const lunes9 = new Date("2026-10-05T09:10:00.000Z");
+    const base = { hourUtc: 9, weekday: 1, lastSentAt: null };
+    expect(isDigestDue({ ...base, frequency: "daily" }, lunes9)).toBe(true);
+    expect(isDigestDue({ ...base, frequency: "weekly" }, lunes9)).toBe(true);
+    expect(isDigestDue({ ...base, frequency: "weekly", weekday: 2 }, lunes9)).toBe(false);
+    expect(isDigestDue({ ...base, frequency: "daily", hourUtc: 8 }, lunes9)).toBe(false);
+    // Ya salio en esta hora.
+    expect(isDigestDue({ ...base, frequency: "daily", lastSentAt: new Date("2026-10-05T09:02:00.000Z") }, lunes9)).toBe(false);
+  });
+
+  it("envia los que tocan por sus canales y lo anota", async () => {
+    const canal = await crearCanal();
+    const enviados: Digest[] = [];
+    const original = digestSenders.webhook;
+    digestSenders.webhook = async (_channel, digest) => {
+      enviados.push(digest);
+    };
+    try {
+      await insertarErrores(2);
+      const ahora = new Date();
+      const resumen = await prisma.digestSchedule.create({
+        data: { workspaceId, name: "Diario", frequency: "daily", hourUtc: ahora.getUTCHours(), channels: { connect: [{ id: canal.id }] } },
+      });
+
+      expect(await runDigestsNow(ahora)).toBe(1);
+      expect(enviados[0]).toMatchObject({ name: "Diario", totals: { error: 2 } });
+      expect((await prisma.digestSchedule.findUniqueOrThrow({ where: { id: resumen.id } })).lastSentAt).not.toBeNull();
+      // En la misma hora no se repite.
+      expect(await runDigestsNow(ahora)).toBe(0);
+    } finally {
+      digestSenders.webhook = original;
+      await prisma.digestSchedule.deleteMany();
+    }
   });
 });

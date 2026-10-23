@@ -11,6 +11,7 @@ import { swaggerSpec } from "./config/swagger";
 import logRoutes from "./routes/logRoutes";
 import apiKeyRoutes from "./routes/apiKeyRoutes";
 import alertRoutes from "./routes/alertRoutes";
+import viewRoutes from "./routes/viewRoutes";
 import workspaceRoutes from "./routes/workspaceRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
 import { snapshotRouter, snapshotViewRouter } from "./routes/snapshotRoutes";
@@ -94,6 +95,9 @@ export const createApp = () => {
 
   // Alertas del espacio activo (canales, reglas e historial): solo su dueño.
   app.use("/api/alerts", alertRoutes);
+
+  // Vistas guardadas del espacio: las usan todos los miembros, las gestiona el dueño.
+  app.use("/api/views", viewRoutes);
 
   // Snapshots: se gestionan en el espacio activo y se leen por su enlace. La
   // lectura va en /api/share, sin espacio activo (el enlace ya dice cual es) y

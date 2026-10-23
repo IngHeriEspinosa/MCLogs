@@ -1,6 +1,7 @@
 import { RequestHandler } from "express";
-import { param, query, validationResult, ValidationChain } from "express-validator";
-import { TIMELINE_BUCKETS } from "../services/analysisService";
+import { body, param, query, validationResult, ValidationChain } from "express-validator";
+import { GROUP_SORTS, TIMELINE_BUCKETS } from "../services/analysisService";
+import { GROUP_STATUS_FILTERS } from "../services/errorGroupService";
 import { isLevelList } from "../utils/levels";
 
 const handle: RequestHandler = (req, res, next) => {
@@ -75,6 +76,9 @@ export const validateErrorGroups: Array<ValidationChain | RequestHandler> = [
   hoursRule(),
   ...windowRules(),
   query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),
+  query("status").optional().isIn([...GROUP_STATUS_FILTERS]),
+  query("sort").optional().isIn([...GROUP_SORTS]),
+  query("series").optional().isIn(["true", "false"]),
   ...logFilterRules(),
   handle
 ];
@@ -110,6 +114,27 @@ export const validateStreamQuery: Array<ValidationChain | RequestHandler> = [
   query("search").optional().isString().isLength({ max: 300 }),
   query("fingerprint").optional().isString().isLength({ max: 64 }),
   handle
+];
+
+/** Cambio de estado o de nota de grupos de error (hasta 200 de una vez). */
+export const validateGroupUpdate: Array<ValidationChain | RequestHandler> = [
+  body("fingerprints").isArray({ min: 1, max: 200 }).withMessage("fingerprints must be an array of 1-200 items"),
+  body("fingerprints.*").isString().isLength({ min: 1, max: 64 }),
+  body("status").optional().isIn(["active", "resolved", "ignored"]),
+  body("ignoredUntil").optional({ values: "null" }).isISO8601(),
+  body("note").optional({ values: "null" }).isString().isLength({ max: 2000 }),
+  handle,
+];
+
+/** Lista de operaciones: ventana, paginacion, "solo con errores" y los filtros del listado. */
+export const validateTraceList: Array<ValidationChain | RequestHandler> = [
+  hoursRule(),
+  ...windowRules(),
+  query("page").optional().isInt({ min: 1 }).toInt(),
+  query("pageSize").optional().isInt({ min: 1, max: 100 }).toInt(),
+  query("onlyErrors").optional().isIn(["true", "false"]),
+  ...logFilterRules(),
+  handle,
 ];
 
 export const validateTrace: Array<ValidationChain | RequestHandler> = [

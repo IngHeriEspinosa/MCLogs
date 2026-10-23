@@ -56,6 +56,8 @@ type AnyLog = {
   message: string;
   traceId: string | null;
   spanId: string | null;
+  parentSpanId: string | null;
+  durationMs: number | null;
   metadata: unknown;
   errorName: string | null;
   errorCode: string | null;
@@ -340,7 +342,13 @@ export const buildMcpServer = (context: McpContext): McpServer => {
             : undefined,
         applications: [...new Set(logs.map((log) => log.application))],
         // host y spanId distinguen pasos de la misma aplicacion dentro de la traza.
-        logs: logs.map((log) => ({ ...compactLog(log), host: log.host, spanId: log.spanId })),
+        logs: logs.map((log) => ({
+          ...compactLog(log),
+          host: log.host,
+          spanId: log.spanId,
+          parentSpanId: log.parentSpanId,
+          durationMs: log.durationMs,
+        })),
       });
     },
   );

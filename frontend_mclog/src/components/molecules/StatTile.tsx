@@ -24,6 +24,9 @@ const TREND_COLOR: Record<Accent, string> = {
   neutral: "text-ink-3",
 };
 
+/** Color del cambio: rojo si empeora, verde si mejora, neutro si da igual. */
+const CHANGE_TONE = { bad: "text-danger", good: "text-success", neutral: "text-ink-2" } as const;
+
 type StatTileProps = {
   label: string;
   value: React.ReactNode;
@@ -33,6 +36,11 @@ type StatTileProps = {
   icon?: IconName;
   accent?: Accent;
   trend?: number[];
+  /**
+   * Cambio frente al periodo anterior. `tone` dice si subir es malo (errores),
+   * bueno o indiferente (volumen), para el color; la flecha da la direccion.
+   */
+  change?: { label: string; direction: "up" | "down" | "flat"; tone: "bad" | "good" | "neutral"; title?: string };
   loading?: boolean;
   /** Atenua el valor mientras se refrescan los datos, sin saltos de maquetacion. */
   stale?: boolean;
@@ -46,6 +54,7 @@ export const StatTile: React.FC<StatTileProps> = ({
   icon,
   accent = "neutral",
   trend,
+  change,
   loading,
   stale,
 }) => (
@@ -91,7 +100,17 @@ export const StatTile: React.FC<StatTileProps> = ({
             </div>
           )}
         </div>
-        {hint && <p className="mt-2 truncate text-xs text-ink-3">{hint}</p>}
+        {(hint || change) && (
+          <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-ink-3">
+            {change && (
+              <span title={change.title} className={`inline-flex shrink-0 items-center gap-0.5 font-medium ${CHANGE_TONE[change.tone]}`}>
+                <Icon name={change.direction === "up" ? "arrowUp" : change.direction === "down" ? "arrowDown" : "arrowRight"} className="h-3 w-3" />
+                {change.label}
+              </span>
+            )}
+            {hint && <span className="truncate">{hint}</span>}
+          </p>
+        )}
       </div>
     )}
   </div>

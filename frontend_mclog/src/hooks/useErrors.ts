@@ -10,11 +10,34 @@ export type ErrorGroup = {
   errorName: string | null;
   errorCode: string | null;
   sampleMessage: string;
+  /** El mensaje sin sus datos variables; ausente en snapshots y APIs anteriores. */
+  messageTemplate?: string;
+  // Ciclo de vida (ErrorGroup). Ausente en snapshots y en una API anterior.
+  status?: ErrorGroupStatus;
+  /** Primera vez de verdad, no solo dentro de la ventana. */
+  firstSeenEver?: string;
+  totalCount?: number;
+  resolvedAt?: string | null;
+  ignoredUntil?: string | null;
+  regressionCount?: number;
+  lastRegressedAt?: string | null;
+  firstRelease?: string | null;
+  lastRelease?: string | null;
+  note?: string | null;
+  /** Con `series`: 24 cuentas repartidas por la ventana, para el sparkline. */
+  series?: number[];
   lastLogId: number;
   count: number;
   firstSeen: string;
   lastSeen: string;
 };
+
+export type ErrorGroupStatus = "active" | "resolved" | "ignored";
+/** Filtro de la vista de errores; `regressed` = activos que volvieron tras resolverse. */
+export type ErrorGroupStatusFilter = ErrorGroupStatus | "regressed";
+
+/** Cifras del ciclo de vida en la ventana. */
+export type ErrorLifecycle = { newInWindow: number; regressedInWindow: number; resolvedInWindow: number; mttrMs: number | null };
 
 export type ErrorGroupFilters = {
   /** Ventana relativa; se ignora si llega `from`. */
@@ -26,6 +49,12 @@ export type ErrorGroupFilters = {
   level?: string;
   /** Maximo 200 en el backend. Se piden 101 para saber si hay mas de 100. */
   limit?: number;
+  status?: ErrorGroupStatusFilter;
+  sort?: "count" | "lastSeen" | "firstSeen";
+  search?: string;
+  service?: string;
+  /** Pide la serie de cada grupo, para el sparkline. */
+  series?: boolean;
 };
 
 /** Grupos que se enseñan; se pide uno mas para saber si hay mas ("100+"). */
@@ -35,10 +64,14 @@ const clean = (params: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== ""));
 
 export const useErrorGroups = (filters: ErrorGroupFilters, enabled = true) =>
-  useQuery<{ data: ErrorGroup[]; from: string; to: string }>({
+  useQuery<{ data: ErrorGroup[]; lifecycle?: ErrorLifecycle; from: string; to: string }>({
     queryKey: ["error-groups", filters],
     queryFn: async () =>
-      (await client.get("/api/logs/errors/groups", { params: clean({ limit: GROUPS_SHOWN + 1, ...filters }) })).data,
+      (
+        await client.get("/api/logs/errors/groups", {
+          params: clean({ limit: GROUPS_SHOWN + 1, ...filters, series: filters.series ? "true" : undefined }),
+        })
+      ).data,
     placeholderData: keepPreviousData,
     enabled,
   });
@@ -141,6 +174,22 @@ export type FailureOccurrences = OccurrenceCounts & {
   environments: Array<OccurrenceCounts & { environment: LogEntry["environment"] }>;
   recurrence: FailureRecurrence;
   failureRate: FailureRate;
+  /** Piezas de la huella; ausente en una API anterior. */
+  grouping?: FingerprintGrouping;
+};
+
+/**
+ * Lo que entra en la huella de un log, ya normalizado. Con `computed` false la
+ * huella la mando el emisor con su propio criterio y estas piezas no la explican.
+ */
+export type FingerprintGrouping = {
+  application: string;
+  service: string | null;
+  errorName: string | null;
+  errorCode: string | null;
+  firstFrame: string | null;
+  messageTemplate: string;
+  computed: boolean;
 };
 
 export type FailureOccurrencesResponse = {
@@ -186,4 +235,46 @@ export const useApplications = (params: ApplicationsParams = {}) =>
     queryFn: async () => (await client.get("/api/logs/applications", { params: clean(params) })).data.data,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
+  });
+
+/** Una operacion (traceId) con logs en la ventana. */
+export type TraceSummary = {
+  traceId: string;
+  count: number;
+  errors: number;
+  warnings: number;
+  applications: string[];
+  services: string[];
+  start: string;
+  end: string;
+  durationMs: number;
+};
+
+export type TracesParams = {
+  hours?: number;
+  from?: string;
+  to?: string;
+  application?: string;
+  environment?: string;
+  onlyErrors?: boolean;
+  page?: number;
+  pageSize?: number;
+};
+
+/** Operaciones de la ventana, de la mas reciente a la mas antigua. */
+export const useTraces = (params: TracesParams) =>
+  useQuery<{ data: TraceSummary[]; page: number; pageSize: number; total: number; totalPages: number; from: string; to: string }>({
+    queryKey: ["traces", params],
+    queryFn: async () =>
+      (await client.get("/api/logs/traces", { params: clean({ ...params, onlyErrors: params.onlyErrors ? "true" : undefined }) })).data,
+    placeholderData: keepPreviousData,
+  });
+
+/** Un log por id, para abrir su detalle desde un enlace (`/logs?log=123`). Con `id` null no se pide nada. */
+export const useLogById = (id: number | null) =>
+  useQuery<LogEntry>({
+    queryKey: ["log", id],
+    queryFn: async () => (await client.get(`/api/logs/${id}`)).data,
+    enabled: id !== null,
+    retry: false,
   });

@@ -96,7 +96,16 @@ Sistema de NetSuite que limita las unidades de cómputo que puede consumir un sc
 ### Grupo de error
 Conjunto de logs que comparten [huella](#fingerprint-huella), es decir, que son el mismo fallo repetido. La pantalla **Errores** del dashboard los lista por frecuencia, con su primera y última aparición.
 
-**Primera aparición reciente significa error nuevo**, que casi siempre apunta a lo último que se tocó. Es la señal más barata para triar un incidente.
+**Primera aparición reciente significa error nuevo**, que casi siempre apunta a lo último que se tocó. Es la señal más barata para triar un incidente. MCLog guarda la primera vez de verdad de cada grupo, aunque la retención haya borrado aquellos logs, y su estado: activo, resuelto o ignorado.
+
+### Regresión
+Un [grupo de error](#grupo-de-error) que se había marcado como resuelto y vuelve a aparecer. MCLog lo reactiva solo, lo cuenta y puede avisar con una regla de tipo **Regresión**.
+
+### MTTR *(tiempo medio hasta resolver)*
+Media del tiempo entre la primera vez de un fallo (o su última regresión) y su resolución. Sale de lo que el equipo marca como resuelto en **Errores**.
+
+### Release
+La versión desplegada que emitió un log (campo `release`). Con ella, MCLog dice qué fallos estrenó cada versión y marca su aparición en la gráfica.
 
 ### HMAC
 Firma criptográfica que acompaña a los avisos enviados por [webhook](#canal-de-alerta) cuando el canal tiene un secreto configurado. Viaja en la cabecera `x-mclog-signature`; el receptor la recalcula sobre el cuerpo y compara, y así comprueba que el aviso viene de MCLog y no de cualquiera que conozca la URL.
@@ -208,12 +217,18 @@ Token de vida larga (**14 días** por defecto) cuya única función es obtener u
 Pantalla del dashboard con **solo la tabla** de logs, sin resumen ni modo en vivo, pensada para buscar y leer. Añade la [búsqueda avanzada](#búsqueda-avanzada) y abre cada log a pantalla completa, con <kbd>←</kbd> <kbd>→</kbd> para recorrer la página.
 
 ### Regla de alerta
-Condición que dispara una [alerta](#alerta). Dos tipos:
+Condición que dispara una [alerta](#alerta). Seis tipos:
 
 | Tipo | Dispara cuando |
 |---|---|
 | **Umbral** | Hay N o más coincidencias en la ventana |
 | **Error nuevo** | Aparece una [huella](#fingerprint-huella) vista por primera vez en la ventana |
+| **Regresión** | Vuelve un fallo resuelto ([regresión](#regresión)) |
+| **Tasa de error** | El porcentaje de errores llega al umbral |
+| **Silencio** | Algo que emitía logs deja de hacerlo (latido) |
+| **Pico** | La ventana tiene N veces lo normal de la última semana |
+
+Las de condición continua avisan también al recuperarse.
 
 La segunda es la más accionable tras un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes". Cada regla filtra por aplicación, entorno y nivel, y tiene su [cooldown](#cooldown-silencio-tras-avisar).
 
@@ -246,7 +261,10 @@ Fichero Markdown con instrucciones que un asistente de IA (Claude Code y compati
 Copia congelada de Logs, Registros, Errores o una Traza con un enlace propio `/s/<token>`: el resumen y hasta 500 logs, los fallos agrupados con un ejemplo de cada uno, o la operación completa. Puede ser **de equipo** (solo miembros del espacio, con sesión) o **pública** (cualquiera con el enlace, con los datos sensibles [enmascarados](#enmascarado)). No cambia con los logs nuevos ni lo borra la [retención](#retención): tiene su propia caducidad. → [Compartir un snapshot](guias/compartir-snapshots.md)
 
 ### SpanId
-Identificador de una **operación concreta** dentro de una traza. Se usa junto al [traceId](#traceid): el trace es el viaje completo, el span es un tramo. Máximo 128 caracteres.
+Identificador de un **tramo** (un paso) dentro de una traza. Se usa junto al [traceId](#traceid): el trace es el viaje completo, el span es un tramo. Con `parentSpanId`, la vista de traza anida los tramos, y con `durationMs` pinta lo que duró cada uno. En NetSuite, cada ejecución de un script es un tramo. También llega de la cabecera W3C `traceparent`. Máximo 128 caracteres.
+
+### Operación
+Un [traceId](#traceid) con sus logs: una compra, un documento de NetSuite, una petición entre servicios. La pantalla **Operaciones** las lista por rango, con su estado (correcta, con avisos o falló).
 
 ### SSE *(Server-Sent Events)*
 Mecanismo por el que el servidor empuja eventos al navegador sobre una conexión HTTP abierta. Es lo que hay detrás del botón **En vivo** del dashboard (`GET /api/logs/stream`).

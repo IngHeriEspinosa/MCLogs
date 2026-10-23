@@ -1,7 +1,7 @@
 "use client";
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, ButtonLink, IconButton } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
@@ -12,6 +12,7 @@ import { LogInspector } from "@/components/organisms/LogInspector";
 import { LogOverview } from "@/components/organisms/LogOverview";
 import { Density, LogRow, LogTable, rowKey } from "@/components/organisms/LogTable";
 import { ShareSnapshotDialog } from "@/components/organisms/ShareSnapshotDialog";
+import { SavedViewsMenu } from "@/components/organisms/SavedViewsMenu";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { downloadLogs } from "@/common/api/download";
 import { useI18n } from "@/common/i18n/I18nProvider";
@@ -21,6 +22,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { ADVANCED_FIELDS, useLogFilters } from "@/hooks/useLogFilters";
 import { useLogStream } from "@/hooks/useLogStream";
 import { useNow } from "@/hooks/useNow";
+import { useLogById } from "@/hooks/useErrors";
 import { usePreference } from "@/hooks/usePreference";
 
 /** Boton "En vivo" con su indicador de estado de la conexion. */
@@ -176,7 +178,24 @@ function LogsView() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const closeInspector = useCallback(() => setSelected(null), []);
+  // Enlace directo a un log (`?log=123`, p. ej. desde el historial de alertas o
+  // "Copiar enlace" del detalle): se abre su detalle en cuanto llega.
+  const pathname = usePathname();
+  const linkedId = Number(searchParams.get("log")) || null;
+  const linked = useLogById(linkedId);
+  useEffect(() => {
+    if (linked.data) setSelected(linked.data);
+  }, [linked.data]);
+
+  const closeInspector = useCallback(() => {
+    setSelected(null);
+    // Al cerrar se quita el enlace, para que refrescar no lo vuelva a abrir.
+    if (searchParams.get("log")) {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("log");
+      router.replace(next.toString() ? `${pathname}?${next.toString()}` : pathname, { scroll: false });
+    }
+  }, [searchParams, router, pathname]);
 
   const refresh = () => {
     setNow(Date.now());
@@ -222,6 +241,7 @@ function LogsView() {
       presentable
       actions={
         <>
+          <SavedViewsMenu path="/logs" />
           <IconButton
             icon="panelTop"
             label={showOverview ? t.logs.hideOverview : t.logs.showOverview}

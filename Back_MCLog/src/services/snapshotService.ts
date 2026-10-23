@@ -97,6 +97,8 @@ const LOG_FIELDS = {
   message: true,
   traceId: true,
   spanId: true,
+  parentSpanId: true,
+  durationMs: true,
   metadata: true,
   errorName: true,
   errorCode: true,

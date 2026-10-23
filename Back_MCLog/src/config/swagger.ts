@@ -176,7 +176,7 @@ export const swaggerSpec = swaggerJSDoc({
           tags: ["análisis"],
           summary: "Errores agrupados por causa, del más frecuente al menos",
           description:
-            "Las repeticiones del mismo fallo caen en un grupo aunque sus mensajes lleven ids o fechas distintos. El fingerprint devuelto sirve para ver las ocurrencias con GET /api/logs?fingerprint=…",
+            "Las repeticiones del mismo fallo caen en un grupo aunque sus mensajes lleven ids o fechas distintos. El fingerprint devuelto sirve para ver las ocurrencias con GET /api/logs?fingerprint=…\n\nCada grupo lleva su ciclo de vida: `status` (active, resolved, ignored), `firstSeenEver` (la primera vez de verdad, no solo en la ventana), `totalCount`, `regressionCount`, `lastRegressedAt`, `firstRelease`, `lastRelease` y `messageTemplate`. `status=active|resolved|ignored|regressed` filtra por él, `sort=count|lastSeen|firstSeen` ordena y `series=true` añade 24 cuentas por grupo. `lifecycle` resume la ventana: nuevos, regresiones, resueltos y MTTR (`mttrMs`).\n\n`PATCH /api/logs/errors/groups` (solo el dueño, con sesión) cambia el estado o la nota de hasta 200 grupos: `{ fingerprints, status?, ignoredUntil?, note? }`.",
           security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
           parameters: [
             { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744, default: 24 } },
@@ -185,6 +185,9 @@ export const swaggerSpec = swaggerJSDoc({
             ...logFilterParams.filter((param) => param !== levelParam),
             { ...levelParam, schema: { ...levelParam.schema, default: "error" } },
             { in: "query", name: "limit", schema: { type: "integer", minimum: 1, maximum: 200, default: 50 } },
+            { in: "query", name: "status", schema: { type: "string", enum: ["active", "resolved", "ignored", "regressed"] } },
+            { in: "query", name: "sort", schema: { type: "string", enum: ["count", "lastSeen", "firstSeen"], default: "count" } },
+            { in: "query", name: "series", schema: { type: "boolean", default: false } },
           ],
           responses: {
             200: {
@@ -203,6 +206,70 @@ export const swaggerSpec = swaggerJSDoc({
               },
             },
           },
+        },
+      },
+      "/api/logs/latency": {
+        get: {
+          tags: ["análisis"],
+          summary: "Percentiles de duración (p50, p95, p99, máximo) por aplicación y servicio",
+          description: "Solo con los logs que traen `durationMs`; los más lentos por p95 primero. Admite la ventana y los filtros de GET /api/logs/stats.",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [
+            { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744, default: 24 } },
+            { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
+            { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
+            ...logFilterParams,
+          ],
+          responses: { 200: { description: "OK" } },
+        },
+      },
+      "/api/logs/releases": {
+        get: {
+          tags: ["análisis"],
+          summary: "Releases que emitieron logs en la ventana, con sus errores y los fallos que estrenaron",
+          description: "Por aplicación y `release`: primera y última vez en la ventana, logs, errores y `newGroups` (fallos cuya primera aparición fue con esa release). Por defecto, los últimos 7 días.",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [
+            { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744, default: 168 } },
+            { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
+            { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
+            ...logFilterParams,
+          ],
+          responses: { 200: { description: "OK" } },
+        },
+      },
+      "/api/views": {
+        get: {
+          tags: ["espacios"],
+          summary: "Vistas guardadas del espacio (cualquier miembro)",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" } },
+        },
+        post: {
+          tags: ["espacios"],
+          summary: "Guarda una vista del espacio (solo el dueño): `name`, `path` (/logs, /records, /errors o /traces) y `query`",
+          description: "`DELETE /api/views/{id}` la borra (solo el dueño).",
+          security: [{ BearerAuth: [] }],
+          responses: { 201: { description: "Creada" }, 400: { description: "Pantalla desconocida o query inválida" }, 403: { description: "No es el dueño" } },
+        },
+      },
+      "/api/logs/traces": {
+        get: {
+          tags: ["análisis"],
+          summary: "Operaciones (traceId distintos) con logs en la ventana, de la más reciente a la más antigua",
+          description:
+            "Por operación: número de logs, errores y warnings, aplicaciones, servicios, inicio, fin y duración. Solo cuenta los logs de la ventana que cumplen los filtros de GET /api/logs, así que una operación que empezó antes sale recortada. `onlyErrors=true` deja solo las que registraron algún error.",
+          security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+          parameters: [
+            { in: "query", name: "hours", schema: { type: "integer", minimum: 1, maximum: 744, default: 24 } },
+            { in: "query", name: "from", schema: { type: "string", format: "date-time" } },
+            { in: "query", name: "to", schema: { type: "string", format: "date-time" } },
+            { in: "query", name: "page", schema: { type: "integer", minimum: 1, default: 1 } },
+            { in: "query", name: "pageSize", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+            { in: "query", name: "onlyErrors", schema: { type: "boolean", default: false } },
+            ...logFilterParams,
+          ],
+          responses: { 200: { description: "OK" }, 400: { description: "Parámetros fuera de rango" } },
         },
       },
       "/api/logs/trace/{traceId}": {
@@ -741,10 +808,13 @@ export const swaggerSpec = swaggerJSDoc({
                     name: { type: "string", maxLength: 120 },
                     type: {
                       type: "string",
-                      enum: ["threshold", "new_error_group"],
+                      enum: ["threshold", "new_error_group", "regression", "error_rate", "silence", "spike"],
                       default: "threshold",
-                      description: "threshold: N coincidencias en la ventana. new_error_group: una huella nunca vista.",
+                      description:
+                        "threshold: N coincidencias en la ventana. new_error_group: una huella nunca vista. regression: un fallo resuelto que vuelve. error_rate: el % de errores llega a `threshold`. silence: la ventana sin logs de algo que emitió la semana anterior. spike: `threshold` veces la media de la semana anterior. Las de condición continua (threshold, error_rate, silence, spike) avisan también al recuperarse.",
                     },
+                    minVolume: { type: "integer", minimum: 1, default: 20, description: "Volumen mínimo de la ventana para error_rate y spike" },
+                    mutedUntil: { type: "string", format: "date-time", nullable: true, description: "Silenciada hasta esta fecha (null quita el silencio)" },
                     application: { type: "string", nullable: true },
                     service: { type: "string", nullable: true },
                     environment: { type: "string", enum: ["development", "staging", "production"], nullable: true },
@@ -781,6 +851,22 @@ export const swaggerSpec = swaggerJSDoc({
           security: [{ BearerAuth: [] }],
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "integer" } }],
           responses: { 200: { description: "Eliminada" }, 404: { description: "No encontrada" } },
+        },
+      },
+      "/api/alerts/digests": {
+        get: {
+          tags: ["alertas"],
+          summary: "Resúmenes programados del espacio",
+          security: [{ BearerAuth: [] }],
+          responses: { 200: { description: "OK" } },
+        },
+        post: {
+          tags: ["alertas"],
+          summary: "Crea un resumen diario o semanal que se envía por canales de alerta",
+          description:
+            "`frequency` daily o weekly, `hourUtc` (0-23), `weekday` (0 = domingo, solo semanal), `environment` opcional y `channelIds`. Cubre las 24 h o los 7 días anteriores al envío: registros, errores, fallos nuevos, regresiones, resueltos, MTTR y los fallos con más ocurrencias. `PATCH`/`DELETE /api/alerts/digests/{id}` lo cambian o lo borran; `POST /api/alerts/digests/{id}/send` lo envía ahora, para probarlo.",
+          security: [{ BearerAuth: [] }],
+          responses: { 201: { description: "Creado" }, 400: { description: "Datos inválidos o canal de otro espacio" } },
         },
       },
       "/api/alerts/events": {
@@ -916,7 +1002,14 @@ export const swaggerSpec = swaggerJSDoc({
               maxLength: 128,
               description: "Opcional. Sin él se usa la cabecera x-trace-id de la petición, si viene; MCLog no inventa uno",
             },
-            spanId: { type: "string", maxLength: 128 },
+            spanId: {
+              type: "string",
+              maxLength: 128,
+              description: "Tramo de la operación. Sin él se usa el de la cabecera traceparent (W3C), si viene",
+            },
+            parentSpanId: { type: "string", maxLength: 128, description: "Tramo que contiene a este, para anidar los pasos" },
+            durationMs: { type: "integer", minimum: 0, description: "Duración del paso en milisegundos" },
+            release: { type: "string", maxLength: 120, description: "Versión desplegada que emitió el log (2.4.1, un commit…)" },
             metadata: { type: "object", description: "Objeto JSON libre con contexto adicional" },
             error: {
               type: "object",

@@ -4,6 +4,8 @@ import type { AlertPayload } from "../src/alerts/types";
 
 const payload: AlertPayload = {
   rule: { id: 1, name: "errores de facturacion", type: "threshold" },
+  kind: "trigger",
+  summary: "4 coincidencias en 10 min (umbral 3)",
   triggeredAt: "2026-10-01T10:00:00.000Z",
   count: 4,
   windowMinutes: 10,

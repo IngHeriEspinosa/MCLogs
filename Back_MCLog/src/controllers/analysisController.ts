@@ -8,8 +8,19 @@ import {
   getLogContext,
   getTrace,
   listApplications,
+  listTraces,
+  getLatency,
+  listReleases,
 } from "../services/analysisService";
 import { getSetting } from "../services/settingsService";
+import {
+  ErrorGroupError,
+  GroupStatusFilter,
+  lifecycleSummary,
+  updateErrorGroups,
+} from "../services/errorGroupService";
+import type { AuthenticatedRequest } from "../middlewares/requireAuth";
+import type { GroupSort } from "../services/analysisService";
 import { allowedApplications, filtersFromQuery } from "./queryFilters";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -34,22 +45,64 @@ export const errorGroups = async (req: Request, res: Response) => {
 
   try {
     const filters = filtersFromQuery(req);
-    const groups = await getErrorGroups(
-      {
-        ...filters,
-        // Por defecto solo errores: los avisos tienen huella, pero quien abre
-        // esta vista busca lo que esta roto.
-        levels: filters.levels ?? ["error"],
-        from,
-        to,
-      },
-      limit,
-    );
+    const [groups, lifecycle] = await Promise.all([
+      getErrorGroups(
+        {
+          ...filters,
+          // Por defecto solo errores: los avisos tienen huella, pero quien abre
+          // esta vista busca lo que esta roto.
+          levels: filters.levels ?? ["error"],
+          from,
+          to,
+        },
+        {
+          limit,
+          status: req.query.status as GroupStatusFilter | undefined,
+          sort: (req.query.sort as GroupSort | undefined) ?? "count",
+          withSeries: req.query.series === "true",
+        },
+      ),
+      // Nuevos, regresiones, resueltos y MTTR de la ventana, para el resumen de Errores.
+      lifecycleSummary(filters.workspaceId, from, to, {
+        application: filters.application,
+        applicationsIn: filters.applicationsIn,
+      }),
+    ]);
 
-    res.json({ data: groups, from: from.toISOString(), to: to.toISOString() });
+    res.json({ data: groups, lifecycle, from: from.toISOString(), to: to.toISOString() });
   } catch (error) {
     logger.error("Error retrieving error groups", { error });
     res.status(500).json({ error: "Error retrieving error groups" });
+  }
+};
+
+/**
+ * Cambia el estado (resolver, ignorar, reactivar) o la nota de uno o varios
+ * grupos del espacio. Solo el dueno del espacio o el admin de plataforma: el
+ * miembro observa.
+ */
+export const updateGroups = async (req: Request, res: Response) => {
+  const { fingerprints, status, ignoredUntil, note } = req.body as {
+    fingerprints: string[];
+    status?: "active" | "resolved" | "ignored";
+    ignoredUntil?: string | null;
+    note?: string | null;
+  };
+  try {
+    const updated = await updateErrorGroups(
+      workspaceIdOf(req),
+      fingerprints,
+      { status, ignoredUntil: ignoredUntil ? new Date(ignoredUntil) : null, note },
+      (req as AuthenticatedRequest).user?.id ?? null,
+    );
+    res.json({ updated });
+  } catch (error) {
+    if (error instanceof ErrorGroupError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    logger.error("Error updating error groups", { error });
+    res.status(500).json({ error: "Error updating error groups" });
   }
 };
 
@@ -69,6 +122,54 @@ export const trace = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error("Error retrieving trace", { error, traceId: req.params.traceId });
     res.status(500).json({ error: "Error retrieving trace" });
+  }
+};
+
+export const traces = async (req: Request, res: Response) => {
+  const { from, to } = resolveWindow(req, 24);
+  const page = (req.query.page as unknown as number | undefined) ?? 1;
+  const pageSize = (req.query.pageSize as unknown as number | undefined) ?? 25;
+
+  try {
+    const result = await listTraces(
+      { ...filtersFromQuery(req), from, to },
+      { page, pageSize, onlyErrors: req.query.onlyErrors === "true" },
+    );
+    res.json({
+      ...result,
+      data: result.data.map((row) => ({ ...row, start: row.start.toISOString(), end: row.end.toISOString() })),
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
+  } catch (error) {
+    logger.error("Error listing traces", { error });
+    res.status(500).json({ error: "Error listing traces" });
+  }
+};
+
+export const latency = async (req: Request, res: Response) => {
+  const { from, to } = resolveWindow(req, 24);
+  try {
+    const data = await getLatency({ ...filtersFromQuery(req), from, to });
+    res.json({ data, from: from.toISOString(), to: to.toISOString() });
+  } catch (error) {
+    logger.error("Error retrieving latency", { error });
+    res.status(500).json({ error: "Error retrieving latency" });
+  }
+};
+
+export const releases = async (req: Request, res: Response) => {
+  const { from, to } = resolveWindow(req, 24 * 7);
+  try {
+    const data = await listReleases({ ...filtersFromQuery(req), from, to });
+    res.json({
+      data: data.map((row) => ({ ...row, firstSeen: row.firstSeen.toISOString(), lastSeen: row.lastSeen.toISOString() })),
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
+  } catch (error) {
+    logger.error("Error retrieving releases", { error });
+    res.status(500).json({ error: "Error retrieving releases" });
   }
 };
 

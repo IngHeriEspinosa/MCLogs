@@ -1,9 +1,10 @@
 import { Prisma } from "@prisma/client";
-import type { AlertChannel, AlertRule, Log } from "@prisma/client";
+import type { AlertChannel, AlertRule, AlertRuleType, Log } from "@prisma/client";
 import { config } from "../config/env";
 import logger from "../config/logger";
 import { prisma } from "../config/prisma";
 import { deliverToChannels } from "./notifiers";
+import { LOCK_KEYS, withAdvisoryLock } from "../jobs/lock";
 import type { AlertPayload, AlertSample } from "./types";
 
 /**
@@ -98,27 +99,42 @@ export const newGroupWindowStart = (rule: AlertRule, now: Date): Date => {
   return new Date(Math.min(windowStart, last));
 };
 
-/** Evalúa una regla de umbral: N o más coincidencias en la ventana. */
-const evaluateThreshold = async (rule: AlertRule, from: Date, to: Date) => {
+/** Resultado de comprobar una regla: si se cumple, con que cifras y que muestras. */
+type Evaluation = {
+  triggered: boolean;
+  count: number;
+  samples: AlertSample[];
+  /** Huella del aviso si es de un único fallo, para acotar el enlace. */
+  fingerprint: string | null;
+  /** Una línea que explica la condición, para los canales. */
+  summary: string;
+};
+
+const notTriggered = (summary = ""): Evaluation => ({ triggered: false, count: 0, samples: [], fingerprint: null, summary });
+
+const latestSamples = async (where: Prisma.LogWhereInput) =>
+  (await prisma.log.findMany({ where, orderBy: { timestamp: "desc" }, take: MAX_SAMPLES })).map(toSample);
+
+/** Regla de umbral: N o más coincidencias en la ventana. */
+const evaluateThreshold = async (rule: AlertRule, from: Date, to: Date): Promise<Evaluation> => {
   const where = ruleWhere(rule, from, to);
   const count = await prisma.log.count({ where });
-  if (count < rule.threshold) return null;
-
-  const samples = await prisma.log.findMany({
-    where,
-    orderBy: { timestamp: "desc" },
-    take: MAX_SAMPLES,
-  });
+  const summary = `${count} ${count === 1 ? "coincidencia" : "coincidencias"} en ${rule.windowMinutes} min (umbral ${rule.threshold})`;
+  if (count < rule.threshold) return { ...notTriggered(summary), count };
   // Un umbral cuenta logs de cualquier fallo: el enlace no se acota a una huella.
-  return { count, samples: samples.map(toSample), fingerprint: null };
+  return { triggered: true, count, samples: await latestSamples(where), fingerprint: null, summary };
 };
 
 /**
- * Evalúa una regla de error nuevo: huellas cuya **primera** aparición cae
- * dentro de la ventana. Es la diferencia entre "esto falla mucho" y "esto no
- * fallaba antes", que suele ser la señal más accionable tras un despliegue.
+ * Regla de error nuevo: huellas cuya **primera** aparición cae dentro de la
+ * ventana. Es la diferencia entre "esto falla mucho" y "esto no fallaba
+ * antes", que suele ser la señal más accionable tras un despliegue.
+ *
+ * Solo mira las huellas con algún log en la ventana (por el índice de fecha) y,
+ * de esas, comprueba su primera vez por el índice de huella. Antes agregaba
+ * todo lo retenido en cada pasada de cada regla.
  */
-const evaluateNewErrorGroup = async (rule: AlertRule, from: Date, to: Date) => {
+const evaluateNewErrorGroup = async (rule: AlertRule, from: Date, to: Date): Promise<Evaluation> => {
   const condiciones: Prisma.Sql[] = [
     Prisma.sql`"workspaceId" = ${rule.workspaceId}`,
     Prisma.sql`"fingerprint" IS NOT NULL`,
@@ -132,15 +148,19 @@ const evaluateNewErrorGroup = async (rule: AlertRule, from: Date, to: Date) => {
   condiciones.push(
     Prisma.sql`"level" IN (${Prisma.join(levelsOf(rule).map((nivel) => Prisma.sql`${nivel}::"LogLevel"`))})`,
   );
+  const where = Prisma.join(condiciones, " AND ");
 
   // HAVING MIN(timestamp) >= from: el grupo entero es nuevo, no basta con que
   // tenga alguna ocurrencia reciente. COUNT(*) OVER () cuenta todos los grupos
-  // nuevos aunque solo se traigan unos pocos de muestra; con el LIMIT 50 de
-  // antes, una regla con umbral mayor de 50 no podía dispararse nunca.
+  // nuevos aunque solo se traigan unos pocos de muestra.
   const nuevos = await prisma.$queryRaw<Array<{ fingerprint: string; lastLogId: number; total: number }>>`
     SELECT "fingerprint", MAX("id")::int AS "lastLogId", (COUNT(*) OVER ())::int AS "total"
     FROM "Log"
-    WHERE ${Prisma.join(condiciones, " AND ")}
+    WHERE ${where}
+      AND "fingerprint" IN (
+        SELECT DISTINCT "fingerprint" FROM "Log"
+        WHERE ${where} AND "timestamp" >= ${from}
+      )
     GROUP BY "fingerprint"
     HAVING MIN("timestamp") >= ${from}
     ORDER BY MAX("timestamp") DESC
@@ -148,75 +168,231 @@ const evaluateNewErrorGroup = async (rule: AlertRule, from: Date, to: Date) => {
   `;
 
   const count = Number(nuevos[0]?.total ?? 0);
-  if (count === 0 || count < rule.threshold) return null;
+  const summary = `${count} ${count === 1 ? "fallo nuevo" : "fallos nuevos"} en ${rule.windowMinutes} min`;
+  if (count === 0 || count < rule.threshold) return { ...notTriggered(summary), count };
 
   const samples = await prisma.log.findMany({
     where: { id: { in: nuevos.map((fila) => Number(fila.lastLogId)) } },
     orderBy: { timestamp: "desc" },
   });
-  return { count, samples: samples.map(toSample), fingerprint: count === 1 ? nuevos[0].fingerprint : null };
+  return { triggered: true, count, samples: samples.map(toSample), fingerprint: count === 1 ? nuevos[0].fingerprint : null, summary };
 };
+
+/**
+ * Regla de regresión: fallos resueltos que han vuelto a aparecer en la
+ * ventana. Lee ErrorGroup, que la ingesta reactiva al llegar una ocurrencia
+ * posterior a la resolución. Con entorno, el fallo tiene que haber vuelto en él.
+ */
+const evaluateRegression = async (rule: AlertRule, from: Date, to: Date): Promise<Evaluation> => {
+  const groups = await prisma.errorGroup.findMany({
+    where: {
+      workspaceId: rule.workspaceId,
+      lastRegressedAt: { gte: from, lte: to },
+      level: { in: levelsOf(rule) as never[] },
+      ...(rule.application ? { application: rule.application } : {}),
+      ...(rule.service ? { service: rule.service } : {}),
+    },
+    orderBy: { lastRegressedAt: "desc" },
+    select: { fingerprint: true },
+  });
+  let fingerprints = groups.map((group) => group.fingerprint);
+  if (rule.environment && fingerprints.length > 0) {
+    const inEnvironment = await prisma.log.groupBy({
+      by: ["fingerprint"],
+      where: { workspaceId: rule.workspaceId, environment: rule.environment, fingerprint: { in: fingerprints }, timestamp: { gte: from, lte: to } },
+    });
+    const present = new Set(inEnvironment.map((row) => row.fingerprint));
+    fingerprints = fingerprints.filter((fingerprint) => present.has(fingerprint));
+  }
+
+  const count = fingerprints.length;
+  const summary = `${count} ${count === 1 ? "fallo resuelto ha vuelto" : "fallos resueltos han vuelto"} en ${rule.windowMinutes} min`;
+  if (count === 0 || count < rule.threshold) return { ...notTriggered(summary), count };
+
+  const samples = await latestSamples({
+    workspaceId: rule.workspaceId,
+    fingerprint: { in: fingerprints.slice(0, MAX_SAMPLES) },
+    timestamp: { gte: from, lte: to },
+    ...(rule.environment ? { environment: rule.environment } : {}),
+  });
+  return { triggered: true, count, samples, fingerprint: count === 1 ? fingerprints[0] : null, summary };
+};
+
+/** Filtro de aplicación, servicio y entorno de una regla, sin nivel ni fechas. */
+const scopeWhere = (rule: AlertRule): Prisma.LogWhereInput => ({
+  workspaceId: rule.workspaceId,
+  ...(rule.application ? { application: rule.application } : {}),
+  ...(rule.service ? { service: rule.service } : {}),
+  ...(rule.environment ? { environment: rule.environment } : {}),
+});
+
+const percent = (value: number) => `${Math.round(value * 10) / 10} %`;
+
+/**
+ * Regla de tasa de error: el porcentaje de logs de nivel error en la ventana
+ * llega al umbral (en %). Con menos de `minVolume` logs no se evalúa: tres
+ * logs con un error son un 33 % que no dice nada.
+ */
+const evaluateErrorRate = async (rule: AlertRule, from: Date, to: Date): Promise<Evaluation> => {
+  const base: Prisma.LogWhereInput = { ...scopeWhere(rule), timestamp: { gte: from, lte: to } };
+  const errorsWhere: Prisma.LogWhereInput = { ...base, level: "error" };
+  const [total, errors] = await Promise.all([prisma.log.count({ where: base }), prisma.log.count({ where: errorsWhere })]);
+  const rate = total > 0 ? (errors / total) * 100 : 0;
+  const summary = `${percent(rate)} de errores (${errors} de ${total}, umbral ${rule.threshold} %)`;
+  if (total < rule.minVolume || rate < rule.threshold) return { ...notTriggered(summary), count: errors };
+  return { triggered: true, count: errors, samples: await latestSamples(errorsWhere), fingerprint: null, summary };
+};
+
+const WEEK_MS = 7 * 24 * 60 * MINUTE_MS;
+
+/**
+ * Regla de silencio: ningún log en la ventana de algo que sí emitió en la
+ * semana anterior. Es el latido de un script programado (un Scheduled de
+ * NetSuite que dejó de correr no falla: simplemente calla).
+ */
+const evaluateSilence = async (rule: AlertRule, from: Date, to: Date): Promise<Evaluation> => {
+  const scope = scopeWhere(rule);
+  const [inWindow, last] = await Promise.all([
+    prisma.log.count({ where: { ...scope, timestamp: { gte: from, lte: to } } }),
+    prisma.log.findFirst({
+      where: { ...scope, timestamp: { gte: new Date(from.getTime() - WEEK_MS), lt: from } },
+      orderBy: { timestamp: "desc" },
+      select: { timestamp: true },
+    }),
+  ]);
+  const summary = last
+    ? `Sin logs en ${rule.windowMinutes} min; el último llegó el ${last.timestamp.toISOString().slice(0, 16).replace("T", " ")} UTC`
+    : `Sin logs en ${rule.windowMinutes} min`;
+  // Sin actividad en la semana anterior no hay latido que echar de menos.
+  if (inWindow > 0 || !last) return notTriggered(`${inWindow} logs en ${rule.windowMinutes} min`);
+  return { triggered: true, count: 0, samples: [], fingerprint: null, summary };
+};
+
+/**
+ * Regla de pico: la ventana tiene `threshold` veces o más lo normal, medido
+ * como la media de ventanas iguales en los 7 días anteriores. Con menos de
+ * `minVolume` coincidencias no se evalúa.
+ */
+const evaluateSpike = async (rule: AlertRule, from: Date, to: Date): Promise<Evaluation> => {
+  const windowMs = to.getTime() - from.getTime();
+  const levels = { level: { in: levelsOf(rule) as never[] } };
+  const [current, history] = await Promise.all([
+    prisma.log.count({ where: ruleWhere(rule, from, to) }),
+    prisma.log.count({ where: { ...scopeWhere(rule), ...levels, timestamp: { gte: new Date(from.getTime() - WEEK_MS), lt: from } } }),
+  ]);
+  const baseline = history / Math.max(1, WEEK_MS / Math.max(windowMs, MINUTE_MS));
+  const factor = current / Math.max(baseline, 1);
+  const summary = `${current} en ${rule.windowMinutes} min, ${Math.round(factor * 10) / 10}× lo normal (media ${Math.round(baseline * 10) / 10}, umbral ${rule.threshold}×)`;
+  if (current < rule.minVolume || factor < rule.threshold) return { ...notTriggered(summary), count: current };
+  return { triggered: true, count: current, samples: await latestSamples(ruleWhere(rule, from, to)), fingerprint: null, summary };
+};
+
+const EVALUATORS: Record<AlertRuleType, (rule: AlertRule, from: Date, to: Date) => Promise<Evaluation>> = {
+  threshold: evaluateThreshold,
+  new_error_group: evaluateNewErrorGroup,
+  regression: evaluateRegression,
+  error_rate: evaluateErrorRate,
+  silence: evaluateSilence,
+  spike: evaluateSpike,
+};
+
+/**
+ * Tipos de condición continua: se cumplen durante un tiempo y luego se
+ * despejan, y entonces se avisa de la recuperación. Los de evento (fallo
+ * nuevo, regresión) solo avisan al ocurrir.
+ */
+export const CONTINUOUS_RULES: ReadonlySet<AlertRuleType> = new Set<AlertRuleType>(["threshold", "error_rate", "silence", "spike"]);
 
 type RuleWithChannels = AlertRule & { channels: AlertChannel[] };
 
-/** Comprueba una regla y, si procede, avisa. Devuelve true si se disparó. */
+/**
+ * Comprueba una regla y avisa si procede. Devuelve true si se disparó.
+ *
+ * - Silenciada (`mutedUntil` futuro): ni se evalúa.
+ * - Se cumple fuera del cooldown: aviso de disparo y, si es continua, pasa a
+ *   `firing`. Dentro del cooldown no se repite: un incidente de una hora
+ *   generaría sesenta avisos idénticos.
+ * - Deja de cumplirse estando en `firing`: aviso de recuperación y vuelve a `ok`.
+ */
 export const evaluateRule = async (rule: RuleWithChannels, now = new Date()): Promise<boolean> => {
-  // Cooldown: tras avisar, la regla calla un rato. Sin esto, un incidente que
-  // dura una hora generaría sesenta avisos idénticos.
-  if (rule.lastTriggeredAt && now.getTime() - rule.lastTriggeredAt.getTime() < rule.cooldownMinutes * MINUTE_MS) {
-    return false;
-  }
+  if (rule.mutedUntil && rule.mutedUntil > now) return false;
+
+  const continuous = CONTINUOUS_RULES.has(rule.type);
+  const inCooldown =
+    rule.lastTriggeredAt !== null && now.getTime() - rule.lastTriggeredAt.getTime() < rule.cooldownMinutes * MINUTE_MS;
+  // Las de evento en cooldown ni se evalúan: la ventana de la siguiente pasada
+  // ya se remonta a lo que surgió mientras callaban (newGroupWindowStart).
+  if (!continuous && inCooldown) return false;
 
   const from =
-    rule.type === "new_error_group"
+    rule.type === "new_error_group" || rule.type === "regression"
       ? newGroupWindowStart(rule, now)
       : new Date(now.getTime() - rule.windowMinutes * MINUTE_MS);
-  const resultado =
-    rule.type === "new_error_group"
-      ? await evaluateNewErrorGroup(rule, from, now)
-      : await evaluateThreshold(rule, from, now);
+  const result = await EVALUATORS[rule.type](rule, from, now);
 
-  if (!resultado) return false;
+  if (result.triggered) {
+    if (inCooldown) return false;
+    await notify(rule, "trigger", result, { from, to: now }, now);
+    return true;
+  }
+  if (continuous && rule.state === "firing") await notify(rule, "resolve", result, { from, to: now }, now);
+  return false;
+};
 
+/** Avisa por los canales activos de la regla y deja el evento y el nuevo estado registrados. */
+const notify = async (
+  rule: RuleWithChannels,
+  kind: "trigger" | "resolve",
+  result: Evaluation,
+  window: { from: Date; to: Date },
+  now: Date,
+) => {
   const payload: AlertPayload = {
     rule: { id: rule.id, name: rule.name, type: rule.type },
+    kind,
     triggeredAt: now.toISOString(),
-    count: resultado.count,
+    count: result.count,
     windowMinutes: rule.windowMinutes,
     threshold: rule.threshold,
     application: rule.application,
     environment: rule.environment,
     level: rule.level,
-    samples: resultado.samples,
-    dashboardUrl: dashboardLink(rule, { from, to: now }, resultado.fingerprint),
+    summary: result.summary,
+    samples: result.samples,
+    dashboardUrl: dashboardLink(rule, window, result.fingerprint),
   };
 
-  const activos = rule.channels.filter((channel) => channel.enabled);
-  const deliveries = await deliverToChannels(activos, payload);
+  const deliveries = await deliverToChannels(
+    rule.channels.filter((channel) => channel.enabled),
+    payload,
+  );
 
   // El cooldown arranca aunque falle el envío: reintentar cada minuto contra un
   // canal caído solo multiplica el ruido cuando vuelva.
+  const state = kind === "trigger" && CONTINUOUS_RULES.has(rule.type) ? "firing" : "ok";
   await prisma.$transaction([
     prisma.alertEvent.create({
       data: {
         ruleId: rule.id,
         triggeredAt: now,
-        count: resultado.count,
-        sampleLogIds: resultado.samples.map((sample) => sample.id),
+        kind,
+        count: result.count,
+        sampleLogIds: result.samples.map((sample) => sample.id),
         deliveries: deliveries as unknown as Prisma.InputJsonValue,
       },
     }),
-    prisma.alertRule.update({ where: { id: rule.id }, data: { lastTriggeredAt: now } }),
+    prisma.alertRule.update({
+      where: { id: rule.id },
+      data: kind === "trigger" ? { lastTriggeredAt: now, state } : { state },
+    }),
   ]);
 
-  logger.info("Alert triggered", {
+  logger.info(kind === "trigger" ? "Alert triggered" : "Alert resolved", {
     rule: rule.name,
-    count: resultado.count,
+    count: result.count,
     channels: deliveries.length,
     failed: deliveries.filter((entrega) => !entrega.ok).length,
   });
-
-  return true;
 };
 
 /** Evalúa todas las reglas activas. No lanza: un fallo en una no frena las demás. */
@@ -234,10 +410,18 @@ export const evaluateRules = async (now = new Date()): Promise<number> => {
   return disparadas;
 };
 
+/**
+ * Como evaluateRules, pero solo en una instancia a la vez (ver withAdvisoryLock):
+ * con varias réplicas con el planificador encendido, nadie avisa dos veces.
+ */
+export const evaluateRulesExclusively = (now = new Date()): Promise<number> =>
+  withAdvisoryLock(LOCK_KEYS.alerts, () => evaluateRules(now), 0);
+
 /** Envía un aviso de prueba por un canal, para validarlo al configurarlo. */
 export const sendTestAlert = async (channel: AlertChannel) => {
   const payload: AlertPayload = {
     rule: { id: 0, name: "Prueba de configuración", type: "threshold" },
+    kind: "trigger",
     triggeredAt: new Date().toISOString(),
     count: 1,
     windowMinutes: 10,
@@ -245,6 +429,7 @@ export const sendTestAlert = async (channel: AlertChannel) => {
     application: null,
     environment: null,
     level: "error",
+    summary: "Aviso de prueba: 1 coincidencia en 10 min (umbral 1)",
     samples: [
       {
         id: 0,

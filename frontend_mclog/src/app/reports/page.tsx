@@ -19,6 +19,7 @@ import { MarkdownView } from "@/components/molecules/MarkdownView";
 import { Select } from "@/components/molecules/Select";
 import { useToast } from "@/components/molecules/Toast";
 import { printReportPdf } from "@/components/organisms/ReportPrint";
+import type { TimelineBin } from "@/common/time/timeline";
 import { DashboardLayout } from "@/components/templates/DashboardLayout";
 import { saveFile } from "@/common/api/download";
 import { errorMessage } from "@/common/api/errorMessage";
@@ -71,7 +72,15 @@ const MONO_FILTERS: ReadonlySet<ReportFilter> = new Set<ReportFilter>(["errorCod
 /** Por encima de esto un brief ya no cabe holgado en la ventana de muchos modelos. */
 const LARGE_TOKENS = 100_000;
 
-type Result = BuiltReport & { options: ReportOptions; bytes: number; tokens: number; generatedAt: string; origin: string };
+type Result = BuiltReport & {
+  options: ReportOptions;
+  bytes: number;
+  tokens: number;
+  generatedAt: string;
+  origin: string;
+  /** Serie para el grafico del PDF, si el informe lleva la actividad. */
+  chart?: TimelineBin[];
+};
 
 const isKind = (value: unknown): value is ReportKind => REPORT_KINDS.includes(value as ReportKind);
 
@@ -149,6 +158,7 @@ function ReportsView() {
           tokens: approxTokens(built.content),
           generatedAt: data.generatedAt,
           origin: data.origin,
+          chart: input.kind === "markdown" && input.sections.includes("activity") ? data.hours : undefined,
         });
       }
     } catch (error) {
@@ -275,6 +285,8 @@ function ReportsView() {
     try {
       await printReportPdf({
         source: result.content,
+        chart: result.chart,
+        chartTitle: dictionaries[result.options.locale].reportDoc.activity,
         linkOrigin: result.origin,
         brand: app.name,
         tagline: app.tagline,

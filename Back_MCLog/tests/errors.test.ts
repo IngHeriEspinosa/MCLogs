@@ -668,3 +668,104 @@ describe("Traza larga", () => {
     expect(res.body.data[999].message).toBe("paso 1009");
   });
 });
+
+describe("Tramos de una traza", () => {
+  it("guarda el tramo padre y la duracion", async () => {
+    const res = await ingest({
+      application: "tramos",
+      level: "info",
+      environment: "production",
+      message: "consulta",
+      traceId: "op-tramos",
+      spanId: "s2",
+      parentSpanId: "s1",
+      durationMs: 42,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ spanId: "s2", parentSpanId: "s1", durationMs: 42 });
+  });
+
+  it("rechaza una duracion negativa o no entera", async () => {
+    const base = { application: "tramos", level: "info", environment: "production", message: "x" };
+    expect((await ingest({ ...base, durationMs: -1 })).status).toBe(400);
+    expect((await ingest({ ...base, durationMs: "rapido" })).status).toBe(400);
+  });
+
+  it("toma traceId y spanId de la cabecera traceparent si el log no los trae", async () => {
+    const res = await request(app)
+      .post("/api/log")
+      .set("x-api-key", config.apiKey)
+      .set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+      .send({ application: "w3c", level: "info", environment: "production", message: "desde otel" });
+    expect(res.body).toMatchObject({ traceId: "4bf92f3577b34da6a3ce929d0e0e4736", spanId: "00f067aa0ba902b7" });
+  });
+
+  it("ignora un traceparent mal formado", async () => {
+    const res = await request(app)
+      .post("/api/log")
+      .set("x-api-key", config.apiKey)
+      .set("traceparent", "00-00000000000000000000000000000000-00f067aa0ba902b7-01")
+      .send({ application: "w3c", level: "info", environment: "production", message: "invalido" });
+    expect(res.body.traceId).toBeNull();
+  });
+});
+
+describe("Lista de operaciones", () => {
+  beforeAll(async () => {
+    const base = { application: "operaciones", environment: "production" };
+    await ingest({ ...base, service: "tienda", level: "info", message: "pedido", traceId: "op-a" });
+    await ingest({ ...base, service: "pagos", level: "error", message: "rechazado", traceId: "op-a" });
+    await ingest({ ...base, service: "tienda", level: "info", message: "pedido", traceId: "op-b" });
+    await ingest({ ...base, level: "info", message: "sin traza" });
+  });
+
+  it("resume cada traceId de la ventana, la mas reciente primero", async () => {
+    const res = await request(app).get("/api/logs/traces?application=operaciones").set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2);
+    expect(res.body.data.map((row: { traceId: string }) => row.traceId)).toEqual(["op-b", "op-a"]);
+    expect(res.body.data[1]).toMatchObject({ count: 2, errors: 1, warnings: 0, applications: ["operaciones"] });
+    expect([...res.body.data[1].services].sort()).toEqual(["pagos", "tienda"]);
+  });
+
+  it("con onlyErrors deja solo las que fallaron", async () => {
+    const res = await request(app).get("/api/logs/traces?application=operaciones&onlyErrors=true").set(auth());
+    expect(res.body.data.map((row: { traceId: string }) => row.traceId)).toEqual(["op-a"]);
+  });
+
+  it("pagina", async () => {
+    const res = await request(app).get("/api/logs/traces?application=operaciones&pageSize=1&page=2").set(auth());
+    expect(res.body).toMatchObject({ page: 2, pageSize: 1, total: 2, totalPages: 2 });
+    expect(res.body.data).toHaveLength(1);
+  });
+});
+
+describe("Por que se agrupan", () => {
+  it("las ocurrencias explican las piezas de la huella y los grupos llevan la plantilla", async () => {
+    const id = (
+      await ingest({
+        application: "agrupacion",
+        service: "cobros",
+        level: "error",
+        environment: "production",
+        message: "Timeout cobrando el pedido 991",
+        errorStack: STACK,
+        error: { name: "TypeError", code: "ETIMEDOUT" },
+      })
+    ).body.id;
+
+    const { grouping } = (await request(app).get(`/api/logs/${id}/occurrences`).set(auth())).body.data;
+    expect(grouping).toEqual({
+      application: "agrupacion",
+      service: "cobros",
+      errorName: "TypeError",
+      errorCode: "ETIMEDOUT",
+      firstFrame: "at cobrar (/app/src/pagos.js)",
+      messageTemplate: "timeout cobrando el pedido <n>",
+      computed: true,
+    });
+
+    const groups = (await request(app).get("/api/logs/errors/groups?application=agrupacion").set(auth())).body.data;
+    expect(groups[0].messageTemplate).toBe("timeout cobrando el pedido <n>");
+  });
+});

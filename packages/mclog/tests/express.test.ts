@@ -32,9 +32,17 @@ describe('validateLog', () => {
             host: 'node-1',
             traceId: 't-1',
             spanId: 's-1',
+            parentSpanId: 's-0',
+            durationMs: 120,
             metadata: { orderId: 42 },
         });
         expect(res.status).toBe(201);
+    });
+
+    it('rechaza una duración negativa o no entera, igual que el servidor', async () => {
+        expect((await request(app).post('/logs').send({ ...valid, durationMs: -1 })).status).toBe(400);
+        expect((await request(app).post('/logs').send({ ...valid, durationMs: 'rápido' })).status).toBe(400);
+        expect((await request(app).post('/logs').send({ ...valid, parentSpanId: 'p'.repeat(129) })).status).toBe(400);
     });
 
     it.each(['application', 'level', 'environment', 'message'])(

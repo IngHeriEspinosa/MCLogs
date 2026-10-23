@@ -349,6 +349,12 @@ a {
   @apply mb-[14pt] flex items-center gap-2 border-b-2 border-brand pb-[8pt];
 }
 
+/* Grafico de actividad del PDF: va antes del texto y no se parte entre paginas. */
+.report-print-chart {
+  @apply mb-[12pt] flex flex-col gap-[4pt];
+  break-inside: avoid;
+}
+
 .report-print .md-view {
   @apply text-[9.5pt] leading-[1.55];
 }

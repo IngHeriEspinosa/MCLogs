@@ -205,7 +205,24 @@ El PDF lleva la cabecera de MCLog, el nombre del informe y el número de página
 
 Desde el detalle de cualquier log con traceId, **Ver traza (N registros)** la muestra en el propio detalle, con ese log resaltado. **Abrir en pestaña nueva** lleva a esta pantalla completa.
 
-Muestra todos los registros de una misma operación en orden cronológico, **aunque haya pasado por varias aplicaciones**. Cada línea lleva el tiempo desde el primer registro y el salto desde el anterior (Δ), y a la derecha una pista con la duración total: el tramo coloreado es el tiempo entre un paso y el siguiente. Si un tramo ocupa media pista, ahí está el cuello de botella. Pulsa cualquier línea para ver su detalle, stack y metadata.
+Muestra todos los registros de una misma operación, **aunque haya pasado por varias aplicaciones**. Arriba, el **estado** (correcta, con avisos o falló), la duración, los servicios y hosts, el tiempo **hasta el primer error**, el **mayor salto** y la **ruta** que siguió la operación entre servicios.
+
+- **Cronológica:** cada paso con el tiempo desde el primero y el salto desde el anterior (Δ). Los pasos de un tramo hijo van sangrados; los repetidos seguidos se pliegan en una fila con «×N iguales»; el primer error y el mayor salto llevan su etiqueta.
+- **Por servicio:** un carril por servicio sobre el mismo eje: se ve de un vistazo qué servicio tardó y dónde falló.
+
+Filtra por nivel, servicio o texto, y usa **Ir al primer error** para saltar a él. Pulsa un paso para abrirlo en el detalle del log, con ←/→ para recorrer la traza. Si la traza tiene más de 1000 registros, se muestran los 500 primeros y los 500 últimos.
+
+## Estados de los fallos
+
+En **Errores**, cada fallo está activo, resuelto o ignorado; las pestañas filtran por estado (y **Regresiones**). El dueño del espacio marca fallos y los resuelve, ignora o reactiva. Un resuelto que vuelve se reactiva solo con la etiqueta **Regresión**. Arriba, fallos nuevos, regresiones, resueltos y tiempo medio hasta resolver.
+
+## Vistas guardadas
+
+El menú **Vistas** de Logs, Registros, Errores y Operaciones guarda los filtros de la pantalla: en tu navegador o, si eres el dueño, para todo el espacio.
+
+## Operaciones
+
+Las operaciones (traceId) con actividad en el rango, de la más reciente a la más antigua: servicios, registros, errores, duración y estado. **Solo con errores** deja las que fallaron. Solo aparecen las aplicaciones que envían traceId.
 
 Arriba: **Descargar .md** guarda la traza como documento, y **Copiar para IA** copia un brief para que un agente la analice.
 

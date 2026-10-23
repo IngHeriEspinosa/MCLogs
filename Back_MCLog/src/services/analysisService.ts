@@ -1,6 +1,9 @@
 import { Prisma, type Log } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { LogFilters, buildWhere, buildWhereSql } from "./logService";
+import { FingerprintParts, computeFingerprint, fingerprintParts, normalizeMessage } from "../utils/fingerprint";
+import { GroupStatusFilter, lifecycleOf, statusConditionSql } from "./errorGroupService";
+import type { ErrorGroupStatus } from "@prisma/client";
 
 /**
  * Consultas de analisis: lo que hace falta para investigar un incidente, no
@@ -19,10 +22,26 @@ export type ErrorGroup = {
   errorName: string | null;
   errorCode: string | null;
   sampleMessage: string;
+  /** El mensaje del ejemplo sin sus datos variables: lo que comparten todas las ocurrencias. */
+  messageTemplate: string;
   lastLogId: number;
+  /** Ocurrencias, primera y ultima vez dentro de la ventana. */
   count: number;
   firstSeen: Date;
   lastSeen: Date;
+  /** Ciclo de vida (ErrorGroup): estado, primera vez de verdad y regresiones. */
+  status: ErrorGroupStatus;
+  firstSeenEver: Date;
+  totalCount: number;
+  resolvedAt: Date | null;
+  ignoredUntil: Date | null;
+  regressionCount: number;
+  lastRegressedAt: Date | null;
+  firstRelease: string | null;
+  lastRelease: string | null;
+  note: string | null;
+  /** Con `withSeries`: SERIES_POINTS cuentas repartidas por la ventana. */
+  series?: number[];
 };
 
 type GroupSample = {
@@ -36,29 +55,55 @@ type GroupSample = {
   message: string;
 };
 
+/** Orden de la vista de errores: por ocurrencias en la ventana, o por la ultima o la primera vez en ella. */
+export const GROUP_SORTS = ["count", "lastSeen", "firstSeen"] as const;
+export type GroupSort = (typeof GROUP_SORTS)[number];
+
+const GROUP_ORDER: Record<GroupSort, Prisma.Sql> = {
+  count: Prisma.sql`"count" DESC, "lastSeen" DESC`,
+  lastSeen: Prisma.sql`"lastSeen" DESC`,
+  firstSeen: Prisma.sql`"firstSeen" DESC`,
+};
+
+export type ErrorGroupOptions = {
+  limit?: number;
+  /** Solo los grupos en ese estado del ciclo de vida (ver errorGroupService). */
+  status?: GroupStatusFilter;
+  sort?: GroupSort;
+  /** Ademas, una serie de SERIES_POINTS cuentas por grupo, para el sparkline. */
+  withSeries?: boolean;
+};
+
+/** Puntos de la serie de cada grupo: bastan para ver si sube, baja o fue un pico. */
+export const SERIES_POINTS = 24;
+
 /**
- * Agrupa los logs por huella y devuelve los grupos mas frecuentes.
+ * Agrupa los logs por huella y devuelve los grupos de la ventana.
  *
  * Es la consulta que responde "que esta fallando", frente al listado plano que
- * solo responde "que ha pasado". Va en dos pasos a proposito: la agregacion con
- * la API tipada de Prisma (que asi reutiliza los filtros de visibilidad tal
- * cual), y una sola consulta en crudo para traer un ejemplo por grupo, porque
- * DISTINCT ON no tiene equivalente en Prisma.
+ * solo responde "que ha pasado". Las cuentas salen de Log con los mismos
+ * filtros que el listado; el estado, la primera vez de verdad y las
+ * regresiones, de ErrorGroup. El filtro de estado va como subconsulta sobre
+ * ErrorGroup, para no mezclar sus columnas con las de Log en los filtros.
  */
-export const getErrorGroups = async (filters: LogFilters, limit = 50): Promise<ErrorGroup[]> => {
-  const where: Prisma.LogWhereInput = { AND: [buildWhere(filters), { fingerprint: { not: null } }] };
+export const getErrorGroups = async (filters: LogFilters, options: ErrorGroupOptions | number = {}): Promise<ErrorGroup[]> => {
+  const { limit = 50, status, sort = "count", withSeries = false } = typeof options === "number" ? { limit: options } : options;
+  const statusFilter = status
+    ? Prisma.sql`AND "fingerprint" IN (
+        SELECT "fingerprint" FROM "ErrorGroup" WHERE "workspaceId" = ${filters.workspaceId} AND ${statusConditionSql(status)}
+      )`
+    : Prisma.empty;
 
-  const groups = await prisma.log.groupBy({
-    by: ["fingerprint"],
-    where,
-    _count: { _all: true },
-    _min: { timestamp: true },
-    _max: { timestamp: true },
-    orderBy: { _count: { fingerprint: "desc" } },
-    take: limit,
-  });
+  const groups = await prisma.$queryRaw<Array<{ fingerprint: string; count: number; firstSeen: Date; lastSeen: Date }>>`
+    SELECT "fingerprint", COUNT(*)::int AS "count", MIN("timestamp") AS "firstSeen", MAX("timestamp") AS "lastSeen"
+    FROM "Log"
+    WHERE ${buildWhereSql(filters)} AND "fingerprint" IS NOT NULL ${statusFilter}
+    GROUP BY "fingerprint"
+    ORDER BY ${GROUP_ORDER[sort]}
+    LIMIT ${limit}
+  `;
 
-  const fingerprints = groups.map((group) => group.fingerprint).filter((value): value is string => value !== null);
+  const fingerprints = groups.map((group) => group.fingerprint);
   if (fingerprints.length === 0) return [];
 
   // Un ejemplo por grupo: el mas reciente que cumple los mismos filtros que el
@@ -67,42 +112,85 @@ export const getErrorGroups = async (filters: LogFilters, limit = 50): Promise<E
   // no puede ver. El LATERAL con LIMIT 1 se queda en el primer log de cada
   // huella por el indice (workspaceId, fingerprint, timestamp), en lugar de
   // recorrer todo su historico como hacia el DISTINCT ON.
-  const samples = await prisma.$queryRaw<GroupSample[]>`
-    SELECT "sample".*
-    FROM UNNEST(${fingerprints}::text[]) AS "wanted"("fingerprint")
-    CROSS JOIN LATERAL (
-      SELECT
-        "fingerprint", "id", "application", "service", "level"::text AS "level",
-        "errorName", "errorCode", "message"
-      FROM "Log"
-      WHERE ${buildWhereSql(filters)} AND "fingerprint" = "wanted"."fingerprint"
-      ORDER BY "timestamp" DESC, "id" DESC
-      LIMIT 1
-    ) AS "sample"
-  `;
+  const [samples, lifecycle, series] = await Promise.all([
+    prisma.$queryRaw<GroupSample[]>`
+      SELECT "sample".*
+      FROM UNNEST(${fingerprints}::text[]) AS "wanted"("fingerprint")
+      CROSS JOIN LATERAL (
+        SELECT
+          "fingerprint", "id", "application", "service", "level"::text AS "level",
+          "errorName", "errorCode", "message"
+        FROM "Log"
+        WHERE ${buildWhereSql(filters)} AND "fingerprint" = "wanted"."fingerprint"
+        ORDER BY "timestamp" DESC, "id" DESC
+        LIMIT 1
+      ) AS "sample"
+    `,
+    lifecycleOf(filters.workspaceId, fingerprints),
+    withSeries && filters.from && filters.to ? groupSeries(filters, fingerprints) : Promise.resolve(null),
+  ]);
 
   const sampleByFingerprint = new Map(samples.map((sample) => [sample.fingerprint, sample]));
 
   return groups.flatMap((group) => {
-    const fingerprint = group.fingerprint;
-    const sample = fingerprint ? sampleByFingerprint.get(fingerprint) : undefined;
-    if (!fingerprint || !sample) return [];
+    const sample = sampleByFingerprint.get(group.fingerprint);
+    if (!sample) return [];
+    const life = lifecycle.get(group.fingerprint);
     return [
       {
-        fingerprint,
+        fingerprint: group.fingerprint,
         application: sample.application,
         service: sample.service,
         level: sample.level,
         errorName: sample.errorName,
         errorCode: sample.errorCode,
         sampleMessage: sample.message,
+        messageTemplate: normalizeMessage(sample.message),
         lastLogId: sample.id,
-        count: group._count._all,
-        firstSeen: group._min.timestamp!,
-        lastSeen: group._max.timestamp!,
+        count: Number(group.count),
+        firstSeen: group.firstSeen,
+        lastSeen: group.lastSeen,
+        // Sin fila de ciclo de vida (huella anterior a la migracion que no ha
+        // vuelto a llegar) se presenta como activo.
+        status: life?.status ?? "active",
+        firstSeenEver: life?.firstSeenEver ?? group.firstSeen,
+        totalCount: life?.totalCount ?? Number(group.count),
+        resolvedAt: life?.resolvedAt ?? null,
+        ignoredUntil: life?.ignoredUntil ?? null,
+        regressionCount: life?.regressionCount ?? 0,
+        lastRegressedAt: life?.lastRegressedAt ?? null,
+        firstRelease: life?.firstRelease ?? null,
+        lastRelease: life?.lastRelease ?? null,
+        note: life?.note ?? null,
+        ...(series ? { series: series.get(group.fingerprint) ?? new Array<number>(SERIES_POINTS).fill(0) } : {}),
       },
     ];
   });
+};
+
+/**
+ * Serie de SERIES_POINTS intervalos iguales entre `from` y `to` por huella. El
+ * intervalo no es redondo (la ventana entre 24): aqui solo importa la forma.
+ */
+const groupSeries = async (filters: LogFilters, fingerprints: string[]) => {
+  const from = filters.from!;
+  const to = filters.to!;
+  const stepMs = Math.max(1000, Math.ceil((to.getTime() - from.getTime()) / SERIES_POINTS));
+  const rows = await prisma.$queryRaw<Array<{ fingerprint: string; slot: number; count: number }>>`
+    SELECT "fingerprint",
+      LEAST(${SERIES_POINTS - 1}, FLOOR(EXTRACT(EPOCH FROM ("timestamp" - ${from}::timestamp)) * 1000 / ${stepMs}))::int AS "slot",
+      COUNT(*)::int AS "count"
+    FROM "Log"
+    WHERE ${buildWhereSql(filters)} AND "fingerprint" = ANY(${fingerprints})
+    GROUP BY 1, 2
+  `;
+  const byFingerprint = new Map<string, number[]>();
+  for (const row of rows) {
+    const list = byFingerprint.get(row.fingerprint) ?? new Array<number>(SERIES_POINTS).fill(0);
+    list[Math.max(0, Number(row.slot))] += Number(row.count);
+    byFingerprint.set(row.fingerprint, list);
+  }
+  return byFingerprint;
 };
 
 export type TraceResult = {
@@ -287,6 +375,12 @@ export type FailureOccurrences = {
   environments: EnvironmentOccurrences[];
   recurrence: FailureRecurrence;
   failureRate: FailureRate;
+  /**
+   * Las piezas de la huella de este log, para explicar por que se agrupan sus
+   * ocurrencias. `computed` es false si la huella la mando el emisor con su
+   * propio criterio: entonces las piezas no la explican.
+   */
+  grouping: FingerprintParts & { computed: boolean };
 };
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -453,6 +547,7 @@ export const getFailureOccurrences = async (
       lastSeen: new Date(Math.max(...environments.map((row) => row.lastSeen.getTime()))),
       environments,
       recurrence: recurrenceOf(activeHours, observedFrom, now),
+      grouping: { ...fingerprintParts(target), computed: computeFingerprint(target) === target.fingerprint },
       failureRate: {
         application: target.application,
         service: target.service,
@@ -605,4 +700,148 @@ export const getLevelTimeline = async (
     info: Number(row.info),
     debug: Number(row.debug),
   }));
+};
+
+export type TraceSummary = {
+  traceId: string;
+  /** Logs de la traza dentro de la ventana. */
+  count: number;
+  errors: number;
+  warnings: number;
+  applications: string[];
+  services: string[];
+  start: Date;
+  end: Date;
+  /** `end - start`, en milisegundos. */
+  durationMs: number;
+};
+
+export type TraceListOptions = { page: number; pageSize: number; onlyErrors: boolean };
+
+/**
+ * Operaciones (traceId distintos) con logs en la ventana, de la mas reciente a
+ * la mas antigua: la entrada a la trazabilidad sin tener que llegar desde un
+ * log. Cuenta solo los logs que caen en la ventana y cumplen los filtros, asi
+ * que una operacion que empezo antes aparece recortada; su detalle completo
+ * es GET /api/logs/trace/:traceId.
+ *
+ * COUNT(*) OVER () da el total de operaciones en la misma consulta que la
+ * pagina, despues del HAVING.
+ */
+export const listTraces = async (filters: LogFilters, options: TraceListOptions) => {
+  const having = options.onlyErrors ? Prisma.sql`HAVING COUNT(*) FILTER (WHERE "level" = 'error') > 0` : Prisma.empty;
+  const rows = await prisma.$queryRaw<
+    Array<Omit<TraceSummary, "durationMs"> & { total: number }>
+  >`
+    SELECT
+      "traceId",
+      COUNT(*)::int AS "count",
+      COUNT(*) FILTER (WHERE "level" = 'error')::int AS "errors",
+      COUNT(*) FILTER (WHERE "level" = 'warn')::int AS "warnings",
+      ARRAY_AGG(DISTINCT "application") AS "applications",
+      COALESCE(ARRAY_AGG(DISTINCT "service") FILTER (WHERE "service" IS NOT NULL), '{}') AS "services",
+      MIN("timestamp") AS "start",
+      MAX("timestamp") AS "end",
+      (COUNT(*) OVER ())::int AS "total"
+    FROM "Log"
+    WHERE ${buildWhereSql(filters)} AND "traceId" IS NOT NULL
+    GROUP BY "traceId"
+    ${having}
+    ORDER BY MAX("timestamp") DESC, "traceId"
+    LIMIT ${options.pageSize} OFFSET ${(options.page - 1) * options.pageSize}
+  `;
+
+  const total = Number(rows[0]?.total ?? 0);
+  return {
+    data: rows.map(({ total: _total, ...row }) => ({
+      ...row,
+      count: Number(row.count),
+      errors: Number(row.errors),
+      warnings: Number(row.warnings),
+      durationMs: row.end.getTime() - row.start.getTime(),
+    })),
+    page: options.page,
+    pageSize: options.pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / options.pageSize)),
+  };
+};
+
+export type LatencyRow = {
+  application: string;
+  service: string | null;
+  /** Logs con durationMs en la ventana. */
+  count: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  max: number;
+};
+
+/**
+ * Percentiles de duracion por aplicacion y servicio, con los logs que traen
+ * `durationMs`. Los peores (por p95) primero. Sin durationMs no hay nada que
+ * medir y la lista sale vacia.
+ */
+export const getLatency = async (filters: LogFilters, limit = 20): Promise<LatencyRow[]> => {
+  const rows = await prisma.$queryRaw<Array<Omit<LatencyRow, "count"> & { count: number }>>`
+    SELECT
+      "application", "service", COUNT(*)::int AS "count",
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "durationMs")::float8 AS "p50",
+      PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "durationMs")::float8 AS "p95",
+      PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY "durationMs")::float8 AS "p99",
+      MAX("durationMs")::int AS "max"
+    FROM "Log"
+    WHERE ${buildWhereSql(filters)} AND "durationMs" IS NOT NULL
+    GROUP BY "application", "service"
+    ORDER BY "p95" DESC
+    LIMIT ${limit}
+  `;
+  return rows.map((row) => ({
+    ...row,
+    count: Number(row.count),
+    p50: Math.round(Number(row.p50)),
+    p95: Math.round(Number(row.p95)),
+    p99: Math.round(Number(row.p99)),
+    max: Number(row.max),
+  }));
+};
+
+export type ReleaseRow = {
+  application: string;
+  release: string;
+  /** Primer y ultimo log de esa release dentro de la ventana. */
+  firstSeen: Date;
+  lastSeen: Date;
+  count: number;
+  errors: number;
+  /** Fallos que aparecieron por primera vez con esta release (ErrorGroup.firstRelease). */
+  newGroups: number;
+};
+
+/**
+ * Releases que emitieron logs en la ventana, la mas reciente primero: cuando
+ * aparecio cada una, cuanto volumen y cuantos errores trajo, y cuantos fallos
+ * nuevos estrenó. Es la forma de responder "¿esto empezo con el despliegue?".
+ */
+export const listReleases = async (filters: LogFilters, limit = 50): Promise<ReleaseRow[]> => {
+  const rows = await prisma.$queryRaw<Array<ReleaseRow>>`
+    SELECT
+      "r"."application", "r"."release", "r"."firstSeen", "r"."lastSeen", "r"."count", "r"."errors",
+      (
+        SELECT COUNT(*)::int FROM "ErrorGroup" "g"
+        WHERE "g"."workspaceId" = ${filters.workspaceId}
+          AND "g"."application" = "r"."application" AND "g"."firstRelease" = "r"."release"
+      ) AS "newGroups"
+    FROM (
+      SELECT "application", "release", MIN("timestamp") AS "firstSeen", MAX("timestamp") AS "lastSeen",
+        COUNT(*)::int AS "count", COUNT(*) FILTER (WHERE "level" = 'error')::int AS "errors"
+      FROM "Log"
+      WHERE ${buildWhereSql(filters)} AND "release" IS NOT NULL
+      GROUP BY "application", "release"
+    ) "r"
+    ORDER BY "r"."firstSeen" DESC
+    LIMIT ${limit}
+  `;
+  return rows.map((row) => ({ ...row, count: Number(row.count), errors: Number(row.errors), newGroups: Number(row.newGroups) }));
 };

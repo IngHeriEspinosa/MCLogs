@@ -85,19 +85,42 @@ export const firstStackFrame = (stack: string): string | undefined => {
  * mas manejable que un sha256 completo al mostrarlo o compartirlo.
  */
 export const computeFingerprint = (input: FingerprintInput): string => {
-  const frame = input.errorStack ? firstStackFrame(input.errorStack) : undefined;
+  const parts = fingerprintParts(input);
+  const joined = [
+    parts.application,
+    parts.service ?? "",
+    parts.errorName ?? "",
+    parts.errorCode ?? "",
+    parts.firstFrame ?? "",
+    parts.messageTemplate,
+  ].join("|");
 
-  const parts = [
-    input.application,
-    input.service ?? "",
-    input.errorName ?? "",
-    input.errorCode ?? "",
-    frame ?? "",
-    normalizeMessage(input.message),
-  ];
-
-  return createHash("sha256").update(parts.join("|"), "utf8").digest("hex").slice(0, 32);
+  return createHash("sha256").update(joined, "utf8").digest("hex").slice(0, 32);
 };
+
+/**
+ * Lo que entra en la huella, ya normalizado. Es lo que el panel enseña en
+ * "¿Por que se agrupan?": dos logs con estas mismas piezas son el mismo fallo.
+ */
+export type FingerprintParts = {
+  application: string;
+  service: string | null;
+  errorName: string | null;
+  errorCode: string | null;
+  /** Primer marco del stack sin linea ni columna, o null si no hay stack. */
+  firstFrame: string | null;
+  /** Primera linea del mensaje con los datos variables cambiados por marcadores. */
+  messageTemplate: string;
+};
+
+export const fingerprintParts = (input: FingerprintInput): FingerprintParts => ({
+  application: input.application,
+  service: input.service ?? null,
+  errorName: input.errorName ?? null,
+  errorCode: input.errorCode ?? null,
+  firstFrame: (input.errorStack ? firstStackFrame(input.errorStack) : undefined) ?? null,
+  messageTemplate: normalizeMessage(input.message),
+});
 
 /** Niveles para los que tiene sentido agrupar: nadie investiga grupos de "info". */
 const GROUPABLE_LEVELS = new Set(["error", "warn"]);

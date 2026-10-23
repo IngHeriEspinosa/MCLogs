@@ -2,7 +2,8 @@ import client from "@/common/api/client";
 import { closedWindow } from "@/common/time/range";
 import { fillTimeline, type TimelineBin } from "@/common/time/timeline";
 import type { LogEntry, LogStats } from "@/hooks/useAuth";
-import type { ApplicationSummary, ErrorGroup } from "@/hooks/useErrors";
+import type { ApplicationSummary, ErrorGroup, ErrorLifecycle } from "@/hooks/useErrors";
+import type { LatencyRow, ReleaseRow } from "@/hooks/useMonitoring";
 import { pickFilters, type ReportOptions, type ReportSection } from "./options";
 
 export * from "./options";
@@ -40,6 +41,12 @@ export type ReportData = {
    * suman los fallos agrupados, que se quedan cortos.
    */
   errorsByApp?: Record<string, number> | null;
+  /** Nuevos, regresiones, resueltos y MTTR de la ventana; null si no se pidio. */
+  lifecycle?: ErrorLifecycle | null;
+  /** Fallos que volvieron tras resolverse dentro de la ventana. */
+  regressed?: ErrorGroup[];
+  latency?: LatencyRow[];
+  releases?: ReleaseRow[];
   warnGroups: ErrorGroup[];
   previous: PreviousWindow | null;
 };
@@ -102,13 +109,14 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
       .then((response) => ({
         groups: response.data.data.slice(0, GROUPS_LIMIT),
         capped: response.data.data.length > GROUPS_LIMIT,
+        lifecycle: (response.data as { lifecycle?: ErrorLifecycle }).lifecycle ?? null,
       }));
   const stats = (window: { from: string; to: string }) =>
     client.get<LogStats>("/api/logs/stats", { params: clean({ ...window, ...scope }) }).then((response) => response.data);
 
   const [current, found, recentErrors, inventory, warnGroups, previousStats, previousGroups] = await Promise.all([
     stats(span),
-    needsGroups ? errorGroups(span) : Promise.resolve({ groups: [] as ErrorGroup[], capped: false }),
+    needsGroups || wants("lifecycle") ? errorGroups(span) : Promise.resolve({ groups: [] as ErrorGroup[], capped: false, lifecycle: null }),
     wants("recentErrors")
       ? client
           .get<{ data: LogEntry[] }>("/api/logs", {
@@ -137,6 +145,15 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
   ]);
 
   const { groups, capped: groupsCapped } = found;
+  // Latencia y releases van aparte: solo si se piden, y vacias no salen en el reporte.
+  const [latency, releases] = await Promise.all([
+    wants("latency")
+      ? client.get<{ data: LatencyRow[] }>("/api/logs/latency", { params: clean({ ...span, ...scope }) }).then((response) => response.data.data)
+      : Promise.resolve([] as LatencyRow[]),
+    wants("releases")
+      ? client.get<{ data: ReleaseRow[] }>("/api/logs/releases", { params: clean({ ...span, ...scope }) }).then((response) => response.data.data)
+      : Promise.resolve([] as ReleaseRow[]),
+  ]);
   const samples: Record<string, LogEntry> = {};
   if (options.includeStacks && wants("errorGroups")) {
     const picked = groups.slice(0, Math.min(options.maxGroups, MAX_SAMPLES));
@@ -183,6 +200,10 @@ export const collectReportData = async (options: ReportOptions, now = Date.now()
     errorsByApp: inventory
       ? Object.fromEntries(inventory.data.map((app) => [app.application, app.errors ?? 0]))
       : null,
+    lifecycle: wants("lifecycle") ? found.lifecycle : null,
+    regressed: groups.filter((group) => group.lastRegressedAt && Date.parse(group.lastRegressedAt) >= from.getTime()),
+    latency,
+    releases,
     warnGroups,
     previous,
   };

@@ -1,5 +1,6 @@
 "use client";
 import React, { useRef } from "react";
+import Link from "next/link";
 import { Alert } from "@/components/atoms/Alert";
 import { Button, IconButton } from "@/components/atoms/Button";
 import { EmptyState } from "@/components/atoms/EmptyState";
@@ -265,7 +266,19 @@ export const LogTable: React.FC<LogTableProps> = ({
                         </div>
                       </td>
                       <td className={`hidden whitespace-nowrap font-mono text-xs text-ink-3 4xl:table-cell ${COLUMN} ${padding}`}>
-                        {row.traceId ? `${row.traceId.slice(0, 12)}…` : "—"}
+                        {row.traceId ? (
+                          // Enlace propio: no abre el detalle de la fila, abre la operacion entera.
+                          <Link
+                            href={`/trace/${encodeURIComponent(row.traceId)}`}
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                            title={t.logs.openTrace}
+                          >
+                            {row.traceId.slice(0, 12)}…
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   );

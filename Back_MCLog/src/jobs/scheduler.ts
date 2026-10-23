@@ -2,7 +2,9 @@ import { config } from "../config/env";
 import logger from "../config/logger";
 import { prisma } from "../config/prisma";
 import { deleteLogsOlderThanInBatches } from "../services/logService";
-import { evaluateRules } from "../alerts/evaluator";
+import { evaluateRulesExclusively } from "../alerts/evaluator";
+import { runDigestsNow } from "../alerts/digest";
+import { LOCK_KEYS, withAdvisoryLock } from "./lock";
 import { purgeDeletedWorkspaces } from "../services/workspaceService";
 import { getSetting } from "../services/settingsService";
 import { purgeExpiredSnapshots } from "../services/snapshotService";
@@ -19,6 +21,7 @@ const ALERTS_INTERVAL_MS = 60 * 1000;
 const WORKSPACE_PURGE_INTERVAL_MS = HOUR_MS;
 // Un snapshot caducado ya no se sirve (se comprueba al leerlo); borrarlo es solo liberar espacio.
 const SNAPSHOT_PURGE_INTERVAL_MS = HOUR_MS;
+const DIGESTS_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
  * Trabajos en ejecucion. Una purga sobre una tabla grande puede durar mas que
@@ -107,7 +110,10 @@ export const startScheduler = () => {
   schedule("retention", RETENTION_INTERVAL_MS, runRetentionNow);
   schedule("refreshTokenCleanup", REFRESH_TOKEN_CLEANUP_INTERVAL_MS, runRefreshTokenCleanupNow);
   // Con las alertas apagadas desde la configuracion, la pasada no evalua nada.
-  schedule("alerts", ALERTS_INTERVAL_MS, async () => (getSetting("alertsEnabled") ? evaluateRules() : 0));
+  // Con varias instancias, solo una evalua cada pasada (cerrojo de PostgreSQL).
+  schedule("alerts", ALERTS_INTERVAL_MS, async () => (getSetting("alertsEnabled") ? evaluateRulesExclusively() : 0));
+  // Cada pocos minutos: cada resumen sale en la primera pasada de su hora.
+  schedule("digests", DIGESTS_INTERVAL_MS, () => withAdvisoryLock(LOCK_KEYS.digests, () => runDigestsNow(), 0));
   schedule("workspacePurge", WORKSPACE_PURGE_INTERVAL_MS, purgeDeletedWorkspaces);
   schedule("snapshotPurge", SNAPSHOT_PURGE_INTERVAL_MS, purgeExpiredSnapshots);
 

@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import client from "@/common/api/client";
 
 export type AlertChannelType = "webhook" | "email" | "telegram";
-export type AlertRuleType = "threshold" | "new_error_group";
+export const ALERT_RULE_TYPES = ["threshold", "new_error_group", "regression", "error_rate", "silence", "spike"] as const;
+export type AlertRuleType = (typeof ALERT_RULE_TYPES)[number];
 
 export type AlertChannel = {
   id: number;
@@ -26,6 +27,11 @@ export type AlertRule = {
   threshold: number;
   windowMinutes: number;
   cooldownMinutes: number;
+  /** Volumen minimo de la ventana para error_rate y spike. */
+  minVolume: number;
+  /** firing mientras la condicion se cumple (reglas continuas). */
+  state: "ok" | "firing";
+  mutedUntil: string | null;
   lastTriggeredAt: string | null;
   channels: AlertChannel[];
 };
@@ -39,6 +45,8 @@ export type AlertEvent = {
   count: number;
   sampleLogIds: number[];
   deliveries: Delivery[];
+  /** trigger = se cumplio la condicion; resolve = se despejo. */
+  kind: "trigger" | "resolve";
   rule: { id: number; name: string; type: AlertRuleType };
 };
 
@@ -97,11 +105,13 @@ export type RuleInput = {
   name: string;
   type: AlertRuleType;
   application?: string | null;
+  service?: string | null;
   environment?: string | null;
   level: string;
   threshold: number;
   windowMinutes: number;
   cooldownMinutes: number;
+  minVolume?: number;
   channelIds: number[];
 };
 
@@ -116,7 +126,7 @@ export const useCreateRule = () => {
 export const useUpdateRule = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...changes }: Partial<RuleInput> & { id: number; enabled?: boolean }) =>
+    mutationFn: ({ id, ...changes }: Partial<RuleInput> & { id: number; enabled?: boolean; mutedUntil?: string | null }) =>
       client.patch(`/api/alerts/rules/${id}`, changes),
     onSuccess: () => invalidate(qc, "alert-rules"),
   });
@@ -136,4 +146,63 @@ export const useAlertEvents = () =>
   useQuery<AlertEvent[]>({
     queryKey: ["alert-events"],
     queryFn: async () => (await client.get("/api/alerts/events", { params: { limit: 50 } })).data.data,
+  });
+
+// --- Resumenes programados ---
+
+export type Digest = {
+  id: number;
+  name: string;
+  frequency: "daily" | "weekly";
+  hourUtc: number;
+  weekday: number;
+  environment: string | null;
+  enabled: boolean;
+  lastSentAt: string | null;
+  channels: AlertChannel[];
+};
+
+export type DigestInput = {
+  name: string;
+  frequency: "daily" | "weekly";
+  hourUtc: number;
+  weekday: number;
+  environment: string | null;
+  channelIds: number[];
+};
+
+export const useDigests = () =>
+  useQuery<Digest[]>({
+    queryKey: ["digests"],
+    queryFn: async () => (await client.get("/api/alerts/digests")).data.data,
+  });
+
+export const useCreateDigest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DigestInput) => client.post("/api/alerts/digests", input),
+    onSuccess: () => invalidate(qc, "digests"),
+  });
+};
+
+export const useUpdateDigest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...changes }: Partial<DigestInput> & { id: number; enabled?: boolean }) => client.patch(`/api/alerts/digests/${id}`, changes),
+    onSuccess: () => invalidate(qc, "digests"),
+  });
+};
+
+export const useDeleteDigest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => client.delete(`/api/alerts/digests/${id}`),
+    onSuccess: () => invalidate(qc, "digests"),
+  });
+};
+
+/** Envia el resumen ahora, para probarlo. Devuelve el resultado de cada canal. */
+export const useSendDigest = () =>
+  useMutation<Delivery[], unknown, number>({
+    mutationFn: async (id) => (await client.post(`/api/alerts/digests/${id}/send`)).data.data,
   });

@@ -31,6 +31,10 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 21. [Lab de pruebas](#21-lab-de-pruebas)
 22. [Configuración de la plataforma](#22-configuración-de-la-plataforma)
 23. [Snapshots compartibles](#23-snapshots-compartibles)
+24. [Ciclo de vida de los fallos](#24-ciclo-de-vida-de-los-fallos)
+25. [Latencia y releases](#25-latencia-y-releases)
+26. [Vistas guardadas](#26-vistas-guardadas)
+27. [Resúmenes programados](#27-resúmenes-programados)
 
 ---
 
@@ -70,7 +74,9 @@ Pensado para procesos masivos —Map/Reduce de NetSuite, ETL, workers—: 1 peti
 | `host` | — | 255 chars | hostname de la petición |
 | `timestamp` | — | ISO-8601 | momento de la inserción (si llega más de 5 min en el futuro, se trae a ahora) |
 | `traceId` | — | 128 chars | el de la cabecera `x-trace-id`, si viene; si no, ninguno |
-| `spanId` | — | 128 chars | — |
+| `spanId` | — | 128 chars | el de la cabecera `traceparent`, si viene |
+| `parentSpanId` | — | 128 chars | — (tramo que contiene a este, para anidar) |
+| `durationMs` | — | entero ≥ 0 | — (duración del paso en ms) |
 | `metadata` | — | objeto JSON libre | — |
 | `errorName` / `errorCode` / `errorStack` | — | 200 / 100 / 50 000 chars (se recortan) | — |
 | `error` | — | objeto con `name`/`message`/`code`/`stack` | se reparte en los tres anteriores ([15.1](#151-detalle-estructurado-del-error)) |
@@ -82,7 +88,7 @@ Pensado para procesos masivos —Map/Reduce de NetSuite, ETL, workers—: 1 peti
 
 El servidor **completa** lo que la aplicación no envía: `service` y `host` se rellenan solos ([`toCreateInput`](../Back_MCLog/src/controllers/logController.ts)). Una app puede enviar únicamente los 4 campos obligatorios y aun así obtener registros útiles.
 
-El `traceId` **no se inventa**: solo existe si la aplicación lo manda, en el log o en la cabecera `x-trace-id` de la petición (que vale para todos los logs del lote que no traigan el suyo). Antes el servidor generaba uno por petición, y eso convertía cada log suelto en una "traza" de un registro y todo un lote en una sola operación.
+El `traceId` **no se inventa**: solo existe si la aplicación lo manda, en el log, en la cabecera `x-trace-id` o en la cabecera W3C `traceparent` (la que propagan OpenTelemetry y los clientes compatibles), que valen para todos los logs de la petición que no traigan el suyo. `traceparent` aporta además el `spanId`. Antes el servidor generaba uno por petición, y eso convertía cada log suelto en una "traza" de un registro y todo un lote en una sola operación.
 
 Un `timestamp` más de 5 minutos en el futuro (un reloj mal puesto) se trae a la hora de llegada y el original queda en `metadata.mclogClockSkew`. Fechado en el futuro, seguía dentro de la ventana de las alertas y las disparaba una y otra vez.
 
@@ -289,7 +295,8 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Registros** | La tabla sin resumen, con **búsqueda avanzada** por campo (mensaje, servicio, host, traceId exacto, nombre y código del error) y el detalle del log a pantalla completa, con ←/→ para recorrer la página |
 | **Snapshots** | **Compartir** en Logs, Registros, Errores y Traza guarda una copia congelada de la pantalla con su enlace, de equipo o pública; la página **Snapshots** los lista con sus vistas y permite borrarlos (ver [23](#23-snapshots-compartibles)) |
 | **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición y brief para IA |
-| **Traza** | Una operación entre sistemas en línea temporal, con los saltos de tiempo entre pasos |
+| **Traza** | Una operación entre sistemas: estado (correcta, con avisos, falló), ruta entre servicios, tiempo hasta el primer error y mayor salto; vista **Cronológica** (pasos anidados por tramo, repeticiones plegadas, primer error y mayor salto marcados) o **Por servicio** (un carril por servicio sobre el mismo eje, con la duración de cada paso si la envía el emisor); filtro por nivel, servicio y texto, **Ir al primer error**, y cada paso se abre en el detalle del log |
+| **Operaciones** | Las operaciones (traceId) con actividad en el rango, con sus servicios, registros, errores, duración y estado; **Solo con errores** deja las que fallaron |
 | **Selector de espacio** | En lo alto del menú: espacio activo y rol, cambio de espacio sin recargar, crear espacio y salir del actual. Cada pestaña puede estar en un espacio distinto |
 | **Espacio** (dueño) | Miembros e invitaciones, API keys, alertas y el **Lab** de pruebas (ver [21](#21-lab-de-pruebas)) |
 | **Plataforma** (admin) | Cuentas: alta con espacio propio o dentro de cualquier espacio existente, con enlace de activación. El admin ve todos los espacios en el selector y los administra como dueño |
@@ -476,7 +483,8 @@ Con eso, «Timeout cobrando el pedido 991» y «Timeout cobrando el pedido 1428�
 |---|---|
 | `GET /api/logs/errors/groups` | **Qué está fallando**, por frecuencia, con primera y última aparición |
 | `GET /api/logs?fingerprint=…` | Las ocurrencias concretas de un grupo |
-| `GET /api/logs/trace/:traceId` | Una operación completa, aunque cruce aplicaciones |
+| `GET /api/logs/traces` | **Qué operaciones hubo** en la ventana, de la más reciente a la más antigua, con sus servicios, errores y duración (`onlyErrors=true` para las que fallaron) |
+| `GET /api/logs/trace/:traceId` | Una operación completa, aunque cruce aplicaciones; con más de 1000 registros, el principio y el final |
 | `GET /api/logs/:id/context` | Lo ocurrido justo antes y después de un log, en su aplicación, servicio y entorno |
 | `GET /api/logs/:id/occurrences` | Cuántas veces ha ocurrido su fallo (24 h, 7 días y retención), por entorno, y la probabilidad de que se repita y de que una operación acabe en él |
 | `GET /api/logs/applications` | Qué aplicaciones existen, con sus servicios y errores recientes |
@@ -564,6 +572,12 @@ Una **regla** define cuándo avisar. Se comprueban todas cada minuto.
 |---|---|
 | `threshold` | Hay N o más coincidencias en la ventana |
 | `new_error_group` | Aparece una huella de error **vista por primera vez** en la ventana |
+| `regression` | Un fallo que se marcó como resuelto **vuelve a aparecer** |
+| `error_rate` | El porcentaje de errores de la ventana llega al umbral (con un volumen mínimo, `minVolume`) |
+| `silence` | Algo que emitió logs la semana anterior lleva la ventana entera **sin enviar ninguno** (el latido de un script programado) |
+| `spike` | La ventana tiene `threshold` veces o más la media de ventanas iguales de los 7 días anteriores (con `minVolume`) |
+
+Las de condición continua (`threshold`, `error_rate`, `silence`, `spike`) tienen estado: pasan a **disparada** al cumplirse y, cuando la condición se despeja, avisan de la **recuperación** y vuelven a `ok`. Una regla se puede **silenciar** hasta una fecha (`mutedUntil`): no se evalúa ni avisa. Con varias instancias, solo una evalúa cada pasada (cerrojo de PostgreSQL), y cada envío fallido se reintenta una vez.
 
 La segunda es la señal más accionable tras un despliegue: no dice "esto falla mucho", dice "esto no fallaba antes".
 
@@ -723,6 +737,35 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 
 ---
 
+## 24. Ciclo de vida de los fallos
+
+Cada fallo (huella) tiene una fila en la tabla `ErrorGroup` de su espacio, que la ingesta mantiene al día en la misma transacción que el log: la **primera vez de verdad** (aunque la retención ya haya borrado aquellos logs), la última, cuántas veces en total, su nivel más grave y las releases en que apareció primero y por última vez. **Código:** [errorGroupService.ts](../Back_MCLog/src/services/errorGroupService.ts)
+
+| Estado | Qué significa |
+|---|---|
+| `active` | Pendiente. Es el de partida |
+| `resolved` | Alguien lo dio por arreglado. Si llega una ocurrencia **posterior** a la resolución, vuelve a `active` y cuenta una **regresión** (una ocurrencia atrasada, enviada tarde, no lo reabre) |
+| `ignored` | No interesa, para siempre o hasta una fecha; pasada esa fecha, la siguiente ocurrencia lo reactiva |
+
+En **Errores**, el dueño del espacio selecciona fallos y los **resuelve**, los **ignora** (24 h, 7 días o siempre) o los **reactiva**. Las pestañas filtran por estado (también **Regresiones**), cada fila lleva su mini-gráfica, las etiquetas **Nuevo** / **Regresión** / **Resuelto** / **Ignorado** y su última release, y arriba se resume la ventana: fallos nuevos, regresiones, resueltos y **tiempo medio hasta resolver** (MTTR). API: `PATCH /api/logs/errors/groups` y los parámetros `status`, `sort` y `series` de `GET /api/logs/errors/groups`. Los miembros ven los estados pero no los cambian.
+
+La migración `0018_monitoring` rellena la tabla con lo que ya hay en `Log`.
+
+## 25. Latencia y releases
+
+- **Latencia.** Si los logs traen `durationMs`, `GET /api/logs/latency` da p50, p95, p99 y el máximo por servicio, y el resumen de Logs y los reportes los enseñan.
+- **Releases.** Si traen `release` (la versión desplegada), `GET /api/logs/releases` dice cuándo apareció cada una, cuánto volumen y cuántos errores trajo y cuántos fallos estrenó. La gráfica de actividad marca con una línea discontinua dónde apareció cada release.
+
+## 26. Vistas guardadas
+
+Una pantalla (Logs, Registros, Errores u Operaciones) con sus filtros, para volver a ella en un clic desde el menú **Vistas**. Las **del espacio** las crea y borra el dueño y las ven todos los miembros (`/api/views`); las **personales** se guardan en el navegador de cada cual.
+
+## 27. Resúmenes programados
+
+En **Espacio → Alertas → Resúmenes**, el dueño programa un resumen **diario** o **semanal** (hora en UTC, entorno opcional) que se envía por canales de alerta: registros, errores y warnings, fallos nuevos, regresiones, resueltos, MTTR y los cinco fallos con más ocurrencias, con un enlace a Errores. Email, Telegram y webhook (con el formato de Slack, Discord o Teams). **Enviar ahora** lo prueba. El planificador mira cada 5 minutos y envía cada uno una vez en su hora. **Código:** [alerts/digest.ts](../Back_MCLog/src/alerts/digest.ts)
+
+---
+
 ## Resumen de endpoints
 
 | Método | Ruta | Auth | Funcionalidad |
@@ -733,6 +776,10 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 | `GET` | `/api/logs/stats` | Clave `read` o JWT | [3](#3-estadísticas) |
 | `GET` | `/api/logs/:id` | Clave `read` o JWT | [2.4](#24-detalle-individual--get-apilogsid) |
 | `GET` | `/api/logs/errors/groups` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
+| `GET` | `/api/logs/traces` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
+| `PATCH` | `/api/logs/errors/groups` | JWT **dueño** | [24](#24-ciclo-de-vida-de-los-fallos) |
+| `GET` | `/api/logs/latency` · `/api/logs/releases` | Clave `read` o JWT | [25](#25-latencia-y-releases) |
+| `GET` · `POST`/`DELETE` | `/api/views` · `/:id` | JWT (dueño para crear y borrar) | [26](#26-vistas-guardadas) |
 | `GET` | `/api/logs/trace/:traceId` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `GET` | `/api/logs/:id/context` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
 | `GET` | `/api/logs/:id/occurrences` | Clave `read` o JWT | [15.3](#153-consultas-de-investigación) |
@@ -740,7 +787,7 @@ Copia congelada de Logs, Registros, Errores o una Traza, con un enlace propio pa
 | `DELETE` | `/api/logs` | JWT **dueño** | [5](#5-retención-y-purga) |
 | `POST` | `/mcp` | Clave `read` o JWT | [16](#16-acceso-para-ia-mcp) |
 | `GET` | `/api/logs/stream` | Clave `read` o JWT | [19](#19-logs-en-vivo) |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/channels/:id/test` · `/rules` · `/events` | JWT **dueño** | [18](#18-alertas) |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/alerts/channels` · `/channels/:id/test` · `/rules` · `/events` · `/digests` · `/digests/:id/send` | JWT **dueño** | [18](#18-alertas) · [27](#27-resúmenes-programados) |
 | `GET`/`POST`/`DELETE` | `/api/keys` | JWT **dueño** | [13](#13-api-keys-con-permisos) |
 | `GET`/`DELETE` | `/api/admin/keys` · `/:id` | JWT **admin de plataforma** | [13](#inventario-de-claves-admin-de-plataforma) |
 | `GET` | `/api/skill` | — | [16](#skill-de-instalación-e-integración) |

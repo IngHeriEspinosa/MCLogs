@@ -17,6 +17,10 @@ export type MCLogEntry = {
     timestamp?: string;
     traceId?: string;
     spanId?: string;
+    /** Tramo que contiene a este, para anidar los pasos de una traza. */
+    parentSpanId?: string;
+    /** Duración del paso en milisegundos. */
+    durationMs?: number;
     metadata?: Record<string, unknown>;
     /** Clase de la excepción, p. ej. "TypeError". */
     errorName?: string;
@@ -393,6 +397,8 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         if (entry.timestamp !== undefined) merged.timestamp = entry.timestamp;
         if (entry.traceId !== undefined) merged.traceId = entry.traceId;
         if (entry.spanId !== undefined) merged.spanId = entry.spanId;
+        if (entry.parentSpanId !== undefined) merged.parentSpanId = entry.parentSpanId;
+        if (entry.durationMs !== undefined) merged.durationMs = entry.durationMs;
         if (metadata !== undefined) merged.metadata = metadata;
         if (errorName !== undefined) merged.errorName = errorName;
         if (errorCode !== undefined) merged.errorCode = errorCode;

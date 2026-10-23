@@ -13,6 +13,10 @@ export type LogEntry = {
   message: string;
   traceId?: string | null;
   spanId?: string | null;
+  /** Tramo que contiene a este, para anidar los pasos de una traza. */
+  parentSpanId?: string | null;
+  /** Duracion del paso en ms, si el emisor la mide. */
+  durationMs?: number | null;
   metadata?: Record<string, unknown> | null;
   errorName?: string | null;
   errorCode?: string | null;
@@ -210,9 +214,10 @@ export type StatsParams = {
  * `byApplication`...) son los de esa ventana; con `hours` solo, los de todo el
  * historico. La serie respeta siempre la ventana.
  */
-export const useLogStats = (params: StatsParams = {}) => {
+export const useLogStats = (params: StatsParams = {}, enabled = true) => {
   return useQuery<LogStats>({
     queryKey: ["logs", "stats", params],
+    enabled,
     queryFn: async () => {
       const res = await client.get("/api/logs/stats", { params: cleanParams(params) });
       return res.data;
