@@ -8,7 +8,7 @@ import { EmptyState, Kbd } from "@/components/atoms/EmptyState";
 import { Field, Fieldset } from "@/components/atoms/Field";
 import { Icon, IconName } from "@/components/atoms/Icon";
 import { Input, Textarea } from "@/components/atoms/Input";
-import { Segmented } from "@/components/atoms/Segmented";
+import { Segmented, segmentedTabId } from "@/components/atoms/Segmented";
 import { Switch } from "@/components/atoms/Switch";
 import { Tag } from "@/components/atoms/Tag";
 import { Card } from "@/components/molecules/Card";
@@ -128,9 +128,14 @@ function ReportsView() {
   const [filtersOpen, setFiltersOpen] = useState(filterCount > 0);
   const filtersId = useId();
   const kindId = useId();
+  const previewId = useId();
+  const kindRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const set = <K extends keyof ReportOptions>(key: K, value: ReportOptions[K]) =>
     setOptions((current) => ({ ...current, [key]: value }));
+  // Solo el Markdown admite datos sin enmascarar: el resto sale de la organizacion.
+  const selectKind = (kind: ReportKind) =>
+    setOptions((current) => ({ ...current, kind, redact: kind === "markdown" ? current.redact : true }));
 
   // Estado local y no useMutation: la generacion automatica arranca en un
   // efecto de montaje, y en StrictMode el observador de la mutacion se
@@ -327,19 +332,45 @@ function ReportsView() {
             {/* Mosaicos compactos en fila; la descripcion del elegido va debajo y
                 cada mosaico la enlaza con aria-describedby. */}
             <Fieldset legend={t.reports.kind} info={t.fieldInfo.reports.kind}>
-              <div role="radiogroup" aria-label={t.reports.kind} className="grid grid-cols-3 gap-2">
-                {REPORT_KINDS.map((kind) => {
+              {/* Patron de radios: una sola parada de Tab y las flechas cambian la eleccion. */}
+              <div
+                role="radiogroup"
+                aria-label={t.reports.kind}
+                tabIndex={-1}
+                className="grid grid-cols-3 gap-2"
+                onKeyDown={(event) => {
+                  const index = REPORT_KINDS.indexOf(options.kind);
+                  const last = REPORT_KINDS.length - 1;
+                  const next =
+                    event.key === "ArrowRight" || event.key === "ArrowDown"
+                      ? (index + 1) % REPORT_KINDS.length
+                      : event.key === "ArrowLeft" || event.key === "ArrowUp"
+                        ? (index + last) % REPORT_KINDS.length
+                        : event.key === "Home"
+                          ? 0
+                          : event.key === "End"
+                            ? last
+                            : -1;
+                  if (next < 0) return;
+                  event.preventDefault();
+                  selectKind(REPORT_KINDS[next]);
+                  kindRefs.current[next]?.focus();
+                }}
+              >
+                {REPORT_KINDS.map((kind, index) => {
                   const selected = options.kind === kind;
                   return (
                     <button
                       key={kind}
+                      ref={(element) => {
+                        kindRefs.current[index] = element;
+                      }}
                       type="button"
                       role="radio"
                       aria-checked={selected}
+                      tabIndex={selected ? 0 : -1}
                       aria-describedby={`${kindId}-${kind}`}
-                      onClick={() =>
-                        setOptions((current) => ({ ...current, kind, redact: kind === "markdown" ? current.redact : true }))
-                      }
+                      onClick={() => selectKind(kind)}
                       className={`flex min-w-0 flex-col gap-2 rounded-xl border p-2.5 text-left transition-colors ${
                         selected ? "border-brand/50 bg-brand-soft/60 ring-1 ring-brand/20" : "border-line hover:border-line-strong hover:bg-surface-2"
                       }`}
@@ -570,6 +601,7 @@ function ReportsView() {
                   <Segmented
                     size="sm"
                     semantics="tabs"
+                    controls={previewId}
                     label={t.reports.preview}
                     value={view}
                     onChange={setView}
@@ -621,7 +653,14 @@ function ReportsView() {
             </div>
           )}
 
-          <div className="max-h-[calc(100vh-11rem)] min-h-[28rem] overflow-auto xl:max-h-none xl:min-h-0 xl:flex-1">
+          {/* Con resultado legible, es el panel de las pestanas Vista/Fuente. Es
+              enfocable porque se desplaza: con el teclado tambien hay que poder leerlo. */}
+          <div
+            {...(result && !isJson && !pending
+              ? { id: previewId, role: "tabpanel", "aria-labelledby": segmentedTabId(previewId, view), tabIndex: 0 }
+              : {})}
+            className="max-h-[calc(100vh-11rem)] min-h-[28rem] overflow-auto focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand xl:max-h-none xl:min-h-0 xl:flex-1"
+          >
             {pending ? (
               <div className="mx-auto flex max-w-[110ch] flex-col gap-3 p-6 3xl:p-10">
                 <div className="skeleton h-7 w-1/2" />

@@ -235,9 +235,14 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   };
 
   useEffect(() => {
+    // Esc lo resuelve el propio <dialog> (onCancel): atenderlo tambien aqui lo
+    // cerraba dos veces. Las flechas no se capturan en campos de texto ni dentro
+    // de un bloque que se desplaza en horizontal (stack, metadata): ahi mueven
+    // el contenido, no el registro.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if ((event.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const target = event.target as HTMLElement;
+      if (target.closest("input, textarea, select, [contenteditable], pre, [data-scrollable]")) return;
       if (event.key === "ArrowLeft" && onPrev) onPrev();
       if (event.key === "ArrowRight" && onNext) onNext();
     };
@@ -318,6 +323,16 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
         </Button>
       )}
       <CopyButton text={() => JSON.stringify(log, null, 2)} label={t.inspector.copyJson} icon="braces" />
+      {/* Enlace al detalle de este log (/logs?log=id), para pasarlo a quien tenga
+          acceso al espacio. Un log recien llegado en vivo aun no tiene id. */}
+      {full && !readOnly && (
+        <CopyButton
+          icon="share"
+          label={t.inspector.copyLink}
+          toast={t.toast.linkCopied}
+          text={() => `${window.location.origin}/logs?log=${full.id}`}
+        />
+      )}
       {full && (
         <CopyButton
           variant="soft"
@@ -680,6 +695,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
   );
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- el clic en el fondo equivale a Esc (onCancel)
     <dialog
       ref={dialogRef}
       aria-label={t.inspector.title}
@@ -687,6 +703,7 @@ export const LogInspector: React.FC<LogInspectorProps> = ({
         event.preventDefault();
         onClose();
       }}
+      // Clic en el fondo: su equivalente de teclado es Esc, que llega por onCancel.
       onClick={(event) => {
         if (event.target === dialogRef.current) onClose();
       }}

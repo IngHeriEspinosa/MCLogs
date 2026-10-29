@@ -139,6 +139,32 @@ Los errores de red **no rompen tu aplicación**: la función devuelve `false` y 
 
 `sendBatch` **trocea automáticamente** por número de entradas y por bytes, por debajo de los topes del servidor, así que puedes pasarle un array de cualquier longitud.
 
+### Trazas entre servicios, sin pasar el traceId a mano
+
+```ts
+import express from "express";
+import { traceContext, traceHeaders } from "@multicomputos-srl/mclog";
+
+const app = express();
+app.use(traceContext());   // lee traceparent / x-trace-id, o empieza una traza
+
+app.post("/pedidos", async (req, res) => {
+  await mclog.info("Pedido recibido");          // lleva el traceId de la petición
+  const span = mclog.startSpan("cobrar");
+  try {
+    // Al otro servicio le llega la misma traza; si también usa traceContext(), sus logs se anidan aquí.
+    await span.run(() => fetch(PAGOS_URL, { method: "POST", headers: traceHeaders() }));
+    await span.end();                            // log de cierre con durationMs
+  } catch (err) {
+    await span.end({ error: err });              // en nivel error, con la excepción
+    throw err;
+  }
+  res.sendStatus(201);
+});
+```
+
+Con `MCLOG_RELEASE=3.1.0` en el entorno, cada log lleva su release, y **Errores** dice qué versión estrenó cada fallo.
+
 Referencia completa de opciones: [packages/mclog/README.md](../packages/mclog/README.md).
 
 ## Node.js (fetch puro, sin dependencias)
@@ -153,6 +179,37 @@ const sendLog = (entry) =>
 
 sendLog({ application: "worker", level: "info", environment: "production", message: "Job completado" });
 ```
+
+## OpenTelemetry (cualquier lenguaje)
+
+Si la aplicación ya usa OpenTelemetry, no hace falta ninguna librería de MCLog: `POST /v1/logs` recibe OTLP/HTTP en **JSON** con la API key `ingest`.
+
+**Con el OTel Collector**, que es el camino para Python, Java, .NET y Go, porque sus SDK exportan en protobuf:
+
+```yaml
+exporters:
+  otlphttp/mclog:
+    logs_endpoint: https://mclog.tu-dominio.com/v1/logs
+    encoding: json                       # MCLog solo acepta JSON
+    headers:
+      x-api-key: ${env:MCLOG_API_KEY}
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp/mclog]
+```
+
+**Desde Node.js con el SDK de OpenTelemetry**, que sí exporta JSON (`@opentelemetry/exporter-logs-otlp-http`):
+
+```bash
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://mclog.tu-dominio.com/v1/logs
+OTEL_EXPORTER_OTLP_LOGS_HEADERS=x-api-key=mclog_xxxxxxxx_tu-clave
+OTEL_SERVICE_NAME=checkout
+OTEL_RESOURCE_ATTRIBUTES=service.namespace=tienda,deployment.environment.name=production,service.version=3.1.0
+```
+
+`service.namespace` es la aplicación de MCLog (si falta, se usa `service.name`), y `deployment.environment.name` el entorno (sin él, `development`). La clave debe permitir esa aplicación. La tabla completa del mapeo está en [FEATURES.md → 1.6](FEATURES.md#16-opentelemetry--post-v1logs).
 
 ## Python
 

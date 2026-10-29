@@ -111,6 +111,7 @@ src/
   - Los seis campos de la búsqueda avanzada: `message`, `service`, `host`, `traceId`, `errorName`, `errorCode`. `advancedCount` cuenta cuántos hay activos, para el distintivo de la tarjeta.
   - Los enlaces antiguos con `from`/`to` de un `datetime-local` siguen funcionando.
 - **Rangos relativos estables**: "últimas 24 h" se resuelve contra un instante fijado al elegir el rango o al refrescar, no en cada render; si no, la clave de la consulta cambiaría en bucle.
+- **Actualización automática** (`useNow` + `useAutoRefresh`): el instante avanza al ritmo que eligió el usuario en la barra superior (`off`, 15, 30, 60 o 300 s; por defecto 60), solo con la pestaña visible y en cuanto vuelve. Lo validan `common/time/refresh.ts` (un valor guardado desconocido vuelve al de por defecto) y sus tests. La preferencia se sincroniza entre componentes con un evento propio de `usePreference` y entre pestañas con `storage`.
 - **Refetch sin saltos**: `keepPreviousData` mantiene tablas y gráficos visibles, atenuados, mientras llegan los datos nuevos.
 - **El resumen respeta rango, aplicación y entorno**, no la búsqueda ni el nivel: responde a "qué pasa en este ámbito", y la tabla a "qué logs cumplen todo". `/api/logs/stats` admite los demás filtros (los usan los reportes), pero el resumen no se los pasa. Los totales de la serie salen de sumar la serie horaria; con "Todo el histórico", de los totales históricos del backend.
 
@@ -143,6 +144,7 @@ src/
 Todos en SVG propio, con la paleta de niveles **validada para cada superficie** (separación en daltonismo y visión normal). En oscuro el ámbar baja a `#c98500` y el rojo sube a `#d03b3b`, porque el par del modo claro no se distinguía bastante sobre el fondo oscuro. `debug` es gris a propósito.
 
 - **Actividad**: columnas apiladas de 24 px como máximo, extremo superior redondeado y base recta, 2 px de hueco entre segmentos, rejilla fina y sólida. Los errores van abajo, pegados a la línea base. Solo se rotula el pico. El número de columnas depende del ancho real (en 4K se ve más detalle) y las horas se agrupan en intervalos "redondos" (1, 2, 3, 4, 6, 8, 12, 24 h…). **Arrastrar acota el rango** y un clic aísla una columna; el tooltip muestra todos los niveles del intervalo. Hay vista de tabla para quien no puede o no quiere leer el gráfico.
+  - Con teclado es un `role="slider"` sobre las columnas: `aria-valuetext` lleva el intervalo y su desglose (o la selección), ←/→/Inicio/Fin lo mueven, Mayús + flechas amplía una selección desde un ancla e Intro la aplica. El tooltip es solo visual: los hijos de un slider no se recorren.
 - Las **horas vacías se rellenan** alineadas en UTC, igual que el `DATE_TRUNC('hour')` del backend.
 - **Tarjetas de métrica**: filo superior de 2 px con el color de la serie y sparkline; el número y la etiqueta van en tinta y el número nunca se recorta. El icono abre la explicación de la métrica.
 
@@ -200,6 +202,23 @@ Copias congeladas de Logs, Registros, Errores o una Traza con un enlace propio. 
 - Los logs de un lote llegan sin `id`, así que el hook añade una `streamKey` local como clave de lista.
 - Solo se activa en la primera página, con orden por fecha descendente y un rango abierto hasta ahora. En cualquier otra vista, anteponer filas nuevas mentiría sobre lo que se está mirando.
 - Mientras está activo se refresca la tabla cada 15 s y se vacía el buffer, para que las filas del stream se sustituyan por las del servidor, con id y metadata completos.
+- **Anuncios**: una única región viva dice el estado de la conexión y, en cada refresco, cuántos logs y errores llegaron. No se anuncia log a log, porque con un stream activo saturaría el lector. En vivo sustituye al anuncio del total, que cambia en cada refresco.
+- **Notificaciones** (`useLiveNotifications`): opcionales (preferencia `liveNotifyErrors`, con permiso del navegador), solo con la pestaña oculta y como mucho una cada 30 s, con el mismo `tag` para que la nueva sustituya a la anterior. Solo se recuerdan las claves que siguen en el buffer.
+
+## Accesibilidad y atajos
+
+- **Objetivo WCAG 2.1 AA**, comprobado con `jsx-a11y/recommended` en `.eslintrc.cjs`. Los ajustes de la configuración y las tres excepciones en línea (clic en el fondo de un `<dialog>`, cuyo equivalente es Esc; opción de un `Select`, cuyo teclado lleva el combobox) están justificados donde se hacen.
+- **Tabindex itinerante** en la tabla de logs y en el grupo de tipos de Reportes: una parada de Tab y flechas dentro.
+- **`Segmented` con `controls`**: en modo pestañas, cada pestaña recibe `id` y `aria-controls`, y el panel se etiqueta con la activa (`segmentedTabId`).
+- **Atajos globales** (`useGlobalShortcuts` en `DashboardLayout`): la resolución es pura y está probada (`common/keyboard/shortcuts.ts`). `g` deja pendiente la segunda tecla durante 1,5 s, y una letra sin destino cancela el atajo. Se ignoran con modificadores, mientras se escribe, dentro de un `slider` y con un `<dialog>` abierto. `?` abre `ShortcutsDialog`.
+
+## PWA (Serwist)
+
+- `next.config.mjs` envuelve la configuración con `@serwist/next`: compila `src/app/sw.ts` a `public/sw.js` en el build. En desarrollo está desactivado.
+- **Qué se guarda**: el precaché del build, `/_next/static/` (con hash, `CacheFirst`, 30 días) y los iconos. Todo lo demás es `NetworkOnly`, también las páginas: los datos son privados y por espacio, y una página en caché enseñaría cifras viejas como si fueran actuales. `cacheOnNavigation` está desactivado por lo mismo.
+- **Sin conexión**, una navegación cae en `/~offline` (precacheada), que ofrece reintentar. Al volver la conexión se recarga sola (`reloadOnOnline`).
+- **Manifest** en `src/app/manifest.ts` e iconos generados con `ImageResponse` en `src/app/pwa-icon/[size]` (192, 512 y `maskable` con zona segura).
+- `sw.js` no se versiona (`.gitignore`) y se sirve con `Cache-Control: no-cache` para que una versión nueva llegue en la siguiente visita. El `Dockerfile` copia `public/` a la imagen.
 
 ## Login en dos pasos
 
@@ -294,5 +313,6 @@ La imagen (`Dockerfile`, Node 20) usa `output: "standalone"` y escucha en `PORT`
 npm run dev     # http://localhost:3001
 npm run build   # build de producción (output standalone)
 npm start       # sirve el build en 3001
-npm run lint
+npm run lint    # next/core-web-vitals + jsx-a11y (.eslintrc.cjs)
+npm test        # tests de las funciones puras (node:test)
 ```

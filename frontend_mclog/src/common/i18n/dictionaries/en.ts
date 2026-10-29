@@ -81,6 +81,7 @@ export const en: Dictionary = {
     skip: "Skip to content",
     userMenu: "User menu",
     mainNav: "Main navigation",
+    breadcrumb: "Breadcrumb",
     lab: "Lab",
     snapshots: "Snapshots",
     present: "Presentation mode",
@@ -93,6 +94,9 @@ export const en: Dictionary = {
     themes: { light: "Light", dark: "Dark", system: "System" },
     language: "Language",
     languages: { es: "Español", en: "English" },
+    autoRefresh: "Auto-refresh",
+    refreshOptions: { off: "Off", "15": "Every 15 s", "30": "Every 30 s", "60": "Every minute", "300": "Every 5 min" },
+    refreshShort: { off: "Paused", "15": "15 s", "30": "30 s", "60": "1 min", "300": "5 min" },
   },
 
   levels: {
@@ -146,6 +150,19 @@ export const en: Dictionary = {
     liveReconnecting: "Reconnecting…",
     liveHint: "Show logs as they arrive",
     liveUnavailable: "Available on the first page, sorted by newest first",
+    liveStatus: {
+      connecting: "Connecting to the live stream…",
+      live: "Live: new logs appear as they arrive.",
+      error: "Live connection lost. Reconnecting…",
+    },
+    notify: {
+      toggle: "Notify me of live errors",
+      hint: "Browser notification when an error arrives and the tab is in the background",
+      enabled: "You'll be notified of errors while the tab is in the background.",
+      denied: "The browser doesn't allow notifications from this site. You can allow them in the site settings.",
+      title: (count: number) => (count === 1 ? "MCLog: 1 new error" : `MCLog: ${count} new errors`),
+    },
+    liveArrived: (count: string, errors: string | null) => `${count} new logs${errors ? `, ${errors} errors` : ""}.`,
     export: "Export",
     exportData: "Data",
     exportReports: "Reports",
@@ -208,7 +225,8 @@ export const en: Dictionary = {
     showOverview: "Show overview",
     tableLabel: "Log records",
     newRow: "new",
-    shortcuts: "Shortcuts: / search · ↑↓ move · Esc close",
+    shortcuts: "Shortcuts: / search · ↑↓ move · Esc close · ? all",
+    sortByColumn: (column: string) => `Sort by ${column.toLowerCase()}`,
   },
 
   overview: {
@@ -227,7 +245,7 @@ export const en: Dictionary = {
     distinctHint: "grouped by fingerprint",
     distinctCapped: "or more",
     activity: "Activity",
-    activityHint: "Drag to narrow the range · click a bar to isolate it",
+    activityHint: "Drag to narrow the range · click a bar to isolate it · keyboard: ←/→ move, Shift+←/→ select, Enter applies",
     resolution: (label: string) => `each bar: ${label}`,
     peak: "peak",
     total: "Total",
@@ -242,6 +260,8 @@ export const en: Dictionary = {
     filterBy: (value: string) => `Filter by ${value}`,
     scopeNote: "The overview follows the time range, application and environment; not the search or level.",
     chartLabel: (from: string, to: string, summary: string) => `Logs per interval between ${from} and ${to}. ${summary}.`,
+    binAnnouncement: (interval: string, summary: string, total: string) => `${interval}. ${summary}. Total: ${total}.`,
+    rangeAnnouncement: (from: string, to: string, total: string) => `Selection from ${from} to ${to}: ${total} logs. Enter to apply it.`,
     interval: "Interval",
     partialBin: "partial",
     changeNew: "new",
@@ -285,6 +305,7 @@ export const en: Dictionary = {
     filterTable: "Filter the table",
     filterTableHint: "Closes the details and filters the table by this fingerprint",
     copyJson: "Copy JSON",
+    copyLink: "Copy link",
     copyAi: "Copy for AI",
     copyAiHint: "Markdown brief with the log and its context, ready to paste into an agent",
     stack: "Stack trace",
@@ -388,6 +409,7 @@ export const en: Dictionary = {
     template: "Template",
     templateHint: "The message without its variable data (numbers, IDs, URLs, emails): what every occurrence of this failure shares.",
     viewOccurrences: "View occurrences",
+    reportGroup: "Report on this failure",
     copyAi: "Copy for AI",
     empty: "No failures in this range",
     emptyHint: "Widen the range or change the filters.",
@@ -481,6 +503,12 @@ export const en: Dictionary = {
     explainTitle: "Trace, span and fingerprint",
     explain:
       "Trace: the logs that share a traceId, i.e. one operation even if it crosses several systems (an order that goes through the store, inventory and billing).\nSpan: one step inside the trace; if the sender sends parentSpanId, steps are nested. In NetSuite, a span is one script execution.\nFingerprint: groups the repeats of the same failure, across any trace. A trace answers “what happened in this operation”; a fingerprint, “how often does this failure happen”.",
+  },
+
+  offline: {
+    title: "You're offline",
+    description: "MCLog keeps no copy of your logs on this device, so there's nothing to show without a connection. The page will reload by itself when you're back online.",
+    retry: "Retry",
   },
 
   views: {
@@ -1348,7 +1376,7 @@ export const en: Dictionary = {
     description:
       "A rule defines when to notify and a channel defines where. Rules are checked every minute and, after firing, a rule stays quiet for the time you set, so a one-hour incident doesn't send sixty identical alerts.",
     tabs: { channels: "Channels", rules: "Rules", history: "History", digests: "Digests" },
-    channelTypes: { webhook: "Webhook", email: "Email", telegram: "Telegram" },
+    channelTypes: { webhook: "Webhook", email: "Email", telegram: "Telegram", pagerduty: "PagerDuty" },
     newChannel: "New channel",
     editChannel: "Edit channel",
     name: "Name",
@@ -1370,6 +1398,9 @@ export const en: Dictionary = {
     recipientsHint: "Comma separated. Outgoing mail (SMTP or Microsoft Graph) is configured in the backend.",
     botToken: "Bot token",
     chatId: "Chat ID",
+    routingKey: "Integration key",
+    routingKeyHint: "The one from the PagerDuty service, “Events API v2” integration.",
+    pagerDutyKey: (key: string) => `key ${key}`,
     keepSecretHint: "Leave empty to keep the saved value.",
     createChannel: "Create channel",
     channels: "Channels",
@@ -1743,7 +1774,7 @@ export const en: Dictionary = {
 
     alerts: {
       channelType:
-        "Where the alert is delivered:\n• Webhook: a JSON POST to the URL you set (Slack, Discord, Teams, n8n…).\n• Email: a message to one or more addresses.\n• Telegram: a bot message to a chat or group.\nIt can't be changed once the channel exists.",
+        "Where the alert is delivered:\n• Webhook: a JSON POST to the URL you set (Slack, Discord, Teams, n8n…).\n• Email: a message to one or more addresses.\n• Telegram: a bot message to a chat or group.\n• PagerDuty: opens an incident on a PagerDuty service and resolves it when the rule recovers.\nIt can't be changed once the channel exists.",
       channelName: "Name to recognize the channel when assigning it to rules, e.g. “Slack #incidents” or “On-call email”.",
       url: "Address that receives a JSON POST for each alert: title, rule, match count, samples and a dashboard link. For Slack, Discord or Teams, use an “incoming webhook” URL.",
       secret:
@@ -1754,6 +1785,8 @@ export const en: Dictionary = {
       botToken:
         "The token @BotFather gives you when you create the bot (123456:ABC-DEF…). It grants full control of the bot: once saved, only its first characters are shown.",
       chatId: "Identifier of the chat, group or channel the bot will post alerts to. Add the bot to the group first; group IDs start with “-”.",
+      routingKey:
+        "In PagerDuty: Services → your service → Integrations → Add integration → Events API v2, and copy the Integration Key. Each alert opens an incident and the rule's recovery resolves it; digests arrive as change events, without opening an incident. Once saved, only its first characters are shown.",
       ruleName: "Shows up in the title of every alert and in the history. Make it say what it watches, e.g. “Billing errors in production”.",
       ruleType:
         "• Repeat threshold: fires when at least N logs matching the rule pile up inside the window. Measures volume.\n• New error: fires when N or more failures whose first occurrence falls inside the window show up. Catches regressions even from a single log.",
@@ -1856,11 +1889,37 @@ export const en: Dictionary = {
     },
   },
 
+  shortcuts: {
+    title: "Keyboard shortcuts",
+    description: "They work in any view while you aren't typing in a field.",
+    global: "Everywhere",
+    goTo: {
+      l: "Go to Logs",
+      e: "Go to Errors",
+      t: "Go to Operations",
+      r: "Go to Reports",
+      a: "Go to Alerts",
+    },
+    help: "Show this help",
+    logs: "Logs",
+    search: "Search",
+    moveRows: "Move between rows",
+    openRow: "Open the detail",
+    prevNext: "Previous or next log (in the detail)",
+    close: "Close the detail or a menu",
+    chart: "Activity chart",
+    chartMove: "Step through the intervals",
+    chartSelect: "Extend the selection",
+    chartApply: "Apply the selection to the range",
+    shift: "Shift",
+  },
+
   toast: {
     copied: "Copied to clipboard",
     copyFailed: "Couldn't copy: the browser blocked the clipboard.",
     downloaded: (name: string) => `Downloaded ${name}`,
     exportFailed: "Export failed",
+    linkCopied: "Link copied: it opens this log for anyone with access to the workspace.",
     aiCopied: "AI brief copied, with sensitive data masked.",
   },
 };

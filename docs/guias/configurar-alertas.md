@@ -31,6 +31,7 @@ Haz que MCLog te avise por Slack, Teams, Discord, correo o Telegram cuando algo 
    - **Webhook**: pega la **URL**. Opcionalmente pon un **Secreto de firma**: cada aviso viajará firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`, y el receptor podrá comprobar que viene de MCLog.
    - **Correo**: en **Destinatarios**, las direcciones separadas por comas.
    - **Telegram**: el **Token del bot** y el **Chat ID**.
+   - **PagerDuty**: la **Integration key**. Se obtiene en PagerDuty en *Services → tu servicio → Integrations → Add integration → Events API v2*. Cada aviso abre un incidente y, en las reglas de umbral, tasa, silencio o pico, la recuperación lo resuelve sola. Los resúmenes llegan como *change events*, sin abrir incidente.
 5. Pulsa **Crear canal**.
 
 ## Paso 2 — Prueba el canal

@@ -22,6 +22,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { ADVANCED_FIELDS, useLogFilters } from "@/hooks/useLogFilters";
 import { useLogStream } from "@/hooks/useLogStream";
 import { useNow } from "@/hooks/useNow";
+import { useLiveNotifications } from "@/hooks/useLiveNotifications";
 import { useLogById } from "@/hooks/useErrors";
 import { usePreference } from "@/hooks/usePreference";
 
@@ -79,7 +80,7 @@ function LogsView() {
   // primera pagina, para que tabla y resumen sigan al reloj; en las demas se
   // queda quieto, para que las filas no se muevan mientras se pagina.
   const relative = isRelative(filters.range);
-  const [now, setNow] = useNow(60_000, relative && filters.page === 1, JSON.stringify(filters.range));
+  const [now, setNow] = useNow(relative && filters.page === 1, JSON.stringify(filters.range));
   const resolved = resolveRange(filters.range, now);
   const span = queryWindow(filters.range, now);
 
@@ -147,15 +148,42 @@ function LogsView() {
   // logs llegando a menudo el temporizador se reiniciaba antes de cumplirse y
   // la tabla no se refrescaba nunca.
   const clearStream = stream.clear;
+  const [notifyErrors, setNotifyErrors] = usePreference<boolean>("liveNotifyErrors", false);
+  const liveNotices = useLiveNotifications(liveOn && notifyErrors, stream.logs);
+  const toggleNotifyErrors = async () => {
+    if (notifyErrors) return setNotifyErrors(false);
+    if (await liveNotices.requestPermission()) {
+      setNotifyErrors(true);
+      notify(t.logs.notify.enabled);
+    } else {
+      notify(t.logs.notify.denied, "error");
+    }
+  };
+  // Lo llegado desde el ultimo refresco, para anunciarlo de una vez: anunciar
+  // cada log por separado saturaria al lector con un stream activo.
+  const arrivedRef = useRef({ total: 0, errors: 0 });
+  arrivedRef.current = { total: stream.logs.length, errors: stream.logs.filter((log) => log.level === "error").length };
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
   useEffect(() => {
     if (!liveOn) return;
     const timer = setInterval(() => {
+      const { total, errors } = arrivedRef.current;
+      if (total > 0) setLiveAnnouncement(t.logs.liveArrived(fmt.number(total), errors > 0 ? fmt.number(errors) : null));
       setNow(Date.now());
       void queryClient.invalidateQueries({ queryKey: ["logs"] });
       clearStream();
     }, 15_000);
     return () => clearInterval(timer);
-  }, [liveOn, queryClient, clearStream, setNow]);
+  }, [liveOn, queryClient, clearStream, setNow, t, fmt]);
+
+  // El estado de la conexion tambien se anuncia: el punto de color no se oye.
+  useEffect(() => {
+    if (!liveOn) {
+      setLiveAnnouncement("");
+      return;
+    }
+    if (stream.status !== "off") setLiveAnnouncement(t.logs.liveStatus[stream.status]);
+  }, [liveOn, stream.status, t]);
 
   const rows: LogRow[] = liveOn ? [...stream.logs, ...(logs.data?.data ?? [])].slice(0, filters.pageSize) : logs.data?.data ?? [];
   // El detalle se recorre con las flechas mientras el log siga en la pagina; el
@@ -239,6 +267,7 @@ function LogsView() {
       eyebrow={t.logs.eyebrow}
       description={t.logs.description}
       presentable
+      autoRefresh
       actions={
         <>
           <SavedViewsMenu path="/logs" />
@@ -254,6 +283,17 @@ function LogsView() {
             {t.snapshots.share}
           </Button>
           <LiveToggle on={liveOn} allowed={liveAllowed} status={stream.status} onToggle={() => setLive((value) => !value)} />
+          {liveOn && liveNotices.supported && (
+            <IconButton
+              icon="bell"
+              variant="secondary"
+              label={t.logs.notify.toggle}
+              title={t.logs.notify.hint}
+              aria-pressed={notifyErrors}
+              active={notifyErrors}
+              onClick={() => void toggleNotifyErrors()}
+            />
+          )}
           <Menu
             label={t.logs.export}
             icon="download"
@@ -372,11 +412,10 @@ function LogsView() {
           />
         )}
         <ShareSnapshotDialog open={sharing} onClose={() => setSharing(false)} source={{ kind: "logs", filters }} total={logs.data?.total ?? null} />
-        {logs.data && (
-          <p className="sr-only" aria-live="polite">
-            {t.logs.results(fmt.number(logs.data.total))}
-          </p>
-        )}
+        {/* En vivo se anuncia lo que llega y no el total, que cambia en cada refresco. */}
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {liveOn ? liveAnnouncement : logs.data ? t.logs.results(fmt.number(logs.data.total)) : ""}
+        </p>
       </div>
     </DashboardLayout>
   );

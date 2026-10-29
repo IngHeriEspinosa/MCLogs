@@ -45,5 +45,9 @@ export const LevelBadge: React.FC<{ level: string; className?: string }> = ({ le
 
 /** Punto del color del nivel, para listas compactas. */
 export const LevelDot: React.FC<{ level: string; className?: string }> = ({ level, className = "" }) => (
-  <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${LEVEL_FILL[isLevel(level) ? level : "debug"]} ${className}`} />
+  <>
+    <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${LEVEL_FILL[isLevel(level) ? level : "debug"]} ${className}`} />
+    {/* El color solo no basta (WCAG 1.4.1): el lector oye el nivel. */}
+    <span className="sr-only">{level}</span>
+  </>
 );

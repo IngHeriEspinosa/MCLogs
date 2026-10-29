@@ -7,12 +7,16 @@ import {
   MAX_TRACE_LOGS,
   TIMELINE_BUCKETS,
   getErrorGroups,
+  getFailureOccurrences,
   getLevelTimeline,
   getLogContext,
   getTrace,
   listApplications,
+  listTraces,
 } from "../services/analysisService";
 import { LogFilters, getLogById, getLogStats, listLogs } from "../services/logService";
+import { prisma } from "../config/prisma";
+import { normalizeMessage } from "../utils/fingerprint";
 import { SKILL_MIME_TYPE, SKILL_URI, buildInstallInstructions, loadSkill } from "./skill";
 
 /**
@@ -125,6 +129,7 @@ export const buildMcpServer = (context: McpContext): McpServer => {
         "3. search_logs con el fingerprint de un grupo para ver sus ocurrencias.",
         "4. get_log para el detalle completo con stack y metadata.",
         "5. get_trace o get_log_context para entender que llevo hasta el fallo.",
+        "Para el estado de un fallo (activo, resuelto, ignorado, regresiones, releases) usa get_error_group con su fingerprint; para cuanto se repite y con que probabilidad, get_failure_occurrences con el id de un log; para las operaciones recientes, list_traces.",
         applicationsIn
           ? `Esta conexion solo alcanza estas aplicaciones: ${applicationsIn.join(", ")}.`
           : "Esta conexion alcanza todas las aplicaciones de su espacio de trabajo.",
@@ -349,6 +354,110 @@ export const buildMcpServer = (context: McpContext): McpServer => {
           parentSpanId: log.parentSpanId,
           durationMs: log.durationMs,
         })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_traces",
+    {
+      title: "Operaciones recientes",
+      description:
+        "Operaciones (traceId distintos) con logs en la ventana, de la mas reciente a la mas antigua, con sus aplicaciones, servicios, registros, errores y duracion. Entrada a la trazabilidad sin partir de un log concreto; despues, get_trace con el traceId. Solo aparecen los servicios que envian traceId.",
+      inputSchema: {
+        application: z.string().max(120).optional(),
+        environment: z.enum(["development", "staging", "production"]).optional(),
+        onlyErrors: z.boolean().optional().describe("Solo las operaciones con algun error"),
+        hours: z.number().int().min(1).max(24 * 31).optional().describe("Ventana hacia atras en horas (por defecto 24)"),
+        page: z.number().int().min(1).optional(),
+        pageSize: z.number().int().min(1).max(50).optional().describe("Por defecto 20"),
+      },
+    },
+    async ({ application, environment, onlyErrors, hours, page, pageSize }) => {
+      const { from, to } = windowFrom(hours ?? 24);
+      const result = await listTraces(scoped({ application, environment, from, to }), {
+        page: page ?? 1,
+        pageSize: pageSize ?? 20,
+        onlyErrors: onlyErrors ?? false,
+      });
+      return jsonResult({
+        window: { from: iso(from), to: iso(to) },
+        total: result.total,
+        page: result.page,
+        totalPages: result.totalPages,
+        hint:
+          result.page < result.totalPages
+            ? `Hay ${result.total} operaciones; esta es la pagina ${result.page} de ${result.totalPages}.`
+            : undefined,
+        // Los conteos son de la ventana: una operacion que empezo antes sale recortada.
+        traces: result.data.map((trace) => ({ ...trace, start: iso(trace.start), end: iso(trace.end) })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_failure_occurrences",
+    {
+      title: "Ocurrencias y probabilidad de un fallo",
+      description:
+        "Para el fallo de un log (su huella): cuantas veces ha ocurrido (24 h, 7 dias y total retenido, tambien por entorno), la probabilidad de que se repita en la proxima hora y en las proximas 24 h, y la tasa por operacion. Sirve para decidir si un error es puntual o cronico. Pide el id de un log de error o warning.",
+      inputSchema: { id: z.number().int().min(1).describe("Id de un log del fallo") },
+    },
+    async ({ id }) => {
+      const result = await getFailureOccurrences(id, { workspaceId, applicationsIn });
+      if (!result) return errorResult(`No existe ningun log accesible con id ${id}.`);
+      if (!result.occurrences) {
+        return errorResult(`El log ${id} no tiene huella (solo se calcula para error y warn): no hay fallo que contar.`);
+      }
+      const { occurrences } = result;
+      return jsonResult({
+        ...occurrences,
+        firstSeen: iso(occurrences.firstSeen),
+        lastSeen: iso(occurrences.lastSeen),
+        environments: occurrences.environments.map((row) => ({ ...row, firstSeen: iso(row.firstSeen), lastSeen: iso(row.lastSeen) })),
+        recurrence: { ...occurrences.recurrence, observedFrom: iso(occurrences.recurrence.observedFrom) },
+        hint: "Las probabilidades usan la regla de Laplace sobre horas (7 dias) y dias (30 dias) observados: con pocos datos se acercan al 50 %. failureRate.rate es null si el servicio no envia traceId.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_error_group",
+    {
+      title: "Estado de un fallo",
+      description:
+        "Ficha de un fallo por su fingerprint: estado (active, resolved, ignored), primera vez de verdad (mas alla de la ventana), ultima, total, regresiones (veces que volvio tras resolverse), primera y ultima release, nota del equipo, la plantilla del mensaje y el ultimo log. Usala tras get_error_groups para saber si un fallo es nuevo, si ya se dio por resuelto o si es una regresion.",
+      inputSchema: { fingerprint: z.string().min(1).max(64).describe("Huella devuelta por get_error_groups o search_logs") },
+    },
+    async ({ fingerprint }) => {
+      const group = await prisma.errorGroup.findUnique({ where: { workspaceId_fingerprint: { workspaceId, fingerprint } } });
+      if (!group || (applicationsIn && !applicationsIn.includes(group.application))) {
+        return errorResult(`No hay ningun fallo accesible con fingerprint "${fingerprint}".`);
+      }
+      const last = await listLogs(scoped({ fingerprint }), { page: 1, pageSize: 1 }, { field: "timestamp", direction: "desc" });
+      const sample = (last.data as unknown as AnyLog[])[0];
+      return jsonResult({
+        fingerprint: group.fingerprint,
+        application: group.application,
+        service: group.service,
+        level: group.level,
+        errorName: group.errorName,
+        errorCode: group.errorCode,
+        status: group.status,
+        firstSeen: iso(group.firstSeen),
+        lastSeen: iso(group.lastSeen),
+        totalCount: group.totalCount,
+        resolvedAt: iso(group.resolvedAt),
+        ignoredUntil: iso(group.ignoredUntil),
+        regressionCount: group.regressionCount,
+        lastRegressedAt: iso(group.lastRegressedAt),
+        firstRelease: group.firstRelease,
+        lastRelease: group.lastRelease,
+        note: group.note,
+        // totalCount sigue contando aunque la retencion borre los logs antiguos.
+        retainedLogs: last.total,
+        messageTemplate: sample ? normalizeMessage(sample.message) : null,
+        lastLog: sample ? compactLog(sample) : null,
       });
     },
   );

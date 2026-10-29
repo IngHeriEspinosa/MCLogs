@@ -1,7 +1,9 @@
 import type { AlertChannel, AlertChannelType } from "@prisma/client";
 import logger from "../../config/logger";
+import { alertDeliveries } from "../../config/metrics";
 import type { AlertPayload, Notifier } from "../types";
 import { sendEmail } from "./email";
+import { sendPagerDuty } from "./pagerduty";
 import { sendTelegram } from "./telegram";
 import { sendWebhook } from "./webhook";
 
@@ -17,6 +19,7 @@ const NOTIFIERS: Record<AlertChannelType, Notifier> = {
   webhook: sendWebhook,
   email: sendEmail,
   telegram: sendTelegram,
+  pagerduty: sendPagerDuty,
 };
 
 /**
@@ -62,8 +65,10 @@ export const deliverToChannels = async (
       const base = { channelId: channel.id, channelName: channel.name };
       try {
         await sendWithRetry(channel, payload);
+        alertDeliveries.inc({ channel_type: channel.type, kind: payload.kind, result: "ok" });
         return { ...base, ok: true };
       } catch (error) {
+        alertDeliveries.inc({ channel_type: channel.type, kind: payload.kind, result: "failed" });
         const detalle = error instanceof Error ? error.message : String(error);
         logger.error("Alert delivery failed", {
           channelId: channel.id,
@@ -76,4 +81,4 @@ export const deliverToChannels = async (
     }),
   );
 
-export { sendEmail, sendTelegram, sendWebhook };
+export { sendEmail, sendPagerDuty, sendTelegram, sendWebhook };

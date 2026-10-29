@@ -47,6 +47,7 @@ export const Dialog: React.FC<DialogProps> = ({
   }, [open]);
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- el clic en el fondo equivale a Esc (onCancel)
     <dialog
       ref={ref}
       aria-labelledby={titleId}
@@ -55,6 +56,7 @@ export const Dialog: React.FC<DialogProps> = ({
         event.preventDefault();
         if (dismissible) onClose();
       }}
+      // Clic en el fondo: su equivalente de teclado es Esc, que llega por onCancel.
       onClick={(event) => {
         if (dismissible && event.target === ref.current) onClose();
       }}

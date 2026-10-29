@@ -1,6 +1,7 @@
 import { Environment, LogLevel } from '@prisma/client';
 import { Request, Response } from 'express';
 import logger from '../config/logger';
+import { logsRejected } from '../config/metrics';
 import { workspaceIdOf } from '../middlewares/workspaceContext';
 import { computeFingerprint, shouldFingerprint } from '../utils/fingerprint';
 import { allowedApplications, filtersFromQuery } from './queryFilters';
@@ -33,6 +34,7 @@ const rejectedByScope = (applications: string[] | undefined, candidates: unknown
     if (!applications) return false;
     const forbidden = candidates.find((value) => typeof value === 'string' && !applications.includes(value));
     if (forbidden === undefined) return false;
+    logsRejected.inc({ reason: 'scope' }, candidates.length);
     res.status(403).json({
         error: `API key not allowed for application "${String(forbidden)}"`,
         allowedApplications: applications
@@ -114,22 +116,36 @@ export const log = async (req: Request, res: Response) => {
     }
 };
 
-export const logBatch = async (req: Request, res: Response) => {
-    const logs = req.body.logs as Record<string, unknown>[];
+/**
+ * Guarda un lote ya validado: el de `POST /api/logs/batch` y el que traduce
+ * OTLP (`POST /v1/logs`). Si el lote no se puede guardar (demasiado grande,
+ * fuera del alcance de la clave o un fallo) responde el error y devuelve null;
+ * si no, devuelve cuantos se crearon y la respuesta queda para quien llama.
+ */
+export const persistBatch = async (
+    logs: Record<string, unknown>[],
+    req: Request,
+    res: Response
+): Promise<number | null> => {
     const maxBatchSize = getSetting('maxBatchSize');
     if (logs.length > maxBatchSize) {
+        logsRejected.inc({ reason: 'batch_too_large' }, logs.length);
         res.status(400).json({ error: `Batch too large (max ${maxBatchSize} logs)` });
-        return;
+        return null;
     }
-    if (rejectedByScope(allowedApplications(req), logs.map((item) => item.application), res)) return;
+    if (rejectedByScope(allowedApplications(req), logs.map((item) => item.application), res)) return null;
     try {
-        const inputs = logs.map((item) => toCreateInput(item, req, res));
-        const count = await createLogsBatch(inputs);
-        res.status(201).json({ created: count });
+        return await createLogsBatch(logs.map((item) => toCreateInput(item, req, res)));
     } catch (error) {
         logger.error('Error creating log batch', { error });
         res.status(500).json({ error: 'Error creating log batch' });
+        return null;
     }
+};
+
+export const logBatch = async (req: Request, res: Response) => {
+    const count = await persistBatch(req.body.logs as Record<string, unknown>[], req, res);
+    if (count !== null) res.status(201).json({ created: count });
 };
 
 const csvEscape = (value: unknown) => {

@@ -68,7 +68,7 @@ Una sola fila encima de todo. Se combinan entre sí, y el resumen y la tabla se 
 ### Resumen
 
 - **Tarjetas**: registros, errores y warnings del rango con su tendencia, fallos distintos y aplicaciones activas. Pasa el ratón por el **icono de cada tarjeta** (o púlsalo) para ver qué mide y cómo se calcula; los gráficos lo tienen en el ⓘ junto al título.
-- **Actividad**: un gráfico de barras con el volumen del rango, apilado por nivel. Los errores van abajo, pegados a la línea base, porque es la parte que se puede comparar de un vistazo entre barras. Responde a una pregunta concreta y muy frecuente: **¿desde cuándo pasa esto?** Si la franja roja aparece de golpe, ahí tienes el momento del incidente. Pasa el ratón para ver el desglose exacto; **arrastra sobre el gráfico para acotar el rango** a esa franja, o haz clic en una barra para aislarla. **Ver como tabla** da las mismas cifras en filas.
+- **Actividad**: un gráfico de barras con el volumen del rango, apilado por nivel. Los errores van abajo, pegados a la línea base, porque es la parte que se puede comparar de un vistazo entre barras. Responde a una pregunta concreta y muy frecuente: **¿desde cuándo pasa esto?** Si la franja roja aparece de golpe, ahí tienes el momento del incidente. Pasa el ratón para ver el desglose exacto; **arrastra sobre el gráfico para acotar el rango** a esa franja, o haz clic en una barra para aislarla. Con el teclado, enfoca el gráfico y usa **←/→** para recorrer los intervalos (se leen en voz alta con lector de pantalla), **Mayús + ←/→** para ampliar la selección e **Intro** para aplicarla. **Ver como tabla** da las mismas cifras en filas.
 - **Por nivel y por entorno**, **fallos principales** y **aplicaciones más activas**. Un clic en cualquiera lo convierte en filtro.
 
 El resumen respeta el rango, la aplicación y el entorno, pero no la búsqueda ni el nivel. Puedes ocultarlo con el botón del panel, arriba, para dejarle todo el sitio a la tabla.
@@ -78,6 +78,8 @@ El resumen respeta el rango, la aplicación y el entorno, pero no la búsqueda n
 El botón **En vivo** deja la conexión abierta y va colocando arriba, resaltados, los logs según llegan. Es lo que quieres mientras reproduces un fallo o justo después de desplegar.
 
 Solo se puede activar en la primera página, con el orden por fecha descendente y un rango que llegue hasta ahora. En cualquier otra vista estaría colando filas nuevas en medio de algo que no las espera, así que el botón se desactiva solo. El punto indica el estado: verde palpitando es conexión viva.
+
+Con **En vivo** activo aparece una campana: púlsala si quieres que el navegador te **avise de los errores** que lleguen mientras tienes la pestaña en segundo plano. La primera vez pide permiso. Si lo deniegas, se puede cambiar en los ajustes del sitio del navegador. Para no saturarte, junta los errores en un aviso cada 30 segundos como mucho.
 
 ### La tabla
 
@@ -169,7 +171,7 @@ Encima de la lista, cuatro cifras: fallos distintos, ocurrencias totales, la apl
 
 Ese par de fechas es lo más útil de la pantalla. **Primera aparición reciente suele significar error nuevo**, que casi siempre apunta a lo último que se tocó. Es la primera vez *dentro del rango elegido*: amplíalo a 30 días antes de darlo por nuevo.
 
-Arriba eliges el rango, **Errores** o **Warnings**, el entorno, la aplicación, el servicio y un texto. Con **Ver ocurrencias** saltas a la tabla de logs filtrada a ese fallo, y el botón ✦ copia un brief para IA del fallo con su ejemplo más reciente.
+Arriba eliges el rango, **Errores** o **Warnings**, el entorno, la aplicación, el servicio y un texto. Con **Ver ocurrencias** saltas a la tabla de logs filtrada a ese fallo, el botón ✦ copia un brief para IA del fallo con su ejemplo más reciente, y el icono de informe genera un **reporte de ese fallo solo**.
 
 **Estados.** Cada fallo está **activo**, **resuelto** o **ignorado**, y las pestañas filtran por estado (también **Regresiones**: los que volvieron tras resolverse). Si eres el dueño del espacio, marca fallos y usa **Resolver**, **Ignorar** (24 h, 7 días o siempre) o **Reactivar**. Un fallo resuelto que vuelve a ocurrir se reactiva solo y lleva la etiqueta **Regresión**. Cada fila muestra su mini-gráfica en el rango, la **primera vez de verdad** (no solo dentro del rango), el total y su última release. Encima, cuatro cifras más: fallos **nuevos**, **regresiones**, **resueltos** y el **tiempo medio hasta resolver**.
 
@@ -276,7 +278,10 @@ Se borra tu usuario y se cierran todas tus sesiones; las API keys que creaste si
 - **Empieza por Errores, no por Logs**, salvo que ya sepas qué buscas.
 - **Primera aparición reciente = sospechoso principal.** Es la señal más barata que tienes.
 - **La metadata es donde está lo bueno.** El mensaje dice *qué* falló; la metadata suele decir *con qué datos*.
-- **Comparte la URL, no capturas de pantalla.** Quien la reciba puede seguir filtrando desde ahí.
+- **Comparte la URL, no capturas de pantalla.** Quien la reciba puede seguir filtrando desde ahí. Para un log concreto, **Copiar enlace** en su detalle.
+- **Elige cada cuánto se actualiza la vista.** En Logs, Errores y Operaciones, el botón con el icono de refrescar de la barra superior pone la actualización automática en 15 s, 30 s, 1 min, 5 min o la apaga. Solo actúa con rangos relativos ("últimas 24 h") y se pausa mientras la pestaña está oculta.
+- **Muévete con el teclado.** Pulsa **?** para ver todos los atajos. Los de navegación son **g** y una letra: **g l** Logs, **g e** Errores, **g t** Operaciones, **g r** Reportes, **g a** Alertas.
+- **Instálalo como aplicación.** En Chrome o Edge, el icono de instalar de la barra de direcciones lo abre en su propia ventana. Sin conexión verás un aviso en lugar de datos viejos.
 - **Para proyectar o dejarlo en un monitor, usa el modo presentación.** En Logs, Registros, Errores, Traza, Reportes y Snapshots, el botón de las cuatro esquinas de la barra superior pone la vista a pantalla completa, sin la barra lateral ni la superior. Se sale con **Esc** o con el botón de la esquina superior derecha. Los filtros y los enlaces siguen funcionando: si abres una traza desde los logs, sigue en modo presentación. En Safari de iPhone el navegador no permite la pantalla completa; la vista se queda sin barras, pero con las del navegador.
 
 ---
@@ -513,7 +518,7 @@ La segunda es la más útil justo después de un despliegue: no dice "esto falla
 
 Cada regla filtra por aplicación, entorno y nivel, y lleva un **silencio tras avisar**. Sin él, un incidente de una hora te mandaría sesenta avisos idénticos. El silencio arranca aunque el envío falle, a propósito: reintentar cada minuto contra un canal caído solo multiplica el ruido cuando vuelva.
 
-**Canales.** Webhook (Slack, Discord, Teams, n8n o cualquier receptor de JSON; el **Formato** se elige solo por la URL o a mano), correo y Telegram. Cada uno tiene un botón de **Enviar prueba**: úsalo al configurarlo, porque te dice el motivo exacto si algo falla. Con **Editar** cambias el nombre, la URL, los destinatarios o el chat sin recrear el canal; los secretos (el de firma, el token del bot) no se muestran, y dejarlos vacíos conserva el guardado.
+**Canales.** Webhook (Slack, Discord, Teams, n8n o cualquier receptor de JSON; el **Formato** se elige solo por la URL o a mano), correo, Telegram y **PagerDuty** (con la *integration key* de Events API v2: cada aviso abre un incidente y la recuperación de la regla lo resuelve; los resúmenes llegan como *change events*, sin despertar a nadie). Cada uno tiene un botón de **Enviar prueba**: úsalo al configurarlo, porque te dice el motivo exacto si algo falla. Con **Editar** cambias el nombre, la URL, los destinatarios o el chat sin recrear el canal; los secretos (el de firma, el token del bot) no se muestran, y dejarlos vacíos conserva el guardado.
 
 En un webhook puedes poner un **secreto**: cada aviso viaja firmado con HMAC-SHA256 en la cabecera `x-mclog-signature`, para que el receptor compruebe que viene de MCLog. El correo necesita el correo saliente configurado en el backend (SMTP o Microsoft Graph); webhook y Telegram se configuran enteros desde el dashboard.
 
@@ -558,7 +563,7 @@ Requiere ser dueño del espacio, y solo borra logs de ese espacio. Una API key n
 | Qué | Cómo |
 |---|---|
 | **Salud** | `GET /health` comprueba servidor y base de datos, e informa de versión y tiempo en marcha. Apúntalo desde tu uptime check |
-| **Métricas** | `GET /metrics` con una clave de permiso `metrics`. Formato Prometheus |
+| **Métricas** | `GET /metrics` con una clave de permiso `metrics`. Formato Prometheus. Además del proceso y las peticiones: logs ingeridos y rechazados (por motivo), retraso de ingesta, evaluaciones y envíos de alertas y duración de los trabajos programados |
 | **Logs del servicio** | Consola en JSON y `logs/app.log` (rotación 10 MB × 5). Una línea por petición con `requestId`, `traceId`, status y duración |
 | **Detalle extra** | `LOG_LEVEL=debug` añade el body de las peticiones, con contraseñas y tokens redactados |
 

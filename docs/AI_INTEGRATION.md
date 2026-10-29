@@ -100,7 +100,7 @@ Claude Desktop habla por entrada estándar, así que necesita un puente:
 
 ## 3. Qué puede hacer el asistente
 
-Ocho herramientas, pensadas para el recorrido real de una investigación:
+Once herramientas, pensadas para el recorrido real de una investigación:
 
 | Herramienta | Para qué |
 |---|---|
@@ -112,8 +112,11 @@ Ocho herramientas, pensadas para el recorrido real de una investigación:
 | `get_trace` | Una operación completa por `traceId`, cruzando aplicaciones |
 | `get_log_context` | Lo ocurrido justo antes y después de un log |
 | `get_stats` | Totales y serie por hora, para ver cuándo empezó |
+| `list_traces` | Las operaciones (traceId) recientes, con servicios, errores y duración |
+| `get_failure_occurrences` | Cuántas veces ha ocurrido el fallo de un log (24 h, 7 días, total y por entorno) y la probabilidad de que se repita |
+| `get_error_group` | El estado de un fallo: activo, resuelto o ignorado, regresiones, primera y última release, plantilla y último log |
 
-Una novena, `get_integration_skill`, no investiga: devuelve el [skill de instalación e integración](#instalar-el-skill-de-mclog).
+Una duodécima, `get_integration_skill`, no investiga: devuelve el [skill de instalación e integración](#instalar-el-skill-de-mclog).
 
 La distinción que más rendimiento da: **`get_error_groups` responde "qué está fallando" y `search_logs` responde "qué ha pasado"**. Veintinueve timeouts del mismo fallo son un grupo con un 29 al lado, no veintinueve líneas. El asistente lo sabe porque está en la descripción de la herramienta.
 

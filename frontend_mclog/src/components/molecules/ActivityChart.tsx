@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useId, useMemo, useRef, useState } from "react";
 import { Level, LEVEL_FILL, LEVEL_SVG_FILL, LEVELS } from "@/components/atoms/LevelBadge";
 import { useElementSize, useIsomorphicLayoutEffect } from "@/hooks/useElementSize";
 import { useI18n } from "@/common/i18n/I18nProvider";
@@ -16,7 +16,10 @@ import { binTimeline, DAY_MS, peakBin, sumLevels, TimelineBin } from "@/common/t
  *   2 px de hueco entre segmentos. La rejilla es una linea fina y solida.
  * - Solo se rotula el pico; el resto lo cuentan el eje, la leyenda con totales
  *   (el ambar no llega a 3:1 y nunca va solo) y la vista de tabla.
- * - Arrastrar acota el rango y un clic aisla una columna.
+ * - Arrastrar acota el rango y un clic aisla una columna. Con el teclado,
+ *   las flechas recorren las columnas, Mayus + flechas amplia la seleccion e
+ *   Intro la aplica. Es un role="slider" sobre las columnas: el lector
+ *   anuncia la columna (o la seleccion) en aria-valuetext a cada paso.
  */
 
 const AXIS_HEIGHT = 22;
@@ -59,6 +62,9 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
   const svgRef = useRef<SVGSVGElement>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
+  // Seleccion hecha con Mayus + flechas: el ancla es `from` y el foco `to`.
+  const [keyRange, setKeyRange] = useState<{ from: number; to: number } | null>(null);
+  const hintId = useId();
   const [view, setView] = useState<"chart" | "table">("chart");
 
   // Tamano de la fuente raiz: crece en pantallas 4K (globals.css) y el grafico
@@ -140,7 +146,54 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
   };
 
   const summary = LEVELS.map((level) => `${t.levels.names[level]}: ${fmt.number(totals[level])}`).join(", ");
-  const active = drag ? drag.to : hovered;
+  const selection = drag ?? keyRange;
+  const active = selection ? selection.to : hovered;
+
+  // Lo que se anuncia al moverse con el teclado. El tooltip es solo visual:
+  // los hijos de un slider no se recorren con el lector.
+  const describeBin = (bin: TimelineBin) =>
+    t.overview.binAnnouncement(
+      `${formatInterval(bin)}${bin.partial ? ` (${t.overview.partialBin})` : ""}`,
+      LEVELS.map((level) => `${t.levels.names[level]}: ${fmt.number(bin[level])}`).join(", "),
+      fmt.number(bin.total),
+    );
+  const describeRange = (a: number, b: number) => {
+    const [low, high] = a <= b ? [a, b] : [b, a];
+    const total = bins.slice(low, high + 1).reduce((sum, bin) => sum + bin.total, 0);
+    return t.overview.rangeAnnouncement(fmt.dateTimeShort(bins[low].start), fmt.dateTimeShort(bins[high].end), fmt.number(total));
+  };
+
+  const onChartKeyDown = (event: React.KeyboardEvent) => {
+    const last = bins.length - 1;
+    const current = keyRange?.to ?? hovered;
+    const target =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? last
+          : event.key === "ArrowRight" || event.key === "ArrowLeft"
+            ? current === null
+              ? last
+              : Math.max(0, Math.min(last, current + (event.key === "ArrowRight" ? 1 : -1)))
+            : null;
+    if (target !== null) {
+      event.preventDefault();
+      setHovered(target);
+      if (event.shiftKey && onSelectRange) {
+        setKeyRange({ from: keyRange?.from ?? current ?? target, to: target });
+      } else {
+        setKeyRange(null);
+      }
+    } else if (event.key === "Enter" && onSelectRange && (keyRange || hovered !== null)) {
+      event.preventDefault();
+      if (keyRange) commitSelection(keyRange.from, keyRange.to);
+      else if (hovered !== null) commitSelection(hovered, hovered);
+      setKeyRange(null);
+    } else if (event.key === "Escape") {
+      setHovered(null);
+      setKeyRange(null);
+    }
+  };
   const tooltipBin = active !== null ? bins[active] : null;
   const tooltipLeft =
     active !== null
@@ -224,26 +277,29 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
         ) : (
           <div
             tabIndex={0}
-            role="img"
+            role="slider"
+            aria-valuemin={0}
+            aria-valuemax={bins.length - 1}
+            aria-valuenow={active ?? bins.length - 1}
+            aria-valuetext={
+              keyRange
+                ? describeRange(keyRange.from, keyRange.to)
+                : tooltipBin
+                  ? describeBin(tooltipBin)
+                  : `${t.overview.total}: ${fmt.number(totals.total)}`
+            }
             aria-label={t.overview.chartLabel(
               fmt.dateTimeShort(bins[0].start),
               fmt.dateTimeShort(bins[bins.length - 1].end),
               summary,
             )}
+            aria-describedby={onSelectRange ? hintId : undefined}
             className="rounded-lg focus-visible:outline-offset-4"
-            onKeyDown={(event) => {
-              if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
-                event.preventDefault();
-                const delta = event.key === "ArrowRight" ? 1 : -1;
-                setHovered((current) => Math.max(0, Math.min(bins.length - 1, (current ?? bins.length - 1) + (current === null ? 0 : delta))));
-              } else if (event.key === "Enter" && hovered !== null && onSelectRange) {
-                event.preventDefault();
-                commitSelection(hovered, hovered);
-              } else if (event.key === "Escape") {
-                setHovered(null);
-              }
+            onKeyDown={onChartKeyDown}
+            onBlur={() => {
+              setHovered(null);
+              setKeyRange(null);
             }}
-            onBlur={() => setHovered(null)}
           >
             <svg
               ref={svgRef}
@@ -294,7 +350,7 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
               ))}
 
               {/* Columna bajo el puntero: se ilumina el fondo, no se tocan los datos. */}
-              {active !== null && !drag && (
+              {active !== null && !selection && (
                 <rect
                   x={axisWidth + active * slot}
                   y={topPad}
@@ -305,11 +361,11 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
                 />
               )}
 
-              {drag && (
+              {selection && (
                 <rect
-                  x={axisWidth + Math.min(drag.from, drag.to) * slot}
+                  x={axisWidth + Math.min(selection.from, selection.to) * slot}
                   y={topPad}
-                  width={(Math.abs(drag.to - drag.from) + 1) * slot}
+                  width={(Math.abs(selection.to - selection.from) + 1) * slot}
                   height={plotHeight}
                   className="fill-brand/15 stroke-brand"
                   strokeWidth={1}
@@ -423,7 +479,9 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ hours, loading, st
         )}
       </div>
       {onSelectRange && view === "chart" && totals.total > 0 && !loading && (
-        <p className="text-[0.6875rem] text-ink-3">{t.overview.activityHint}</p>
+        <p id={hintId} className="text-[0.6875rem] text-ink-3">
+          {t.overview.activityHint}
+        </p>
       )}
     </figure>
   );

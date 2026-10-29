@@ -2,13 +2,40 @@
 
 Todos los cambios relevantes de MCLog (API, dashboard, librería, integraciones, despliegue y sitio público) se anotan aquí.
 
-El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). El proyecto todavía no etiqueta versiones, así que las entradas se agrupan por fecha. La API y el dashboard están en la **1.0.0** y la librería `@multicomputos-srl/mclog` en la **1.3.0**, que se versiona por separado (semver).
+El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y [Semantic Versioning](https://semver.org/lang/es/). La API y el dashboard comparten versión; la librería `@multicomputos-srl/mclog` se versiona por separado. Las entradas anteriores a la 2.0.0 se agrupan por fecha: entonces el proyecto aún no etiquetaba versiones (API y dashboard en la 1.0.0, librería hasta la 1.3.0).
 
 Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configuración o el despliegue al actualizar.
 
-## [Sin publicar]
+## [2.0.0] — 2026-10-29
+
+Versión mayor de la API y el dashboard, que reúne la hoja de ruta de mejoras: cálculos corregidos (fase 1), trazas legibles (fase 2), monitoreo esencial (fase 3), accesibilidad y dinamismo (fase 4) e integraciones (fase 5). `/health` y el servidor MCP anuncian **2.0.0**. Es mayor porque cambia comportamiento del que dependen las integraciones; ver las entradas con ⚠ **Requiere acción**: las estadísticas siguen la ventana, MCLog ya no inventa el `traceId`, algunas huellas cambian una vez y hay tres migraciones (`0017_trace_spans`, `0018_monitoring` y `0019_pagerduty_channel`).
+
+**Librería `@multicomputos-srl/mclog` 1.4.0** (minor, compatible): el cliente y el middleware de validación aceptan `parentSpanId`, `durationMs` y `release`, con las mismas reglas que el servidor.
+
+**Librería `@multicomputos-srl/mclog` 1.5.0** (minor, compatible): contexto de traza por petición con `AsyncLocalStorage` (`withContext`, `getContext`, `traceHeaders`), el middleware `traceContext()` (lee o crea `traceparent`/`x-trace-id`, y cada petición es un tramo), `child()` para otros valores por defecto, `startSpan()` con `run()` y `end()` (registra `durationMs` y `parentSpanId`) y `release` por defecto desde `MCLOG_RELEASE`. Sin dependencias nuevas: solo módulos de Node.
 
 ### Añadido
+- **API — Ingesta OpenTelemetry (OTLP/HTTP JSON)** en `POST /v1/logs`, la ruta estándar de los exportadores. Usa la misma API key `ingest` (en `x-api-key` o `Authorization: Bearer`), el mismo límite y la misma validación que `/api/logs/batch`, y responde como OTLP: `200 {}`, o `partialSuccess` con lo descartado.
+  - **Mapeo:** `service.name` es el servicio y `service.namespace` la aplicación; `deployment.environment(.name)` da el entorno; `service.version` la release y `host.name` el host. `severityNumber` da el nivel, y `trace_id`/`span_id` (en hexadecimal o base64) la traza. `exception.*` va a los campos de error y el resto de atributos a `metadata`.
+  - **Solo JSON.** Protobuf pediría una dependencia nueva. Envían JSON directamente el SDK de JavaScript y el OTel Collector (`otlphttp` con `encoding: json`). Los SDK de Python, Java, .NET y Go exportan protobuf: se conectan a través de un Collector.
+  - ⚠ **Requiere acción** en el despliegue con Caddy: `deploy/Caddyfile` enruta ahora también `/v1/*` a la API.
+- **Alertas — Canal PagerDuty** (Events API v2). Cada aviso abre un incidente, y la recuperación de una regla continua lo resuelve con la misma `dedup_key`: por regla o, para un fallo nuevo o una regresión de un solo fallo, por regla y huella. Los resúmenes programados van como *change events*, que no abren incidente. La routing key se valida y se devuelve enmascarada. ⚠ **Requiere acción:** migración `0019_pagerduty_channel`, que solo añade un valor al enum `AlertChannelType`.
+- **MCP — Tres herramientas más** (12 en total):
+  - `list_traces`: operaciones recientes;
+  - `get_failure_occurrences`: veces, entornos y probabilidad de repetirse;
+  - `get_error_group`: estado, regresiones, releases, plantilla y último log de un fallo.
+  - Las instrucciones del servidor dicen cuándo usar cada una.
+- **Prometheus — Métricas del propio servicio:**
+  - `mclog_alert_evaluations_total{rule_type,outcome}`;
+  - `mclog_alert_deliveries_total{channel_type,kind,result}` (avisos, recuperaciones y resúmenes);
+  - `mclog_scheduler_job_duration_seconds{job,outcome}`;
+  - `mclog_ingest_lag_seconds`: retraso entre el `timestamp` del log y su llegada, solo con timestamp propio;
+  - `mclog_logs_rejected_total{reason}`: `validation`, `scope`, `batch_too_large` u `otlp_malformed`.
+- **Dashboard — Instalable como aplicación (PWA)** con Serwist 9.5.13: manifest (`/manifest.webmanifest`), iconos generados (`/pwa-icon/192`, `/512` y `/maskable`) y una página sin conexión (`/~offline`). El service worker solo guarda en caché los recursos estáticos con hash (`/_next/static/`) y los iconos. La API, las páginas y los datos van siempre a la red: nunca se ven logs viejos ni quedan datos de un espacio en el dispositivo. En `npm run dev` está desactivado.
+- **Dashboard — Actualización automática configurable** en la barra superior de Logs, Errores y Operaciones: apagada, 15 s, 30 s, 1 min (lo de antes) o 5 min. Se recuerda en el navegador, se pausa con la pestaña oculta y refresca al volver. Errores también se refresca ahora con rangos relativos.
+- **Dashboard — Atajos de teclado:** `g` y luego `l`, `e`, `t`, `r` o `a` llevan a Logs, Errores, Operaciones, Reportes o Alertas, y `?` abre la ayuda con todos los atajos. No actúan mientras se escribe ni con un diálogo abierto. Los enlaces del menú los anuncian con `aria-keyshortcuts`.
+- **Dashboard — Copiar enlace** en el detalle del log (`/logs?log=<id>`), y **Reporte de este fallo** en cada fila de Errores: abre Reportes con la huella como filtro y lo genera.
+- **Dashboard — Notificaciones de errores en vivo** (opcionales). Con **En vivo** activo, la campana pide permiso al navegador y avisa de los errores que llegan mientras la pestaña está en segundo plano. Envía como mucho un aviso cada 30 s, con el total acumulado.
 - **Ciclo de vida de los fallos.** Tabla `ErrorGroup` (una fila por huella y espacio, migración `0018_monitoring` con backfill desde `Log`) que la ingesta mantiene en la misma transacción: primera vez de verdad (más allá de la retención), última, total, nivel más grave, primera y última release. Estados `active`, `resolved` e `ignored` (hasta una fecha o siempre); un resuelto que recibe una ocurrencia posterior a la resolución vuelve a activo y cuenta una **regresión**. API: `PATCH /api/logs/errors/groups` (solo el dueño) y `status`, `sort` y `series` en `GET /api/logs/errors/groups`, que además devuelve `lifecycle` (nuevos, regresiones, resueltos y MTTR de la ventana).
 - **Dashboard — Errores con estados:** pestañas Todos / Activos / Regresiones / Resueltos / Ignorados, etiquetas **Nuevo**, **Regresión**, **Resuelto**, **Ignorado** y la última release, mini-gráfica por fallo, primera vez de verdad y total, búsqueda, filtro de servicio, orden, acciones en bloque para el dueño (resolver, ignorar 24 h / 7 días / siempre, reactivar) y cuatro cifras del ciclo de vida, MTTR incluido.
 - **Alertas — Cuatro tipos nuevos:** `regression`, `error_rate` (porcentaje con `minVolume`), `silence` (latido: algo que emitía deja de hacerlo) y `spike` (N veces la media de la semana anterior). Las de condición continua tienen estado (`firing`/`ok`) y avisan de la **recuperación** (`AlertEvent.kind = resolve`). Silenciar una regla hasta una fecha (`mutedUntil`), un reintento por envío fallido y un cerrojo de PostgreSQL para que, con varias instancias, solo una evalúe cada pasada. En el panel: selector de tipo, servicio, volumen mínimo, estado **Disparada**, silenciar 1 h / 24 h, y el historial distingue disparos y recuperaciones y enlaza los logs de muestra.
@@ -82,6 +109,20 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
 - **API — Mismos filtros en estadísticas, grupos de error e inventario:** `GET /api/logs/stats`, `/api/logs/errors/groups` y `/api/logs/applications` aceptan todos los filtros de `GET /api/logs` (`service`, `host`, `search`, `message`, `errorName`, `errorCode`, `fingerprint`, `traceId`, `level`…). La serie por hora y el inventario los aplican con `buildWhereSql`, que replica `buildWhere` en SQL.
 
 ### Cambiado
+- **Dashboard — Accesibilidad (WCAG 2.1 AA):**
+  - **Tabla de logs:** es una sola parada de Tab (tabindex itinerante, con ↑/↓/Inicio/Fin) con anillo de foco visible. La fila abierta lleva `aria-current` en lugar de `aria-selected`. Las cabeceras ordenables llevan `aria-sort`: un clic ordena por esa columna y otro invierte el orden.
+  - **Gráfica de actividad:** es un `slider` sobre los intervalos. ←/→ (e Inicio/Fin) los recorren y el lector anuncia el desglose; Mayús + flechas amplía una selección e Intro la aplica al rango.
+  - **Avisos:** se pausan con el ratón o el foco encima y se cierran con su botón o con Esc. Los de error no desaparecen solos y cada aviso se anuncia una sola vez.
+  - **Menú lateral en móvil:** cerrado es `inert`, fuera del Tab y del lector. Abierto, el foco entra, no sale con Tab y Esc lo cierra.
+  - **Selector de rango de fechas:** al abrirse, el foco entra en el panel (antes estaba montado al final del documento y con Tab no se llegaba a él), y se cierra si el foco sale.
+  - **Reportes:** los tipos de informe son un grupo de radios que se recorre con flechas, y la vista previa es el panel (`tabpanel`) de las pestañas Vista y Fuente.
+  - **Modo en vivo:** una región viva anuncia el estado de la conexión y, en cada refresco, cuántos logs y errores llegaron.
+  - **Detalle del log:** ←/→ ya no cambian de log dentro de un bloque de código desplazable, y Esc se atiende una sola vez.
+  - **Varios:** los puntos de nivel dicen el nivel al lector; las opciones de menús y desplegables tienen foco visible; los `aria-label` están traducidos.
+- **Prometheus — `application` acotada:** las primeras 200 aplicaciones distintas conservan su etiqueta en `mclog_logs_ingested_total`; las demás se suman en `__other__`. Un emisor que inventara nombres creaba antes una serie por nombre, sin límite.
+- **Dashboard — Canal PagerDuty** en **Espacio → Alertas → Canales**, con su integration key.
+- **Dashboard — ESLint del proyecto** (`frontend_mclog/.eslintrc.cjs`): `next/core-web-vitals` más `jsx-a11y/recommended`, con cada ajuste justificado en el propio archivo. Lo aplican `npm run lint` y `next build`.
+- **Dashboard — `next.config.mjs`** sustituye a `next.config.js`, porque Serwist es un módulo ES. La imagen Docker copia ahora `public/`, donde se genera `sw.js`.
 - **Alertas — `new_error_group`** ya no agrega todo lo retenido en cada pasada: solo mira las huellas con algún log en la ventana. ⚠ **Requiere acción:** aplicar la migración `0018_monitoring` (con varias tablas nuevas y el relleno de `ErrorGroup`, que en una tabla `Log` grande tarda) antes de arrancar la API nueva.
 - **MCP — `get_trace`** devuelve también `parentSpanId` y `durationMs` de cada paso.
 - **API — Las estadísticas siguen la ventana.** Con `from`/`to`, `total`, `byLevel`, `byApplication` y `byEnvironment` de `GET /api/logs/stats` son los de esa ventana; solo con `hours` siguen siendo de toda la retención. `last24h` cuenta las 24 h anteriores a `to`. `to` anterior a `from` responde `400` en el listado, las estadísticas, los grupos de error y el inventario. ⚠ **Requiere acción** para quien consuma la API con `from`/`to` y esperara totales históricos.
@@ -119,6 +160,12 @@ Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configurac
 - **Correos:** la caducidad de la invitación decía "1 días" ("1 days" en inglés), y la alerta de errores nuevos decía "error(es) nuevo(s)". Ahora usan singular y plural según el número.
 - **API — Contexto de un log:** con más registros que `limit` en la ventana, devolvía los más antiguos y el log, y lo que lo precedía, podían quedar fuera. Ahora va en dos consultas desde el log hacia atrás y hacia delante (la mitad mayor para lo anterior) y se acota también por entorno.
 - **Enmascarado:** el id de una Server Action de Next.js y los hashes de commit ya no salen como `[REDACTED:key]`. Son públicos y hacen falta para diagnosticar el fallo.
+
+### Seguridad
+- **Dependencias:**
+  - Se aplicó `npm audit fix` en la API y en el dashboard (entre otros, Prisma 7.10.1).
+  - El dashboard fija `zod` en 4.6.7 con `overrides`: la versión que traía Serwist tenía un aviso alto (GHSA-mrhx-c7xc-m3w5).
+  - Quedan avisos que exigen saltos de versión mayor, que se tratarán aparte: Next.js 14 (crítico, se corrige en la 15.5.28 o posterior), `eslint-config-next`/`glob`/`postcss`, `nodemailer` 10, `vitest` 5 (solo en desarrollo) y `uuid` 14.
 
 ## 2026-09-25
 

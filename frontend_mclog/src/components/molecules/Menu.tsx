@@ -141,7 +141,7 @@ export const Menu: React.FC<MenuProps> = ({
             }`}
           >
             {header}
-            <div id={menuId} role="menu" aria-label={label} onKeyDown={onKeyDown}>
+            <div id={menuId} role="menu" aria-label={label} tabIndex={-1} onKeyDown={onKeyDown}>
               {items.map((item, index) => {
                 if (item.type === "separator") return <div key={item.key} role="separator" className="my-1 h-px bg-line" />;
                 if (item.type === "label") {
@@ -170,7 +170,7 @@ export const Menu: React.FC<MenuProps> = ({
                       close();
                       item.onSelect();
                     }}
-                    className={`flex w-full items-center rounded-lg text-left outline-none transition-colors hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:outline-none disabled:opacity-50 ${
+                    className={`flex w-full items-center rounded-lg text-left outline-none transition-colors hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand disabled:opacity-50 ${
                       compact ? "gap-2 px-2.5 py-1.5 text-[0.8125rem]" : "gap-2.5 px-2.5 py-2 text-sm"
                     } ${item.danger ? "text-danger" : "text-ink"}`}
                   >

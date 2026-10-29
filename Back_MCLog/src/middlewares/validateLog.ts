@@ -1,5 +1,6 @@
 import { RequestHandler } from 'express';
 import { body, validationResult, ValidationChain } from 'express-validator';
+import { logsRejected } from '../config/metrics';
 
 const MAX_MESSAGE_LENGTH = 100000;
 const MAX_STACK_LENGTH = 50000;
@@ -27,6 +28,9 @@ const ELLIPSIS = '…';
 const validField: RequestHandler = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        // Un lote invalido se rechaza entero: cuentan todas sus entradas.
+        const logs = (req.body as { logs?: unknown } | undefined)?.logs;
+        logsRejected.inc({ reason: 'validation' }, Array.isArray(logs) ? Math.max(logs.length, 1) : 1);
         res.status(400).json({
             status: 'error',
             errors: errors.mapped(),

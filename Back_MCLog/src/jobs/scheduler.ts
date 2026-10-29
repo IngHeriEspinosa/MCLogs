@@ -1,5 +1,6 @@
 import { config } from "../config/env";
 import logger from "../config/logger";
+import { schedulerJobDuration } from "../config/metrics";
 import { prisma } from "../config/prisma";
 import { deleteLogsOlderThanInBatches } from "../services/logService";
 import { evaluateRulesExclusively } from "../alerts/evaluator";
@@ -37,13 +38,17 @@ const runExclusively = async (name: string, task: () => Promise<unknown>) => {
   }
   inFlight.add(name);
   const startedAt = Date.now();
+  let outcome: "ok" | "error" = "ok";
   try {
     await task();
   } catch (error) {
+    outcome = "error";
     logger.error("Scheduled job failed", { job: name, error: String(error) });
   } finally {
     inFlight.delete(name);
-    logger.debug("Scheduled job finished", { job: name, durationMs: Date.now() - startedAt });
+    const durationMs = Date.now() - startedAt;
+    schedulerJobDuration.observe({ job: name, outcome }, durationMs / 1000);
+    logger.debug("Scheduled job finished", { job: name, durationMs });
   }
 };
 

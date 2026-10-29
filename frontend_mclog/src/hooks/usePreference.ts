@@ -9,18 +9,39 @@ import { useCallback, useEffect, useState } from "react";
  * el guardado se aplica tras montar: asi no hay desajustes de hidratacion. Si
  * el almacenamiento no esta disponible (modo privado, cuota), la preferencia
  * simplemente no persiste.
+ *
+ * Todos los componentes que leen la misma clave ven el cambio al momento (la
+ * barra superior cambia el auto-refresco y la pagina lo aplica), y las demas
+ * pestanas lo reciben por el evento `storage`.
  */
+const PREFERENCE_EVENT = "mclog:preference";
+
 export function usePreference<T extends string | boolean>(key: string, fallback: T) {
   const storageKey = `mclog.${key}`;
   const [value, setValue] = useState<T>(fallback);
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (stored !== null) setValue(JSON.parse(stored) as T);
-    } catch {
-      // Sin almacenamiento: se queda el valor por defecto.
-    }
+    const read = () => {
+      try {
+        const stored = window.localStorage.getItem(storageKey);
+        if (stored !== null) setValue(JSON.parse(stored) as T);
+      } catch {
+        // Sin almacenamiento: se queda el valor por defecto.
+      }
+    };
+    read();
+    const onLocal = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === storageKey) read();
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === storageKey) read();
+    };
+    window.addEventListener(PREFERENCE_EVENT, onLocal);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(PREFERENCE_EVENT, onLocal);
+      window.removeEventListener("storage", onStorage);
+    };
   }, [storageKey]);
 
   const update = useCallback(
@@ -28,6 +49,7 @@ export function usePreference<T extends string | boolean>(key: string, fallback:
       setValue(next);
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent(PREFERENCE_EVENT, { detail: storageKey }));
       } catch {
         // Ignorado a proposito: es una comodidad, no un dato.
       }

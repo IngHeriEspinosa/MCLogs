@@ -6,6 +6,7 @@ Cliente oficial del servicio de logs centralizados **MCLog**, para Node.js.
 - **A prueba de fallos** — si MCLog no responde, tu aplicación no se cae.
 - **Reintento ante saturación** — un `429` o un `5xx` no descarta el log en silencio.
 - **Tipado completo** — TypeScript de primera clase, con declaraciones `.d.ts`.
+- **Trazas automáticas** — un middleware lee o crea `traceparent` y cada log de la petición la lleva; `startSpan` mide y anida pasos.
 - **Middleware Express opcional** — en un entry point aparte, para no arrastrar Express si no lo usas.
 
 ## Instalación
@@ -89,9 +90,16 @@ await mclog.send({
   message: "Pedido sincronizado",
   service: "orders-worker",
   traceId: "req-1234",
+  spanId: "sync-orders",
+  durationMs: 840,
+  release: "2.4.1",
   metadata: { orderId: 42 },
 });
 ```
+
+Con `durationMs`, la traza del panel pinta lo que duró cada paso y el resumen calcula la
+latencia (p50, p95, p99) por servicio; con `release`, MCLog dice qué fallos estrenó cada
+versión. `parentSpanId` anida un paso dentro de otro en la vista de traza.
 
 En `send`, todo es opcional: `application`, `environment`, `service` y `host` toman el
 valor por defecto del cliente, `level` es `info` si no se indica, y `message`, el de
@@ -128,6 +136,7 @@ primer trozo que falle.
 | `service` | `string` | — | Servicio por defecto. |
 | `host` | `string` | — | Host por defecto. |
 | `defaultMetadata` | `Record<string, unknown>` | — | Metadata mezclada en toda entrada; la de cada llamada gana. |
+| `release` | `string` | `MCLOG_RELEASE` | Versión desplegada que se pone en cada entrada. |
 | `throwOnError` | `boolean` | `false` | Si `true`, los fallos se lanzan en vez de silenciarse. |
 | `timeoutMs` | `number` | `5000` | Timeout por petición. |
 | `maxBatchSize` | `number` | `500` | Entradas por petición en `sendBatch`. Debe ser <= al `MAX_BATCH_SIZE` del servidor. |
@@ -183,6 +192,77 @@ const mclog = createMCLogClient({
 ```
 
 O bórralo todo y gestiona tú las excepciones con `throwOnError: true`.
+
+## Trazas, tramos y clientes hijos
+
+Todo lo de esta sección es opcional y viene en el entry point principal, sin dependencias: usa `AsyncLocalStorage` de Node.
+
+### Contexto por petición
+
+```ts
+import { traceContext } from "@multicomputos-srl/mclog";
+
+app.use(traceContext({ service: "checkout" }));
+```
+
+Por cada petición, el middleware:
+
+- sigue la traza de `traceparent` (W3C, la que usa OpenTelemetry), cuyo tramo pasa a ser el padre; si no viene, la de `x-trace-id`; si no viene ninguna, empieza una nueva;
+- abre un tramo propio (`spanId` nuevo);
+- devuelve `traceparent` y `x-trace-id` en la respuesta (`responseHeaders: false` lo evita).
+
+Cada log que el cliente emita mientras se atiende la petición lleva `traceId`, `spanId` y `parentSpanId`, aunque se emita después de varios `await`. Vale para Express, Connect o `http` a pelo.
+
+Fuera de un servidor HTTP (un worker, un cron), abre el contexto a mano:
+
+```ts
+import { withContext } from "@multicomputos-srl/mclog";
+
+await withContext({ traceId: `job:${job.id}`, metadata: { queue: "invoices" } }, () => procesar(job));
+```
+
+**Prioridad:** lo que pones en el log gana a lo del cliente, y lo del cliente al contexto. La metadata se mezcla: cliente < contexto < log.
+
+### Propagar la traza a otro servicio
+
+```ts
+import { traceHeaders } from "@multicomputos-srl/mclog";
+
+await fetch(url, { headers: { ...traceHeaders(), "Content-Type": "application/json" } });
+```
+
+Devuelve `x-trace-id` y, si los identificadores son W3C, `traceparent`. Fuera de un contexto, un objeto vacío.
+
+### Tramos
+
+```ts
+const span = mclog.startSpan("cobrar", { service: "payments", metadata: { pedidoId } });
+try {
+  const recibo = await span.run(() => pasarela.cobrar(pedido));  // dentro, logs y tramos hijos lo llevan
+  await span.end({ metadata: { recibo: recibo.id } });
+} catch (error) {
+  await span.end({ error });   // nivel error y excepción desglosada
+  throw error;
+}
+```
+
+- `end()` envía el log de cierre con `durationMs` medido desde `startSpan`, el `parentSpanId` del tramo que lo contenía y, por defecto, el nombre del tramo como mensaje.
+- Solo cuenta la primera llamada: las siguientes devuelven `false` sin enviar.
+- Con `error`, el nivel pasa a `error`.
+- Un tramo fuera de cualquier contexto empieza una traza nueva.
+
+### Clientes hijos
+
+```ts
+const billing = mclog.child({ service: "billing", metadata: { queue: "invoices" } });
+await billing.warn("Factura lenta");
+```
+
+Comparte la configuración de envío del padre; cambia los valores por defecto y mezcla la metadata.
+
+### Release
+
+Con `MCLOG_RELEASE` en el entorno (o la opción `release`), cada entrada lleva la versión desplegada. MCLog la usa para decir qué release estrenó cada fallo.
 
 ## La API key
 
@@ -283,6 +363,9 @@ Los dos funcionan igual con una entrada suelta o con `{ logs: [...] }`.
 | `timestamp` | no | `string` (ISO 8601) |
 | `traceId` | no | `string` (máx. 128) |
 | `spanId` | no | `string` (máx. 128) |
+| `parentSpanId` | no | `string` (máx. 128): el tramo que contiene a este, para anidar los pasos de una traza |
+| `durationMs` | no | entero ≥ 0: lo que duró el paso, en milisegundos |
+| `release` | no | `string` (máx. 120): la versión desplegada que emite el log |
 | `metadata` | no | objeto libre o `null` |
 | `error` | no | `Error` o cualquier objeto con `name` / `message` / `code` / `stack` |
 | `errorName` | no | `string` (máx. 200) |

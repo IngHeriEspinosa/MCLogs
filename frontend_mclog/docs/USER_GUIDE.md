@@ -57,7 +57,7 @@ Arriba eliges el rango, **Errores** o **Warnings**, el entorno y la aplicación.
 
 **Primera aparición reciente suele significar error nuevo**, que casi siempre apunta a lo último que se tocó. Ojo: es la primera vez *dentro del rango elegido*; amplíalo a 30 días para confirmarlo.
 
-**Ver ocurrencias** te lleva a los registros concretos de ese fallo. El botón ✦ copia un **brief para IA** del fallo, con su ejemplo más reciente y el stack, listo para pegar en un agente.
+**Ver ocurrencias** te lleva a los registros concretos de ese fallo. El botón ✦ copia un **brief para IA** del fallo, con su ejemplo más reciente y el stack, listo para pegar en un agente. El icono de informe genera un **reporte de ese fallo solo**.
 
 ## Logs
 
@@ -75,7 +75,7 @@ Una sola fila encima de todo, y todo lo de debajo responde a ella:
 ### Resumen
 
 - **Tarjetas**: registros, errores y warnings del rango (con su tendencia), fallos distintos y aplicaciones activas. El icono de cada una explica qué mide.
-- **Actividad**: volumen por intervalo, apilado por nivel. Responde a **¿desde cuándo pasa esto?**: si la franja roja aparece de golpe, ahí empezó el incidente. Pasa el ratón para ver el desglose, **arrastra sobre el gráfico para acotar el rango** a esa franja, o haz clic en una barra para aislarla. **Ver como tabla** muestra las mismas cifras en filas.
+- **Actividad**: volumen por intervalo, apilado por nivel. Responde a **¿desde cuándo pasa esto?**: si la franja roja aparece de golpe, ahí empezó el incidente. Pasa el ratón para ver el desglose, **arrastra sobre el gráfico para acotar el rango** a esa franja, o haz clic en una barra para aislarla. Con el teclado: **←/→** recorre los intervalos, **Mayús + ←/→** amplía la selección e **Intro** la aplica. **Ver como tabla** muestra las mismas cifras en filas.
 - **Por nivel** y **por entorno**, **fallos principales** y **aplicaciones más activas**. Un clic en cualquiera de ellos lo convierte en filtro.
 
 El resumen respeta el rango, la aplicación y el entorno, pero no la búsqueda ni el nivel. El botón con el icono de panel, arriba, lo oculta para dejarle todo el sitio a la tabla.
@@ -83,6 +83,8 @@ El resumen respeta el rango, la aplicación y el entorno, pero no la búsqueda n
 ### En vivo
 
 El botón **En vivo** deja la conexión abierta y va colocando arriba, resaltados, los logs según llegan. Es lo que quieres mientras reproduces un fallo o justo después de desplegar. El punto verde palpitando indica conexión viva; ámbar, conectando; rojo, reconectando.
+
+La campana que aparece junto al botón activa las **notificaciones de errores**: el navegador te avisa de los que lleguen mientras la pestaña está en segundo plano, como mucho una vez cada 30 segundos. La primera vez pide permiso.
 
 Solo se activa en la primera página, con el orden por fecha descendente y un rango que llegue hasta ahora. En cualquier otra vista se desactiva solo, porque colar filas nuevas en medio falsearía lo que estás mirando.
 
@@ -303,4 +305,7 @@ No se puede deshacer. La cuenta root no se puede eliminar, y tampoco la del últ
 - **El rango de tiempo es el filtro que más se queda puesto sin querer.** Si ves "No hay registros que coincidan" y esperabas resultados, amplíalo primero.
 - **La metadata y el stack son donde está lo bueno.** El mensaje dice qué falló; el stack dice dónde y la metadata con qué datos.
 - **Para pedir ayuda a una IA, usa el brief**, no un copiar y pegar de la pantalla: lleva el contexto, las reglas y los datos enmascarados.
-- **Comparte la URL, no capturas.** Quien la reciba puede seguir filtrando desde ahí.
+- **Comparte la URL, no capturas.** Quien la reciba puede seguir filtrando desde ahí. Para un log concreto, **Copiar enlace** en su detalle.
+- **Elige cada cuánto se actualiza la vista** con el botón de refrescar de la barra superior (Logs, Errores y Operaciones): 15 s, 30 s, 1 min, 5 min o apagada. Se pausa con la pestaña oculta.
+- **Pulsa ? para ver los atajos.** **g l**, **g e**, **g t**, **g r** y **g a** llevan a Logs, Errores, Operaciones, Reportes y Alertas.
+- **Instálalo como aplicación** desde el icono de instalar de Chrome o Edge. Sin conexión muestra un aviso, nunca datos viejos.

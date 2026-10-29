@@ -432,6 +432,8 @@ enum AlertChannelType {
   webhook
   email
   telegram
+  /// Events API v2: abre y cierra incidentes; los resúmenes van como change events.
+  pagerduty
 }
 
 enum AlertRuleType {

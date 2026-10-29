@@ -1,6 +1,6 @@
 import { Environment, LogLevel, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { logsIngested } from '../config/metrics';
+import { applicationLabel, ingestLag, logsIngested } from '../config/metrics';
 import { emitLogCreated } from '../events/logEvents';
 import { aggregateGroups, upsertGroupsSql } from './errorGroupService';
 
@@ -55,9 +55,15 @@ const groupUpsertsOf = (inputs: CreateLogInput[]) => {
     return sql ? [prisma.$executeRaw(sql)] : [];
 };
 
+/** Retraso de ingesta de un log que trae timestamp propio (ver `ingestLag`). */
+const observeLag = (input: CreateLogInput, now: number) => {
+    if (input.timestamp) ingestLag.observe(Math.max(0, (now - input.timestamp.getTime()) / 1000));
+};
+
 export const createLog = async (input: CreateLogInput) => {
     const [created] = await prisma.$transaction([prisma.log.create({ data: input }), ...groupUpsertsOf([input])]);
-    logsIngested.inc({ application: input.application, level: input.level });
+    logsIngested.inc({ application: applicationLabel(input.application), level: input.level });
+    observeLag(input, Date.now());
     emitLogCreated(toEvent(input, created.id));
     return created;
 };
@@ -69,8 +75,10 @@ export const createLogsBatch = async (inputs: CreateLogInput[]) => {
     // (atribuido, por aproximacion, a las primeras entradas), para que
     // Prometheus no pierda lotes enteros.
     const complete = result.count === inputs.length;
+    const now = Date.now();
     for (const input of complete ? inputs : inputs.slice(0, result.count)) {
-        logsIngested.inc({ application: input.application, level: input.level });
+        logsIngested.inc({ application: applicationLabel(input.application), level: input.level });
+        observeLag(input, now);
         // Sin id: createMany no devuelve las filas creadas.
         if (complete) emitLogCreated(toEvent(input));
     }

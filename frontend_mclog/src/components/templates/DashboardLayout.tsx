@@ -7,9 +7,11 @@ import { EmptyState } from "@/components/atoms/EmptyState";
 import { Card } from "@/components/molecules/Card";
 import { Sidebar } from "@/components/organisms/Sidebar";
 import { Topbar } from "@/components/organisms/Topbar";
+import { ShortcutsDialog } from "@/components/organisms/ShortcutsDialog";
 import { CreateWorkspaceDialog } from "@/components/organisms/WorkspaceSwitcher";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import { useMe } from "@/hooks/useAuth";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { usePreference } from "@/hooks/usePreference";
 import { usePresentationMode } from "@/hooks/usePresentationMode";
 import { useWorkspace } from "@/hooks/useWorkspaces";
@@ -60,6 +62,8 @@ type DashboardLayoutProps = {
   width?: keyof typeof WIDTH;
   /** Ofrece el modo presentacion: pantalla completa sin barra lateral ni superior. */
   presentable?: boolean;
+  /** La vista se refresca sola con rangos relativos: ofrece elegir cada cuanto. */
+  autoRefresh?: boolean;
   children: React.ReactNode;
 };
 
@@ -91,6 +95,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   actions,
   width = "full",
   presentable = false,
+  autoRefresh = false,
   children,
 }) => {
   const { t } = useI18n();
@@ -100,6 +105,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = usePreference<boolean>("sidebarCollapsed", false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  useGlobalShortcuts(() => setShortcutsOpen(true));
   const { presenting, enter: startPresenting, exit: stopPresenting } = usePresentationMode(presentable);
   const presentButtonRef = useRef<HTMLButtonElement>(null);
   const exitPresentButtonRef = useRef<HTMLButtonElement>(null);
@@ -137,6 +144,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // barra superior o, presentando, junto al borde de la pantalla.
   return (
     <div className={`flex min-h-screen ${presenting ? "[--sticky-top:1rem]" : "[--sticky-top:4.5rem]"}`}>
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[90] focus:rounded-lg focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-white"
@@ -176,6 +184,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             workspaceRole={workspace.current?.role}
             onPresent={presentable ? startPresenting : undefined}
             presentButtonRef={presentButtonRef}
+            autoRefresh={autoRefresh}
           />
         )}
         <main id="content" className="relative flex-1">

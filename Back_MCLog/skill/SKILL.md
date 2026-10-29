@@ -332,6 +332,13 @@ await mclog.sendBatch(entradas);   // trocea solo en ≤500 entradas y ≤1 MiB
 
 **Express:** registra un manejador de errores al final de la cadena que llame a `void mclog.captureException(err, { metadata: { method: req.method, path: req.path } })`.
 
+**Trazas (1.5.0+):**
+- `app.use(traceContext())` al principio: lee `traceparent`/`x-trace-id` o empieza una traza, y cada log de la petición la lleva.
+- `traceHeaders()` en las llamadas a otros servicios.
+- `mclog.startSpan("paso")` con `run()` y `end()` para medir y anidar pasos.
+- `MCLOG_RELEASE` en el entorno para la release.
+- `mclog.child({ service })` para un módulo o un trabajo.
+
 **Opciones útiles:**
 - `timeoutMs` (5000), `maxRetries` (2), `retryBaseMs` (300);
 - `maxBatchSize` (500), `batchConcurrency` (1);
@@ -607,6 +614,14 @@ function Send-MCLog([string]$Level, [string]$Message, [hashtable]$Metadata = @{}
 
 Para probar una petición sin escribir código: **Espacio → Lab → Log a medida** genera el JSON y el cURL equivalentes.
 
+#### OpenTelemetry (si el sistema ya lo usa)
+
+- `POST {BASE}/v1/logs` acepta OTLP/HTTP **JSON** con la clave `ingest` en `x-api-key`.
+- Python, Java, .NET y Go exportan protobuf: pasa por un **OTel Collector** con el exportador `otlphttp`, `logs_endpoint: {BASE}/v1/logs`, `encoding: json` y la cabecera `x-api-key`.
+- El SDK de JavaScript (`@opentelemetry/exporter-logs-otlp-http`) envía JSON directamente.
+- **Mapeo:** `service.namespace` es `application` (si falta, `service.name`), `service.name` es `service`, `deployment.environment.name` es `environment` (sin él, `development`), `service.version` es `release` y `severityNumber` es `level`.
+- La respuesta es `200 {}`, o `partialSuccess` con lo descartado.
+
 ### 4.4 Asistentes de IA (MCP)
 
 1. Crea una clave **`read`**, acotada a las aplicaciones que deba ver y, si se reparte, con caducidad.
@@ -635,6 +650,7 @@ claude mcp add --transport http mclog https://mclog.tu-dominio.com/mcp \
 **Herramientas:**
 - `list_applications`, `get_error_groups` ("qué falla"), `search_logs` ("qué pasó");
 - `get_recent_errors`, `get_log`, `get_trace`, `get_log_context`, `get_stats`;
+- `list_traces` (operaciones recientes), `get_failure_occurrences` (veces y probabilidad de un fallo) y `get_error_group` (estado, regresiones y releases);
 - `get_integration_skill`, que devuelve este skill.
 
 **Recurso y prompt:**
@@ -658,10 +674,17 @@ scrape_configs:
     authorization: { type: Bearer, credentials_file: /etc/prometheus/mclog_key }   # clave con permiso "metrics"
 ```
 
+Métricas propias para alertar sobre MCLog:
+- `mclog_logs_rejected_total{reason}`;
+- `mclog_ingest_lag_seconds`;
+- `mclog_alert_deliveries_total{result="failed"}`;
+- `mclog_alert_evaluations_total{outcome="error"}`;
+- `mclog_scheduler_job_duration_seconds`.
+
 ### 4.6 Alertas hacia otros sistemas (webhook)
 
 En **Espacio → Alertas**:
-- crea un canal **webhook**, email o Telegram;
+- crea un canal **webhook**, email, Telegram o **PagerDuty** (integration key de Events API v2: abre incidentes y los resuelve con la recuperación de la regla);
 - añade reglas: **error nuevo** (una huella vista por primera vez) o **umbral** (N coincidencias en la ventana).
 
 El webhook recibe un POST JSON. Si defines un secreto, lo firma con `x-mclog-signature: sha256=<HMAC-SHA256 del cuerpo>`. **Verifica la firma** en el receptor, con comparación en tiempo constante, antes de procesarlo.

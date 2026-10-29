@@ -11,6 +11,8 @@ import { useTheme } from "@/common/theme/ThemeProvider";
 import { ThemePreference } from "@/common/theme/config";
 import { CurrentUser, useLogout } from "@/hooks/useAuth";
 import type { WorkspaceRole } from "@/hooks/useWorkspaces";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { REFRESH_SETTINGS } from "@/common/time/refresh";
 
 const THEME_ICON = { light: "sun", dark: "moon", system: "monitor" } as const;
 
@@ -61,6 +63,37 @@ export const ThemeMenu: React.FC = () => {
           icon: THEME_ICON[option],
           checked: preference === option,
           onSelect: () => setPreference(option),
+        })),
+      ]}
+    />
+  );
+};
+
+/**
+ * Cada cuanto se refresca sola la vista. Muestra el ritmo actual junto al
+ * icono para que se vea de un vistazo si los datos se mueven solos.
+ */
+export const RefreshMenu: React.FC = () => {
+  const { t } = useI18n();
+  const { setting, setSetting } = useAutoRefresh();
+  return (
+    <Menu
+      label={`${t.prefs.autoRefresh}: ${t.prefs.refreshOptions[setting]}`}
+      trigger={
+        <span className="flex items-center gap-1.5">
+          <Icon name={setting === "off" ? "stop" : "refresh"} className="h-4 w-4" />
+          <span className="hidden font-mono text-[0.6875rem] font-semibold sm:inline">{t.prefs.refreshShort[setting]}</span>
+        </span>
+      }
+      triggerClassName="inline-flex h-9 items-center rounded-lg px-2.5 text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
+      compact
+      items={[
+        { type: "label", key: "label", label: t.prefs.autoRefresh },
+        ...REFRESH_SETTINGS.map((option) => ({
+          key: option,
+          label: t.prefs.refreshOptions[option],
+          checked: setting === option,
+          onSelect: () => setSetting(option),
         })),
       ]}
     />
@@ -148,6 +181,8 @@ type TopbarProps = {
   onPresent?: () => void;
   /** Recibe el foco al salir del modo, para no dejar al teclado en <body>. */
   presentButtonRef?: React.Ref<HTMLButtonElement>;
+  /** Muestra el selector de auto-refresco. */
+  autoRefresh?: boolean;
 };
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -158,12 +193,13 @@ export const Topbar: React.FC<TopbarProps> = ({
   workspaceRole,
   onPresent,
   presentButtonRef,
+  autoRefresh,
 }) => {
   const { t } = useI18n();
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-canvas/80 px-4 backdrop-blur-md sm:px-6 xl:px-8 3xl:px-10">
       <IconButton icon="menu" label={t.nav.openMenu} onClick={onOpenMenu} className="-ml-2 lg:hidden" />
-      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm">
+      <nav aria-label={t.nav.breadcrumb} className="flex min-w-0 items-center gap-2 text-sm">
         {section && (
           <>
             <span className="hidden truncate text-ink-3 sm:inline">{section}</span>
@@ -175,6 +211,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         </span>
       </nav>
       <div className="ml-auto flex items-center gap-0.5">
+        {autoRefresh && <RefreshMenu />}
         {onPresent && <IconButton ref={presentButtonRef} icon="maximize" label={t.nav.present} onClick={onPresent} />}
         <LanguageMenu />
         <ThemeMenu />

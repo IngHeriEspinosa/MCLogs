@@ -1,18 +1,21 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 /**
  * Instante de referencia de los rangos relativos ("ultimas 24 h").
  *
  * Se fija al montar y al cambiar `resetKey` (el rango), no en cada render,
- * para que las consultas sean estables. Con `ticking`, avanza cada
- * `intervalMs` mientras la pestaña esta visible, y al volver a ella: asi la
+ * para que las consultas sean estables. Con `ticking`, avanza al ritmo del
+ * auto-refresco que eligio el usuario (useAutoRefresh; apagado, no avanza)
+ * mientras la pestaña esta visible, y al volver a ella: asi la
  * tabla y el resumen miran siempre la misma ventana y se mueven juntos. Antes
  * el resumen se refrescaba con el `from` del primer render y la ventana de
  * "24 h" se alargaba un minuto en cada refresco.
  */
-export const useNow = (intervalMs: number, ticking: boolean, resetKey: string) => {
+export const useNow = (ticking: boolean, resetKey: string) => {
   const [now, setNow] = useState(() => Date.now());
+  const { intervalMs } = useAutoRefresh();
 
   // Solo al cambiar la clave, no al montar: el estado inicial ya trae un
   // instante valido, y recalcularlo unos milisegundos despues cambiaba `from`,
@@ -25,7 +28,7 @@ export const useNow = (intervalMs: number, ticking: boolean, resetKey: string) =
   }, [resetKey]);
 
   useEffect(() => {
-    if (!ticking) return;
+    if (!ticking || intervalMs === null) return;
     const tick = () => {
       if (document.visibilityState === "visible") setNow(Date.now());
     };

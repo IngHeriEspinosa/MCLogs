@@ -1,8 +1,9 @@
 "use client";
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { Alert } from "@/components/atoms/Alert";
 import { Button, IconButton } from "@/components/atoms/Button";
+import { Icon } from "@/components/atoms/Icon";
 import { EmptyState } from "@/components/atoms/EmptyState";
 import { isLevel, LEVEL_FILL, LevelBadge } from "@/components/atoms/LevelBadge";
 import { Segmented } from "@/components/atoms/Segmented";
@@ -80,17 +81,27 @@ export const LogTable: React.FC<LogTableProps> = ({
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
 
+  // Tabindex itinerante: la tabla es una sola parada de Tab (la fila activa) y
+  // las flechas mueven el foco entre filas. Antes cada fila era una parada, y
+  // cruzar una pagina de cien logs con el teclado costaba cien pulsaciones.
+  const [focusIndex, setFocusIndex] = useState(0);
+  const selectedIndex = rows.findIndex((row) => rowKey(row) === selectedKey);
+  const activeIndex = selectedIndex >= 0 ? selectedIndex : Math.min(focusIndex, Math.max(rows.length - 1, 0));
+
   const onRowKeyDown = (event: React.KeyboardEvent, index: number, row: LogRow) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onSelect(row);
       return;
     }
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const target =
+      event.key === "ArrowDown" ? index + 1 : event.key === "ArrowUp" ? index - 1 : event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1 : null;
+    if (target === null) return;
     event.preventDefault();
-    const next = index + (event.key === "ArrowDown" ? 1 : -1);
+    const next = target;
     const element = bodyRef.current?.querySelector<HTMLTableRowElement>(`tr[data-row="${next}"]`);
     if (!element) return;
+    setFocusIndex(next);
     element.focus();
     // Con el inspector abierto, moverse por la tabla va cambiando el detalle.
     if (selectedKey && rows[next]) onSelect(rows[next]);
@@ -108,7 +119,7 @@ export const LogTable: React.FC<LogTableProps> = ({
           {fetching && !loading && <Spinner className="h-3.5 w-3.5 text-ink-3" />}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="hidden text-[0.6875rem] text-ink-3 3xl:block">{t.logs.shortcuts}</p>
+          <p className="hidden text-[0.6875rem] text-ink-3 xl:block">{t.logs.shortcuts}</p>
           <div className="flex items-center gap-1">
             <div className="w-36">
               <Select
@@ -162,23 +173,44 @@ export const LogTable: React.FC<LogTableProps> = ({
           <table className="w-full border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="bg-surface-2/95 text-left backdrop-blur">
-                {[
-                  { label: t.logs.columns.time, className: "pl-5" },
-                  { label: t.logs.columns.level, className: "" },
-                  { label: t.logs.columns.application, className: "" },
-                  { label: t.logs.columns.environment, className: "hidden md:table-cell" },
-                  { label: t.logs.columns.host, className: "hidden 2xl:table-cell" },
-                  { label: t.logs.columns.message, className: "w-full" },
-                  { label: t.logs.columns.trace, className: "hidden 4xl:table-cell" },
-                ].map((column) => (
-                  <th
-                    key={column.label}
-                    scope="col"
-                    className={`whitespace-nowrap border-b border-line px-3 py-2.5 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-ink-3 ${column.className}`}
-                  >
-                    {column.label}
-                  </th>
-                ))}
+                {(
+                  [
+                    { label: t.logs.columns.time, className: "pl-5", sort: "timestamp" },
+                    { label: t.logs.columns.level, className: "", sort: "level" },
+                    { label: t.logs.columns.application, className: "", sort: "application" },
+                    { label: t.logs.columns.environment, className: "hidden md:table-cell", sort: "environment" },
+                    { label: t.logs.columns.host, className: "hidden 2xl:table-cell", sort: "host" },
+                    { label: t.logs.columns.message, className: "w-full", sort: null },
+                    { label: t.logs.columns.trace, className: "hidden 4xl:table-cell", sort: null },
+                  ] as Array<{ label: string; className: string; sort: SortField | null }>
+                ).map((column) => {
+                  const sorted = column.sort !== null && column.sort === sortField;
+                  return (
+                    <th
+                      key={column.label}
+                      scope="col"
+                      aria-sort={column.sort === null ? undefined : sorted ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+                      className={`whitespace-nowrap border-b border-line px-3 py-2.5 font-mono text-[0.6875rem] font-medium uppercase tracking-wider text-ink-3 ${column.className}`}
+                    >
+                      {column.sort === null ? (
+                        column.label
+                      ) : (
+                        // Pulsar la cabecera ordena por ella; pulsarla otra vez invierte el orden.
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onSort(sorted ? { sortDir: sortDir === "desc" ? "asc" : "desc" } : { sortField: column.sort as SortField, sortDir: "desc" })
+                          }
+                          className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-ink ${sorted ? "text-ink" : ""}`}
+                          title={t.logs.sortByColumn(column.label)}
+                        >
+                          {column.label}
+                          {sorted && <Icon name={sortDir === "asc" ? "arrowUp" : "arrowDown"} className="h-3 w-3" />}
+                        </button>
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody ref={bodyRef}>
@@ -206,11 +238,14 @@ export const LogTable: React.FC<LogTableProps> = ({
                     <tr
                       key={key}
                       data-row={index}
-                      tabIndex={0}
-                      aria-selected={selected}
+                      tabIndex={index === activeIndex ? 0 : -1}
+                      // aria-current y no aria-selected: una fila de tabla normal no
+                      // anuncia la seleccion; la fila abierta en el detalle es la actual.
+                      aria-current={selected ? "true" : undefined}
                       onClick={() => onSelect(row)}
+                      onFocus={() => setFocusIndex(index)}
                       onKeyDown={(event) => onRowKeyDown(event, index, row)}
-                      className={`group cursor-pointer outline-none transition-colors focus-visible:bg-brand-soft/50 ${
+                      className={`group cursor-pointer transition-colors focus-visible:bg-brand-soft/50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
                         selected ? "bg-brand-soft/70" : "hover:bg-surface-2"
                       } ${fresh ? "animate-row-flash" : ""}`}
                     >

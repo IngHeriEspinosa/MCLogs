@@ -28,3 +28,9 @@ Thumbs.db
 
 # Deploy
 deploy/import.txt
+
+# Service worker que genera Serwist al compilar el dashboard
+frontend_mclog/public/sw.js
+frontend_mclog/public/sw.js.map
+frontend_mclog/public/swe-worker-*.js
+frontend_mclog/public/swe-worker-*.js.map

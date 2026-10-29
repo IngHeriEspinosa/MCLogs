@@ -128,13 +128,15 @@ describe("Protocolo MCP", () => {
     expect(res.body.result.capabilities).toHaveProperty("prompts");
   });
 
-  it("publica las nueve herramientas con su descripcion", async () => {
+  it("publica las doce herramientas con su descripcion", async () => {
     const res = await callMcp(readKey, rpc("tools/list"));
     expect(res.status).toBe(200);
 
     const nombres = res.body.result.tools.map((tool: { name: string }) => tool.name).sort();
     expect(nombres).toEqual([
+      "get_error_group",
       "get_error_groups",
+      "get_failure_occurrences",
       "get_integration_skill",
       "get_log",
       "get_log_context",
@@ -142,6 +144,7 @@ describe("Protocolo MCP", () => {
       "get_stats",
       "get_trace",
       "list_applications",
+      "list_traces",
       "search_logs",
     ]);
 
@@ -265,6 +268,29 @@ describe("Herramientas de investigacion", () => {
     expect(data.applications).toEqual(["facturacion"]);
   });
 
+  it("list_traces lista las operaciones de la ventana", async () => {
+    const data = await callToolJson(readKey, "list_traces", { onlyErrors: true });
+    const traza = data.traces.find((t: { traceId: string }) => t.traceId === "traza-mcp");
+    expect(traza).toMatchObject({ count: 3, errors: 3, applications: ["facturacion"] });
+  });
+
+  it("get_failure_occurrences cuenta el fallo de un log y su probabilidad", async () => {
+    const busqueda = await callToolJson(readKey, "search_logs", { application: "facturacion", pageSize: 1 });
+    const data = await callToolJson(readKey, "get_failure_occurrences", { id: busqueda.logs[0].id });
+    expect(data.total).toBe(3);
+    expect(data.recurrence.nextHour).toBeGreaterThan(0);
+    expect(data.failureRate).toHaveProperty("rate");
+  });
+
+  it("get_error_group da el estado del fallo y su ultimo log", async () => {
+    const grupos = await callToolJson(readKey, "get_error_groups", { application: "facturacion" });
+    const data = await callToolJson(readKey, "get_error_group", { fingerprint: grupos.groups[0].fingerprint });
+    expect(data).toMatchObject({ status: "active", application: "facturacion", regressionCount: 0, retainedLogs: 3 });
+    // La plantilla de la huella: en minusculas y con los numeros sustituidos.
+    expect(data.messageTemplate).toBe("timeout cobrando el pedido <n>");
+    expect(data.lastLog.errorName).toBe("TypeError");
+  });
+
   it("get_log_context devuelve lo ocurrido alrededor", async () => {
     const busqueda = await callToolJson(readKey, "search_logs", { application: "facturacion", pageSize: 1 });
     const data = await callToolJson(readKey, "get_log_context", { id: busqueda.logs[0].id, beforeSeconds: 300 });
@@ -306,6 +332,12 @@ describe("Herramientas de investigacion", () => {
 });
 
 describe("Aislamiento por aplicacion en MCP", () => {
+  it("una clave acotada no ve el fallo de otra aplicacion", async () => {
+    const grupos = await callToolJson(readKey, "get_error_groups", { application: "ventas" });
+    const { isError } = await callTool(scopedKey, "get_error_group", { fingerprint: grupos.groups[0].fingerprint });
+    expect(isError).toBe(true);
+  });
+
   it("una clave acotada no ve otras aplicaciones", async () => {
     const inventario = await callToolJson(scopedKey, "list_applications");
     expect(inventario.applications.map((a: { application: string }) => a.application)).toEqual(["facturacion"]);

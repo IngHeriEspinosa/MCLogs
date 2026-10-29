@@ -290,6 +290,7 @@ export function Select<V extends string>(props: SelectProps<V>) {
               {visible.map((option, index) => {
                 const checked = isSelected(option);
                 return (
+                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- el teclado lo lleva el combobox
                   <li
                     key={`${option.value}-${index}`}
                     id={optionId(index)}
@@ -297,9 +298,13 @@ export function Select<V extends string>(props: SelectProps<V>) {
                     aria-selected={checked}
                     onMouseMove={() => setActive(index)}
                     onMouseDown={(event) => event.preventDefault()}
+                    // El teclado lo atiende el combobox (aria-activedescendant): la
+                    // opcion nunca recibe el foco, solo el clic.
                     onClick={() => commit(option)}
                     className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
-                      index === active ? "bg-surface-3 text-ink" : "text-ink-2"
+                      // La opcion activa lleva contorno, no solo un fondo que en el tema
+                      // claro apenas contrasta (WCAG 2.4.7, foco visible).
+                      index === active ? "bg-surface-3 text-ink outline outline-2 -outline-offset-2 outline-brand/60" : "text-ink-2"
                     }`}
                   >
                     {/* Con varios, una casilla por opcion: se ve que se pueden marcar mas. */}

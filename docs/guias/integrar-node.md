@@ -133,13 +133,33 @@ await mclog.sendBatch(entradas);
 
 ## Paso 8 (opcional) — Correlaciona entre servicios
 
-Si una operación pasa por varios servicios, genera un `traceId` al principio y pásalo a los demás, por ejemplo en una cabecera HTTP. Cada servicio lo incluye en sus logs:
+Si una operación pasa por varios servicios, añade el middleware de traza. Lee la cabecera `traceparent` (o `x-trace-id`) que trae la petición o empieza una traza nueva, y todos los logs emitidos mientras se atiende la petición la llevan solos:
 
 ```ts
-await mclog.send({ level: "info", message: "Pedido recibido", traceId: req.headers["x-trace-id"] as string });
+import { traceContext, traceHeaders } from "@multicomputos-srl/mclog";
+
+app.use(traceContext());
+
+// Al llamar a otro servicio, pásale la traza:
+await fetch(urlDePagos, { method: "POST", headers: { ...traceHeaders(), "Content-Type": "application/json" }, body });
 ```
 
-En el dashboard, **Ver traza** mostrará la operación completa, de todos los servicios, en orden.
+Para medir un paso y verlo anidado en la traza, ábrelo como **tramo**:
+
+```ts
+const span = mclog.startSpan("cobrar");
+try {
+  await span.run(() => cobrar(pedido));   // los logs de dentro van en este tramo
+  await span.end();                       // registra cuánto tardó
+} catch (err) {
+  await span.end({ error: err });
+  throw err;
+}
+```
+
+En el dashboard, **Ver traza** mostrará la operación completa, de todos los servicios, en orden, y la vista **Por servicio** dibujará la duración de cada tramo.
+
+> Pon también `MCLOG_RELEASE` (la versión que despliegas) en el entorno: cada log la llevará y **Errores** dirá qué versión estrenó cada fallo.
 
 ## Comprueba que funcionó
 

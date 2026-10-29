@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import client from "@/common/api/client";
 
-export type AlertChannelType = "webhook" | "email" | "telegram";
+export type AlertChannelType = "webhook" | "email" | "telegram" | "pagerduty";
 export const ALERT_RULE_TYPES = ["threshold", "new_error_group", "regression", "error_rate", "silence", "spike"] as const;
 export type AlertRuleType = (typeof ALERT_RULE_TYPES)[number];
 

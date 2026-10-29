@@ -5,6 +5,7 @@ import logger from "../config/logger";
 import { prisma } from "../config/prisma";
 import { sendTestAlert } from "../alerts/evaluator";
 import { WEBHOOK_FORMATS } from "../alerts/notifiers/webhook";
+import { isRoutingKey } from "../alerts/notifiers/pagerduty";
 import { buildDigest, deliverDigest } from "../alerts/digest";
 import { AuthenticatedRequest, requireAuth } from "../middlewares/requireAuth";
 import { requireWorkspaceOwner, workspaceIdOf } from "../middlewares/workspaceContext";
@@ -12,7 +13,7 @@ import { queryLimiter } from "../middlewares/rateLimiters";
 
 const router = express.Router();
 
-const CHANNEL_TYPES = ["webhook", "email", "telegram"] as const;
+const CHANNEL_TYPES = ["webhook", "email", "telegram", "pagerduty"] as const;
 const RULE_TYPES = ["threshold", "new_error_group", "regression", "error_rate", "silence", "spike"] as const;
 const LEVELS = ["debug", "info", "warn", "error"] as const;
 const ENVIRONMENTS = ["development", "staging", "production"] as const;
@@ -40,6 +41,10 @@ const maskChannel = (channel: AlertChannel) => {
   if (typeof config.botToken === "string" && config.botToken !== "") {
     config.botToken = `${config.botToken.slice(0, 6)}********`;
   }
+  // La routing key de PagerDuty basta para abrir incidentes en ese servicio.
+  if (typeof config.routingKey === "string" && config.routingKey !== "") {
+    config.routingKey = `${config.routingKey.slice(0, 4)}********`;
+  }
   return { ...channel, config };
 };
 
@@ -50,7 +55,7 @@ const maskChannel = (channel: AlertChannel) => {
  */
 const mergeConfig = (previous: Record<string, unknown>, incoming: Record<string, unknown>) => {
   const merged = { ...previous, ...incoming };
-  for (const campo of ["secret", "botToken"]) {
+  for (const campo of ["secret", "botToken", "routingKey"]) {
     if (typeof incoming[campo] === "string" && /^\W*$|\*{4,}/.test(String(incoming[campo]))) {
       merged[campo] = previous[campo];
     }
@@ -77,6 +82,9 @@ const validateChannelConfig = (type: string, config: Record<string, unknown>): s
     if (typeof config.botToken !== "string" || typeof config.chatId !== "string") {
       return "telegram requiere botToken y chatId";
     }
+  }
+  if (type === "pagerduty" && !isRoutingKey(config.routingKey)) {
+    return "pagerduty requiere routingKey (integration key de Events API v2)";
   }
   return null;
 };

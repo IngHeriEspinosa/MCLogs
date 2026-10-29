@@ -18,6 +18,7 @@ import { snapshotRouter, snapshotViewRouter } from "./routes/snapshotRoutes";
 import skillRoutes from "./routes/skillRoutes";
 import adminKeyRoutes from "./routes/adminKeyRoutes";
 import mcpRouter from "./mcp/router";
+import otlpRoutes from "./routes/otlpRoutes";
 import { requestLogger } from "./middlewares/requestLogger";
 import { requireApiKey } from "./middlewares/authApiKey";
 import { errorHandler } from "./middlewares/errorHandler";
@@ -107,6 +108,10 @@ export const createApp = () => {
 
   // Skill de IA en Markdown: publico, es la misma documentacion del sitio.
   app.use("/api/skill", skillRoutes);
+
+  // Ingesta OTLP/HTTP JSON de OpenTelemetry: la ruta estandar que los
+  // exportadores anaden a su endpoint (`<endpoint>/v1/logs`).
+  app.use("/v1", otlpRoutes);
 
   // Auth y rate limiting se aplican por ruta dentro de logRoutes
   // (la ingesta usa API key + límite alto; las consultas usan JWT + límite estándar)

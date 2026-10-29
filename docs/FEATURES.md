@@ -35,6 +35,7 @@ Para el detalle técnico de parámetros y respuestas, ver [TECHNICAL.md](TECHNIC
 25. [Latencia y releases](#25-latencia-y-releases)
 26. [Vistas guardadas](#26-vistas-guardadas)
 27. [Resúmenes programados](#27-resúmenes-programados)
+28. [Accesibilidad, atajos y PWA](#28-accesibilidad-atajos-y-pwa)
 
 ---
 
@@ -95,6 +96,24 @@ Un `timestamp` más de 5 minutos en el futuro (un reloj mal puesto) se trae a la
 ### 1.5 Metadata libre
 
 `metadata` es un campo **JSONB sin esquema**: cada aplicación adjunta el contexto que necesite (ids de registro, usuario, stack trace, tiempos) sin que haya que migrar la base de datos. La única validación es que sea un objeto (no un array).
+
+### 1.6 OpenTelemetry — `POST /v1/logs`
+
+Ingesta OTLP/HTTP en JSON: un exportador de OpenTelemetry apunta a `<api>/v1/logs` con la API key `ingest` en la cabecera `x-api-key` y envía sin librería propia. Lo traducido pasa por la misma validación que un lote y responde como OTLP (`200 {}` o `partialSuccess`).
+
+| OpenTelemetry | MCLog |
+|---|---|
+| `service.namespace` (o `mclog.application`); si falta, `service.name` | `application` |
+| `service.name` | `service` |
+| `deployment.environment.name` / `deployment.environment` (`prod`, `staging`, `uat`…) | `environment` (sin él, `development`) |
+| `service.version` · `host.name` | `release` · `host` |
+| `severityNumber` (1-8 debug, 9-12 info, 13-16 warn, 17-24 error) o `severityText` | `level` |
+| `body` (texto; otro valor, en JSON) | `message` |
+| `traceId` · `spanId` (hex o base64) | `traceId` · `spanId` |
+| `exception.type` · `exception.stacktrace` | `errorName` · `errorStack` |
+| Resto de atributos, el ámbito y los atributos de recurso | `metadata` (`otel`, `resource`) |
+
+Solo JSON: el SDK de JavaScript y el OTel Collector (`otlphttp` con `encoding: json`) lo envían directamente; los SDK de Python, Java, .NET y Go exportan protobuf y llegan a través de un Collector. **Código:** [utils/otlp.ts](../Back_MCLog/src/utils/otlp.ts) · [otlpController.ts](../Back_MCLog/src/controllers/otlpController.ts)
 
 ---
 
@@ -286,15 +305,16 @@ Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USE
 | **Tema claro / oscuro / sistema** | Sin destello al cargar; con "sistema" sigue al sistema operativo |
 | **Hasta 4K** | La interfaz escala y aprovecha el ancho hasta 3840 px |
 | **Resumen** | Registros, errores, warnings, fallos distintos y aplicaciones del rango, con tendencia; por nivel, por entorno, fallos principales y apps más activas |
-| **Gráfico de actividad** | Columnas apiladas por nivel; arrastrar acota el rango, clic aísla un intervalo, vista de tabla alternativa |
+| **Gráfico de actividad** | Columnas apiladas por nivel; arrastrar acota el rango, clic aísla un intervalo, vista de tabla alternativa. Con teclado: ←/→ recorre los intervalos, Mayús+flechas selecciona e Intro aplica |
+| **Actualización automática** | En Logs, Errores y Operaciones, con rango relativo: apagada, 15 s, 30 s, 1 min o 5 min, desde la barra superior; se pausa con la pestaña oculta |
 | **Filtros combinables** | Rango de tiempo (rápidos o calendario con horas), uno o varios niveles a la vez, entorno, aplicación con buscador y búsqueda libre |
 | **Búsqueda con debounce** | 350 ms de espera: no lanza una consulta por cada tecla |
 | **Ordenación** | Por fecha, aplicación, nivel, host o entorno, asc/desc |
 | **Paginación** | 10 / 25 / 50 / 100 por página, con navegación anterior/siguiente |
-| **Inspector del log** | Un diálogo casi a pantalla completa, igual en Logs y en Registros: propiedades, stack con el código propio resaltado, metadata, ocurrencias del fallo (24 h, 7 días y total, por entorno), su probabilidad (próxima hora, 24 h y por operación), contexto de ±2 min y "Copiar para IA"; la traza (con su número de registros en el botón) y los fallos iguales se abren dentro del propio diálogo; ←/→ recorren la página |
+| **Inspector del log** | Un diálogo casi a pantalla completa, igual en Logs y en Registros: propiedades, stack con el código propio resaltado, metadata, ocurrencias del fallo (24 h, 7 días y total, por entorno), su probabilidad (próxima hora, 24 h y por operación), contexto de ±2 min, "Copiar para IA" y "Copiar enlace" (`/logs?log=<id>`); la traza (con su número de registros en el botón) y los fallos iguales se abren dentro del propio diálogo; ←/→ recorren la página |
 | **Registros** | La tabla sin resumen, con **búsqueda avanzada** por campo (mensaje, servicio, host, traceId exacto, nombre y código del error) y el detalle del log a pantalla completa, con ←/→ para recorrer la página |
 | **Snapshots** | **Compartir** en Logs, Registros, Errores y Traza guarda una copia congelada de la pantalla con su enlace, de equipo o pública; la página **Snapshots** los lista con sus vistas y permite borrarlos (ver [23](#23-snapshots-compartibles)) |
-| **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición y brief para IA |
+| **Errores** | Fallos agrupados por huella, con conteo, primera y última aparición, brief para IA y reporte de un solo fallo |
 | **Traza** | Una operación entre sistemas: estado (correcta, con avisos, falló), ruta entre servicios, tiempo hasta el primer error y mayor salto; vista **Cronológica** (pasos anidados por tramo, repeticiones plegadas, primer error y mayor salto marcados) o **Por servicio** (un carril por servicio sobre el mismo eje, con la duración de cada paso si la envía el emisor); filtro por nivel, servicio y texto, **Ir al primer error**, y cada paso se abre en el detalle del log |
 | **Operaciones** | Las operaciones (traceId) con actividad en el rango, con sus servicios, registros, errores, duración y estado; **Solo con errores** deja las que fallaron |
 | **Selector de espacio** | En lo alto del menú: espacio activo y rol, cambio de espacio sin recargar, crear espacio y salir del actual. Cada pestaña puede estar en un espacio distinto |
@@ -325,6 +345,11 @@ Paquete npm publicable, con **cero dependencias en runtime** (usa `fetch` nativo
 - **Reintentos** ante fallos transitorios (red, timeout, `429`, `5xx`) con espera exponencial y jitter.
 - **A prueba de fallos**: si MCLog no responde, la función devuelve `false` y tu aplicación sigue. No escribe en tu consola; puedes engancharte con `onError` o pedir excepciones con `throwOnError`.
 - Defaults de aplicación, entorno, servicio, host y metadata para no repetirlos en cada llamada.
+- **Trazas sin pasar el traceId a mano** (1.5.0):
+  - El middleware `traceContext()` lee o crea `traceparent`/`x-trace-id` por petición, con `AsyncLocalStorage`, y cada log emitido dentro lo lleva.
+  - `startSpan(name)` mide un paso (`durationMs`) y lo anida (`parentSpanId`).
+  - `traceHeaders()` propaga la traza al llamar a otro servicio.
+- `child({ service, metadata })` para un módulo o un trabajo, y `release` por defecto desde `MCLOG_RELEASE`.
 - Entry point aparte `@multicomputos-srl/mclog/express` con el middleware `validateLog`, para que quien solo emita logs no arrastre Express.
 
 ### 9.2 Librería NetSuite — SuiteScript 2.1
@@ -342,7 +367,7 @@ Quién vigila al vigilante. **Código:** [app.ts](../Back_MCLog/src/app.ts), [lo
 | Endpoint / mecanismo | Qué aporta |
 |---|---|
 | `GET /health` | Verifica servidor **y** base de datos (`SELECT 1`). `200 ok` / `503 degraded`. Para load balancers y uptime checks |
-| `GET /metrics` | Métricas Prometheus del proceso (CPU, memoria, event loop), duración de peticiones, logs ingeridos por aplicación y nivel, y conexiones en vivo. **Protegido con API key** de permiso `metrics` |
+| `GET /metrics` | Métricas Prometheus del proceso (CPU, memoria, event loop), duración de peticiones, logs ingeridos por aplicación (las 200 primeras; el resto en `__other__`) y nivel, retraso de ingesta, logs rechazados por motivo, evaluaciones y envíos de alertas, duración de los trabajos programados y conexiones en vivo. **Protegido con API key** de permiso `metrics` |
 | Log por petición | Una línea JSON con `requestId`, `traceId`, método, URL, status y duración en ms. Los `/health` correctos se omiten para no ahogar el resto |
 | Redacción de secretos | Con `LOG_LEVEL=debug` también registra el body, pero redacta `password`, `token`, `authorization`, `auth`, `refreshtoken`, `accesstoken` |
 | Fichero rotado | `logs/app.log`, 10 MB × 5 ficheros |
@@ -511,6 +536,9 @@ En el dashboard esto son la vista **Errores** y la vista de **Traza**, y en la t
 | `get_trace` | Operación completa por `traceId` |
 | `get_log_context` | Lo ocurrido alrededor de un log |
 | `get_stats` | Totales y serie por hora |
+| `list_traces` | Operaciones recientes, con servicios, errores y duración |
+| `get_failure_occurrences` | Veces que ha ocurrido el fallo de un log, por entorno, y probabilidad de repetirse |
+| `get_error_group` | Estado de un fallo: resuelto, ignorado, regresiones, releases, plantilla y último log |
 
 Dos decisiones gobiernan las respuestas: los listados van **recortados y sin metadata**, porque todo lo devuelto consume contexto del modelo y solo `get_log` entrega el registro entero; y cuando hay más resultados de los devueltos **se dice explícitamente**, para que el modelo no concluya que ya lo ha visto todo.
 
@@ -598,6 +626,7 @@ Un **canal** define por dónde avisar. Una regla puede usar varios.
 | `webhook` | `url`, `secret` y `format` opcionales | Slack, Discord y Teams reciben su propio formato (bloques, embed o tarjeta adaptable), deducido de la URL o fijado con `format`; n8n, Make o un receptor propio, el aviso en JSON (`generic`). Con `secret`, cada aviso va firmado con HMAC-SHA256 en `x-mclog-signature` |
 | `email` | `to` (lista) | El envío se configura en el backend: SMTP (`SMTP_*`) o Microsoft Graph (`MAIL_TRANSPORT=graph`) |
 | `telegram` | `botToken` y `chatId` | Mensaje en MarkdownV2 |
+| `pagerduty` | `routingKey` (integration key de Events API v2) | Abre un incidente por aviso y lo resuelve con la recuperación de la regla (misma `dedup_key`); un fallo nuevo único es su propio incidente. Los resúmenes van como *change events*, sin incidente |
 
 Los secretos **se guardan pero no se devuelven**: al listar llegan enmascarados, y reenviar la máscara al editar conserva el valor original.
 
@@ -627,6 +656,8 @@ Acepta los mismos filtros de nivel (uno o varios, `level=error,warn`), aplicaci�
 - Hay un tope de conexiones simultáneas (`SSE_MAX_CONNECTIONS`, 50 por defecto); al superarlo se responde `503`.
 
 El modo en vivo solo se activa en la primera página y con el orden por fecha descendente: en cualquier otra vista, anteponer filas nuevas mentiría sobre lo que se está mirando.
+
+Con el modo activo, la campana junto al botón activa **notificaciones del navegador** para los errores que llegan con la pestaña en segundo plano. Son opcionales y piden permiso, y se agrupan en un aviso cada 30 s como mucho. Para el lector de pantalla, una región viva anuncia el estado de la conexión y cuántos logs llegaron en cada refresco.
 
 ---
 
@@ -764,6 +795,22 @@ Una pantalla (Logs, Registros, Errores u Operaciones) con sus filtros, para volv
 
 En **Espacio → Alertas → Resúmenes**, el dueño programa un resumen **diario** o **semanal** (hora en UTC, entorno opcional) que se envía por canales de alerta: registros, errores y warnings, fallos nuevos, regresiones, resueltos, MTTR y los cinco fallos con más ocurrencias, con un enlace a Errores. Email, Telegram y webhook (con el formato de Slack, Discord o Teams). **Enviar ahora** lo prueba. El planificador mira cada 5 minutos y envía cada uno una vez en su hora. **Código:** [alerts/digest.ts](../Back_MCLog/src/alerts/digest.ts)
 
+## 28. Accesibilidad, atajos y PWA
+
+**Accesibilidad.** El dashboard apunta a WCAG 2.1 AA y se puede usar entero con el teclado y con lector de pantalla:
+
+- La tabla de logs es una sola parada de Tab, con flechas entre filas y cabeceras ordenables (`aria-sort`).
+- La gráfica de actividad es un control con flechas que anuncia cada intervalo.
+- Los avisos se pausan mientras se leen.
+- El menú móvil atrapa el foco y, cerrado, queda inerte.
+- Los cambios importantes (resultados, estado del modo en vivo) se anuncian en regiones vivas.
+
+El lint del proyecto incluye `jsx-a11y`. **Código:** [.eslintrc.cjs](../frontend_mclog/.eslintrc.cjs)
+
+**Atajos.** `g l` Logs, `g e` Errores, `g t` Operaciones, `g r` Reportes, `g a` Alertas; `?` abre la ayuda con todos, también los de la tabla, el detalle y la gráfica. No actúan mientras se escribe ni con un diálogo abierto. **Código:** [shortcuts.ts](../frontend_mclog/src/common/keyboard/shortcuts.ts)
+
+**PWA.** El dashboard se puede instalar como aplicación (manifest, iconos y página sin conexión) con [Serwist](https://serwist.pages.dev/). El service worker solo guarda en caché los recursos estáticos con hash y los iconos; los datos van siempre a la red, así que no quedan logs en el dispositivo ni se muestran datos caducados. **Código:** [sw.ts](../frontend_mclog/src/app/sw.ts)
+
 ---
 
 ## Resumen de endpoints
@@ -772,6 +819,7 @@ En **Espacio → Alertas → Resúmenes**, el dueño programa un resumen **diari
 |---|---|---|---|
 | `POST` | `/api/log` | Clave `ingest`, o JWT **dueño** con el Lab encendido | [1.1](#11-log-individual--post-apilog) |
 | `POST` | `/api/logs/batch` | Clave `ingest`, o JWT **dueño** con el Lab encendido | [1.2](#12-lote--post-apilogsbatch) |
+| `POST` | `/v1/logs` | Clave `ingest` | [1.6](#16-opentelemetry--post-v1logs) |
 | `GET` | `/api/logs` | Clave `read` o JWT | [2](#2-consulta-y-búsqueda) · [4](#4-exportación) |
 | `GET` | `/api/logs/stats` | Clave `read` o JWT | [3](#3-estadísticas) |
 | `GET` | `/api/logs/:id` | Clave `read` o JWT | [2.4](#24-detalle-individual--get-apilogsid) |

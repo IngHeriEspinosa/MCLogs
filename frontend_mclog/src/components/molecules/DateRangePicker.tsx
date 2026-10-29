@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
 import { Calendar, startOfDay } from "@/components/molecules/Calendar";
@@ -53,6 +53,14 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   const { anchorRef, floatingRef, style } = useFloating<HTMLButtonElement, HTMLDivElement>(open, { align });
 
   useDismiss(open, () => setOpen(false), [anchorRef, floatingRef]);
+
+  // El panel se monta al final del documento: sin mover el foco, con Tab no se
+  // llegaba a el. Entra en el atajo elegido (o en el primero) al abrirse.
+  useEffect(() => {
+    if (!open) return;
+    const root = floatingRef.current;
+    (root?.querySelector<HTMLElement>('[aria-current="true"]') ?? root?.querySelector<HTMLElement>("button"))?.focus();
+  }, [open, floatingRef]);
 
   const label = isRelative(value)
     ? t.time.presets[value.preset]
@@ -132,6 +140,12 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                 close();
               }
             }}
+            // No es modal: si el foco sale del panel (Tab fuera de el), se cierra
+            // sin robarlo de vuelta, como cualquier desplegable.
+            onBlur={(event) => {
+              const next = event.relatedTarget as Node | null;
+              if (next && !floatingRef.current?.contains(next) && !anchorRef.current?.contains(next)) setOpen(false);
+            }}
             className="flex max-w-[calc(100vw-16px)] animate-pop-in flex-col overflow-y-auto rounded-2xl border border-line bg-surface shadow-pop sm:flex-row"
           >
             <div className="border-b border-line p-2 sm:w-52 sm:border-b-0 sm:border-r">
@@ -143,6 +157,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                     <li key={preset}>
                       <button
                         type="button"
+                        aria-current={selected ? "true" : undefined}
                         onClick={() => {
                           onChange({ preset });
                           close();

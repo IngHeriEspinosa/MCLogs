@@ -2,7 +2,12 @@
  * Cliente REST para enviar logs al servicio MCLog desde cualquier app Node.js (>=18).
  * Usa fetch nativo y autenticación por API key. Los errores de red no se propagan
  * por defecto: un fallo del servicio de logs no debe romper la aplicación emisora.
+ *
+ * Dentro de un contexto de traza (`traceContext`, `withContext` o el `run` de un
+ * tramo) cada log toma de él el traceId, el tramo, el servicio y la metadata.
  */
+
+import { getContext, newSpanId, newTraceId, withContext } from './context';
 
 export type MCLogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type MCLogEnvironment = 'development' | 'staging' | 'production';
@@ -21,6 +26,8 @@ export type MCLogEntry = {
     parentSpanId?: string;
     /** Duración del paso en milisegundos. */
     durationMs?: number;
+    /** Versión desplegada que emite el log ("2.4.1", un commit…). */
+    release?: string;
     metadata?: Record<string, unknown>;
     /** Clase de la excepción, p. ej. "TypeError". */
     errorName?: string;
@@ -65,6 +72,11 @@ export type MCLogClientOptions = {
     host?: string | undefined;
     /** Metadata mezclada en toda entrada; la de cada llamada tiene prioridad */
     defaultMetadata?: Record<string, unknown> | undefined;
+    /**
+     * Versión desplegada que se pone en cada log (default: la variable de
+     * entorno `MCLOG_RELEASE`). Con ella, MCLog dice qué release estrenó cada fallo.
+     */
+    release?: string | undefined;
     /** Si true, los errores se lanzan en lugar de silenciarse (default: false) */
     throwOnError?: boolean | undefined;
     /** Timeout en ms para cada intento (default: 5000) */
@@ -111,6 +123,46 @@ export type MCLogClientOptions = {
     fetch?: typeof globalThis.fetch | undefined;
 };
 
+/** Lo que un cliente hijo (`child`) cambia respecto al padre. */
+export type MCLogChildOptions = {
+    application?: string | undefined;
+    environment?: MCLogEnvironment | undefined;
+    service?: string | undefined;
+    host?: string | undefined;
+    release?: string | undefined;
+    /** Se mezcla con la `defaultMetadata` del padre. */
+    metadata?: Record<string, unknown> | undefined;
+};
+
+/** Opciones de `startSpan`. */
+export type MCLogSpanOptions = {
+    service?: string | undefined;
+    /** Metadata de todos los logs del tramo, también el de cierre. */
+    metadata?: Record<string, unknown> | undefined;
+};
+
+/** Opciones del log de cierre de un tramo. */
+export type MCLogSpanEndOptions = Omit<MCLogInput, 'message' | 'traceId' | 'spanId' | 'parentSpanId' | 'durationMs'> & {
+    /** Mensaje del log de cierre. Por defecto, el nombre del tramo. */
+    message?: string | undefined;
+};
+
+/**
+ * Un paso de una operación, con su duración. `run` ejecuta código dentro del
+ * tramo (sus logs y sus tramos hijos lo llevan) y `end` registra el cierre.
+ */
+export type MCLogSpan = {
+    traceId: string;
+    spanId: string;
+    run: <T>(fn: () => T) => T;
+    /**
+     * Envía el log de cierre con `durationMs` desde `startSpan`. Con `error`, en
+     * nivel `error` y con la excepción desglosada. Solo cuenta la primera vez:
+     * las siguientes resuelven a false sin enviar nada.
+     */
+    end: (options?: MCLogSpanEndOptions) => Promise<boolean>;
+};
+
 /** Opciones de `captureException`, todas opcionales. */
 export type MCLogCaptureOptions = Omit<Partial<MCLogEntry>, 'message'> & {
     /** Mensaje propio. Por defecto se usa el de la excepción. */
@@ -136,6 +188,21 @@ export type MCLogClient = {
     info: (message: string, metadata?: Record<string, unknown>) => Promise<boolean>;
     warn: (message: string, metadata?: Record<string, unknown>) => Promise<boolean>;
     error: (message: string, metadata?: Record<string, unknown>) => Promise<boolean>;
+    /**
+     * Cliente con otros valores por defecto (servicio, metadata...) que comparte
+     * la conexión y las opciones de envío. Para un módulo o un trabajo concreto:
+     *
+     *   const billing = mclog.child({ service: 'billing', metadata: { queue: 'invoices' } });
+     */
+    child: (overrides: MCLogChildOptions) => MCLogClient;
+    /**
+     * Abre un tramo dentro de la traza activa (o de una nueva):
+     *
+     *   const span = mclog.startSpan('charge-card');
+     *   try { await span.run(() => charge()); await span.end(); }
+     *   catch (error) { await span.end({ error }); throw error; }
+     */
+    startSpan: (name: string, options?: MCLogSpanOptions) => MCLogSpan;
 };
 
 /** Campos que se pueden sacar de una excepción capturada. */
@@ -225,6 +292,16 @@ const packBatches = (serialized: string[], maxCount: number, maxBytes: number): 
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** `MCLOG_RELEASE` del entorno, si existe y no está vacía. */
+const releaseFromEnv = (): string | undefined => {
+    const value = typeof process !== 'undefined' ? process.env.MCLOG_RELEASE?.trim() : undefined;
+    return value ? value : undefined;
+};
+
+/** Copia sin las claves `undefined`, para que no pisen lo heredado al mezclar. */
+const definedOnly = <T extends Record<string, unknown>>(value: T): Partial<T> =>
+    Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined)) as Partial<T>;
+
 /**
  * Códigos que merecen otro intento: el servicio está saturado, caído o
  * reiniciándose, y el mismo cuerpo puede entrar dentro de un momento.
@@ -298,6 +375,7 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
     }
 
     const root = baseUrl.trim().replace(/\/+$/, '');
+    const release = options.release ?? releaseFromEnv();
 
     const fail = (error: Error): boolean => {
         if (throwOnError) throw error;
@@ -371,9 +449,12 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
     };
 
     const withDefaults = (entry: MCLogInput): MCLogEntry => {
+        // Prioridad: lo del log, luego lo del cliente y por ultimo el contexto,
+        // salvo en la metadata, que se mezcla (cliente < contexto < log).
+        const context = getContext();
         const metadata =
-            options.defaultMetadata || entry.metadata
-                ? { ...options.defaultMetadata, ...entry.metadata }
+            options.defaultMetadata || context?.metadata || entry.metadata
+                ? { ...options.defaultMetadata, ...context?.metadata, ...entry.metadata }
                 : undefined;
 
         // La excepción completa los campos de error; lo escrito a mano manda.
@@ -386,8 +467,14 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
             message: entry.message ?? fromError.message ?? '',
         };
 
-        const service = entry.service ?? options.service;
+        const service = entry.service ?? options.service ?? context?.service;
         const host = entry.host ?? options.host;
+        const traceId = entry.traceId ?? context?.traceId;
+        const spanId = entry.spanId ?? context?.spanId;
+        // El padre del contexto es el del tramo en curso: solo vale si el log
+        // va en ese tramo, no en uno que el emisor haya puesto a mano.
+        const parentSpanId = entry.parentSpanId ?? (entry.spanId === undefined ? context?.parentSpanId : undefined);
+        const entryRelease = entry.release ?? release;
         const errorName = entry.errorName ?? fromError.errorName;
         const errorCode = entry.errorCode ?? fromError.errorCode;
         const errorStack = entry.errorStack ?? fromError.errorStack;
@@ -395,10 +482,11 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         if (service !== undefined) merged.service = service;
         if (host !== undefined) merged.host = host;
         if (entry.timestamp !== undefined) merged.timestamp = entry.timestamp;
-        if (entry.traceId !== undefined) merged.traceId = entry.traceId;
-        if (entry.spanId !== undefined) merged.spanId = entry.spanId;
-        if (entry.parentSpanId !== undefined) merged.parentSpanId = entry.parentSpanId;
+        if (traceId !== undefined) merged.traceId = traceId;
+        if (spanId !== undefined) merged.spanId = spanId;
+        if (parentSpanId !== undefined) merged.parentSpanId = parentSpanId;
         if (entry.durationMs !== undefined) merged.durationMs = entry.durationMs;
+        if (entryRelease !== undefined) merged.release = entryRelease;
         if (metadata !== undefined) merged.metadata = metadata;
         if (errorName !== undefined) merged.errorName = errorName;
         if (errorCode !== undefined) merged.errorCode = errorCode;
@@ -451,6 +539,48 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         (lvl: MCLogLevel) => (message: string, metadata?: Record<string, unknown>) =>
             send({ level: lvl, message, metadata });
 
+    const child = (overrides: MCLogChildOptions): MCLogClient => {
+        const { metadata, ...fields } = overrides;
+        return createMCLogClient({
+            ...options,
+            ...definedOnly(fields),
+            defaultMetadata:
+                options.defaultMetadata || metadata ? { ...options.defaultMetadata, ...metadata } : undefined,
+        });
+    };
+
+    const startSpan = (name: string, spanOptions: MCLogSpanOptions = {}): MCLogSpan => {
+        const parent = getContext();
+        const traceId = parent?.traceId ?? newTraceId();
+        const spanId = newSpanId();
+        const parentSpanId = parent?.spanId;
+        const startedAt = performance.now();
+        let ended = false;
+
+        return {
+            traceId,
+            spanId,
+            run: (fn) =>
+                withContext({ traceId, spanId, parentSpanId, service: spanOptions.service, metadata: spanOptions.metadata }, fn),
+            end: (endOptions = {}) => {
+                if (ended) return Promise.resolve(false);
+                ended = true;
+                const { message, level: endLevel, metadata, service, ...rest } = endOptions;
+                return send({
+                    ...rest,
+                    message: message ?? name,
+                    level: endLevel ?? (rest.error !== undefined ? 'error' : 'info'),
+                    service: service ?? spanOptions.service,
+                    metadata: spanOptions.metadata || metadata ? { ...spanOptions.metadata, ...metadata } : undefined,
+                    traceId,
+                    spanId,
+                    parentSpanId,
+                    durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+                });
+            },
+        };
+    };
+
     return {
         send,
         sendBatch,
@@ -459,5 +589,7 @@ export const createMCLogClient = (options: MCLogClientOptions): MCLogClient => {
         info: level('info'),
         warn: level('warn'),
         error: level('error'),
+        child,
+        startSpan,
     };
 };

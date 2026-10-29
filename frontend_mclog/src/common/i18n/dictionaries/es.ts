@@ -86,6 +86,7 @@ export const es = {
     skip: "Saltar al contenido",
     userMenu: "Menú de usuario",
     mainNav: "Navegación principal",
+    breadcrumb: "Ruta de navegación",
     lab: "Lab",
     snapshots: "Snapshots",
     present: "Modo presentación",
@@ -98,6 +99,9 @@ export const es = {
     themes: { light: "Claro", dark: "Oscuro", system: "Sistema" },
     language: "Idioma",
     languages: { es: "Español", en: "English" },
+    autoRefresh: "Actualización automática",
+    refreshOptions: { off: "Apagada", "15": "Cada 15 s", "30": "Cada 30 s", "60": "Cada minuto", "300": "Cada 5 min" },
+    refreshShort: { off: "Pausa", "15": "15 s", "30": "30 s", "60": "1 min", "300": "5 min" },
   },
 
   levels: {
@@ -151,6 +155,20 @@ export const es = {
     liveReconnecting: "Reconectando…",
     liveHint: "Muestra los logs según van llegando",
     liveUnavailable: "Disponible en la primera página y ordenando por fecha descendente",
+    liveStatus: {
+      connecting: "Conectando con el stream en vivo…",
+      live: "En vivo: los logs nuevos aparecen al llegar.",
+      error: "Se perdió la conexión en vivo. Reconectando…",
+    },
+    notify: {
+      toggle: "Avisarme de los errores en vivo",
+      hint: "Notificación del navegador cuando llega un error y la pestaña está en segundo plano",
+      enabled: "Te avisaremos de los errores mientras la pestaña esté en segundo plano.",
+      denied: "El navegador no permite notificaciones de este sitio. Puedes permitirlas en los ajustes del sitio.",
+      title: (count: number) => (count === 1 ? "MCLog: 1 error nuevo" : `MCLog: ${count} errores nuevos`),
+    },
+    liveArrived: (count: string, errors: string | null) =>
+      `${count} logs nuevos${errors ? `, ${errors} de error` : ""}.`,
     export: "Exportar",
     exportData: "Datos",
     exportReports: "Reportes",
@@ -213,7 +231,8 @@ export const es = {
     showOverview: "Mostrar resumen",
     tableLabel: "Registros de log",
     newRow: "nuevo",
-    shortcuts: "Atajos: / buscar · ↑↓ moverse · Esc cerrar",
+    shortcuts: "Atajos: / buscar · ↑↓ moverse · Esc cerrar · ? todos",
+    sortByColumn: (column: string) => `Ordenar por ${column.toLowerCase()}`,
   },
 
   overview: {
@@ -232,7 +251,7 @@ export const es = {
     distinctHint: "agrupados por huella",
     distinctCapped: "o más",
     activity: "Actividad",
-    activityHint: "Arrastra para acotar el rango · clic en una barra para aislarla",
+    activityHint: "Arrastra para acotar el rango · clic en una barra para aislarla · teclado: ←/→ recorre, Mayús+←/→ selecciona, Intro aplica",
     resolution: (label: string) => `cada barra: ${label}`,
     peak: "pico",
     total: "Total",
@@ -248,6 +267,9 @@ export const es = {
     scopeNote: "El resumen respeta el rango, la aplicación y el entorno; no la búsqueda ni el nivel.",
     chartLabel: (from: string, to: string, summary: string) =>
       `Registros por intervalo entre ${from} y ${to}. ${summary}.`,
+    binAnnouncement: (interval: string, summary: string, total: string) => `${interval}. ${summary}. Total: ${total}.`,
+    rangeAnnouncement: (from: string, to: string, total: string) =>
+      `Selección de ${from} a ${to}: ${total} registros. Intro para aplicarla.`,
     interval: "Intervalo",
     partialBin: "parcial",
     changeNew: "nuevo",
@@ -291,6 +313,7 @@ export const es = {
     filterTable: "Filtrar la tabla",
     filterTableHint: "Cierra el detalle y filtra la tabla por esta huella",
     copyJson: "Copiar JSON",
+    copyLink: "Copiar enlace",
     copyAi: "Copiar para IA",
     copyAiHint: "Brief en Markdown con el log y su contexto, listo para pegar en un agente",
     stack: "Stack trace",
@@ -394,6 +417,7 @@ export const es = {
     template: "Plantilla",
     templateHint: "El mensaje sin sus datos variables (números, IDs, URLs, correos): lo que comparten todas las ocurrencias de este fallo.",
     viewOccurrences: "Ver ocurrencias",
+    reportGroup: "Reporte de este fallo",
     copyAi: "Copiar para IA",
     empty: "Ningún fallo en este rango",
     emptyHint: "Amplía el rango o cambia los filtros.",
@@ -487,6 +511,12 @@ export const es = {
     explainTitle: "Traza, tramo y huella",
     explain:
       "Traza: los logs que comparten traceId, es decir, una misma operación aunque pase por varios sistemas (un pedido que cruza la tienda, el inventario y la facturación).\nTramo (span): un paso dentro de la traza; si el emisor manda parentSpanId, los pasos se anidan. En NetSuite, un tramo es una ejecución del script.\nHuella: agrupa las repeticiones de un mismo fallo, en cualquier traza. Una traza responde «qué pasó en esta operación»; una huella, «cuántas veces pasa este fallo».",
+  },
+
+  offline: {
+    title: "Sin conexión",
+    description: "MCLog no guarda copia de tus logs en este dispositivo, así que sin red no hay nada que enseñar. La página se recargará sola al volver la conexión.",
+    retry: "Reintentar",
   },
 
   views: {
@@ -1365,7 +1395,7 @@ export const es = {
     description:
       "Una regla define cuándo avisar y un canal por dónde. El servicio comprueba las reglas cada minuto y, tras disparar una, la silencia el tiempo que indiques, para que un incidente de una hora no genere sesenta avisos iguales.",
     tabs: { channels: "Canales", rules: "Reglas", history: "Historial", digests: "Resúmenes" },
-    channelTypes: { webhook: "Webhook", email: "Correo", telegram: "Telegram" },
+    channelTypes: { webhook: "Webhook", email: "Correo", telegram: "Telegram", pagerduty: "PagerDuty" },
     newChannel: "Nuevo canal",
     editChannel: "Editar canal",
     name: "Nombre",
@@ -1387,6 +1417,9 @@ export const es = {
     recipientsHint: "Separados por comas. El correo saliente (SMTP o Microsoft Graph) se configura en el backend.",
     botToken: "Token del bot",
     chatId: "Chat ID",
+    routingKey: "Integration key",
+    routingKeyHint: "La del servicio de PagerDuty, integración «Events API v2».",
+    pagerDutyKey: (key: string) => `clave ${key}`,
     keepSecretHint: "Déjalo vacío para conservar el valor guardado.",
     createChannel: "Crear canal",
     channels: "Canales",
@@ -1774,7 +1807,7 @@ export const es = {
 
     alerts: {
       channelType:
-        "Por dónde llega el aviso:\n• Webhook: un POST con JSON a la URL que indiques (Slack, Discord, Teams, n8n…).\n• Correo: un email a una o varias direcciones.\n• Telegram: un mensaje de un bot a un chat o grupo.\nNo se puede cambiar una vez creado el canal.",
+        "Por dónde llega el aviso:\n• Webhook: un POST con JSON a la URL que indiques (Slack, Discord, Teams, n8n…).\n• Correo: un email a una o varias direcciones.\n• Telegram: un mensaje de un bot a un chat o grupo.\n• PagerDuty: abre un incidente en un servicio de PagerDuty y lo resuelve cuando la regla se recupera.\nNo se puede cambiar una vez creado el canal.",
       channelName: "Nombre para reconocer el canal al asignarlo a las reglas, p. ej. «Slack #incidencias» o «Guardia por correo».",
       url: "Dirección que recibe un POST con un JSON por cada aviso: título, regla, número de coincidencias, ejemplos y enlace al panel. En Slack, Discord o Teams, usa la URL de un «incoming webhook».",
       secret:
@@ -1787,6 +1820,8 @@ export const es = {
         "El token que te da @BotFather al crear el bot (123456:ABC-DEF…). Da control total sobre el bot: una vez guardado solo se muestran sus primeros caracteres.",
       chatId:
         "Identificador del chat, grupo o canal al que el bot enviará los avisos. Añade antes el bot al grupo; los IDs de grupo empiezan por «-».",
+      routingKey:
+        "En PagerDuty: Services → tu servicio → Integrations → Add integration → Events API v2, y copia la Integration Key. Cada aviso abre un incidente y la recuperación de la regla lo resuelve; los resúmenes llegan como change events, sin abrir incidente. Una vez guardada solo se muestran sus primeros caracteres.",
       ruleName: "Aparece en el título de cada aviso y en el historial. Que diga qué vigila, p. ej. «Errores de facturación en producción».",
       ruleType:
         "• Umbral de repeticiones: avisa cuando hay al menos N logs que cumplen la regla dentro de la ventana. Mide volumen.\n• Error nuevo: avisa cuando aparecen N o más fallos cuya primera ocurrencia cae dentro de la ventana. Detecta regresiones aunque sea un solo log.",
@@ -1889,12 +1924,38 @@ export const es = {
     },
   },
 
+  shortcuts: {
+    title: "Atajos de teclado",
+    description: "Funcionan en cualquier vista mientras no estés escribiendo en un campo.",
+    global: "En todo el panel",
+    goTo: {
+      l: "Ir a Logs",
+      e: "Ir a Errores",
+      t: "Ir a Operaciones",
+      r: "Ir a Reportes",
+      a: "Ir a Alertas",
+    },
+    help: "Mostrar esta ayuda",
+    logs: "Logs",
+    search: "Buscar",
+    moveRows: "Moverse entre filas",
+    openRow: "Abrir el detalle",
+    prevNext: "Log anterior o siguiente (en el detalle)",
+    close: "Cerrar el detalle o un menú",
+    chart: "Gráfica de actividad",
+    chartMove: "Recorrer los intervalos",
+    chartSelect: "Ampliar la selección",
+    chartApply: "Aplicar la selección al rango",
+    shift: "Mayús",
+  },
+
   toast: {
     copied: "Copiado al portapapeles",
     copyFailed: "No se pudo copiar: el navegador bloqueó el portapapeles.",
     downloaded: (name: string) => `Descargado ${name}`,
     exportFailed: "No se pudo exportar",
     aiCopied: "Brief para IA copiado, con los datos sensibles enmascarados.",
+    linkCopied: "Enlace copiado: abre este log para quien tenga acceso al espacio.",
   },
 };
 

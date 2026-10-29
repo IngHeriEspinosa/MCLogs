@@ -2,7 +2,7 @@
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/atoms/Alert";
-import { Button, ButtonLink } from "@/components/atoms/Button";
+import { Button, ButtonLink, IconButton } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
 import { Segmented } from "@/components/atoms/Segmented";
 import { CopyButton } from "@/components/molecules/CopyButton";
@@ -111,7 +111,7 @@ function ErrorsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, debouncedService]);
 
-  const [now] = useNow(60_000, false, JSON.stringify(filters.range));
+  const [now] = useNow(isRelative(filters.range), JSON.stringify(filters.range));
   const isAll = isRelative(filters.range) && filters.range.preset === "all";
   const bounds = queryWindow(filters.range, now);
   const span = isAll ? { hours: MAX_TIMELINE_HOURS } : { from: bounds.from?.toISOString(), to: bounds.to?.toISOString() };
@@ -170,8 +170,10 @@ function ErrorsView() {
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
     .join("&");
 
-  const openReport = (kind: "markdown" | "agent-md") => {
+  // Con huella, el reporte se acota a ese fallo (el filtro `fingerprint` de Reportes).
+  const openReport = (kind: "markdown" | "agent-md", fingerprint?: string) => {
     const query = new URLSearchParams({ kind, generate: "1" });
+    if (fingerprint) query.set("fingerprint", fingerprint);
     Object.entries(rangeToParams(filters.range)).forEach(([key, value]) => value && query.set(key, value));
     if (filters.application) query.set("application", filters.application);
     if (filters.environment) query.set("environment", filters.environment);
@@ -193,6 +195,7 @@ function ErrorsView() {
       eyebrow={t.errors.eyebrow}
       description={t.errors.description}
       presentable
+      autoRefresh
       actions={
         <>
           <SavedViewsMenu path="/errors" />
@@ -344,6 +347,7 @@ function ErrorsView() {
                 toast={t.toast.aiCopied}
                 text={() => groupBrief(group)}
               />
+              <IconButton icon="report" variant="ghost" size="sm" label={t.errors.reportGroup} onClick={() => openReport("markdown", group.fingerprint)} />
               <ButtonLink
                 size="sm"
                 iconRight="arrowRight"

@@ -66,7 +66,7 @@ function TracesView() {
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const [now] = useNow(60_000, isRelative(range) && page === 1, JSON.stringify(range));
+  const [now] = useNow(isRelative(range) && page === 1, JSON.stringify(range));
   const isAll = isRelative(range) && range.preset === "all";
   const bounds = queryWindow(range, now);
   const traces = useTraces({
@@ -85,6 +85,7 @@ function TracesView() {
       eyebrow={t.traces.eyebrow}
       description={t.traces.description}
       presentable
+      autoRefresh
       actions={<SavedViewsMenu path="/traces" />}
     >
       <div className="flex flex-col gap-4 3xl:gap-5">

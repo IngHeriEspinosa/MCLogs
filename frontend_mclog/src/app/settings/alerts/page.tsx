@@ -57,8 +57,8 @@ const RULE_ICON: Record<AlertRuleType, IconName> = {
 /** Tipos que usan volumen minimo, y los que no miran el nivel. */
 const USES_MIN_VOLUME: ReadonlySet<AlertRuleType> = new Set<AlertRuleType>(["error_rate", "spike"]);
 const IGNORES_LEVEL: ReadonlySet<AlertRuleType> = new Set<AlertRuleType>(["error_rate", "silence"]);
-const CHANNEL_TYPES: AlertChannelType[] = ["webhook", "email", "telegram"];
-const CHANNEL_ICON: Record<AlertChannelType, IconName> = { webhook: "webhook", email: "mail", telegram: "send" };
+const CHANNEL_TYPES: AlertChannelType[] = ["webhook", "email", "telegram", "pagerduty"];
+const CHANNEL_ICON: Record<AlertChannelType, IconName> = { webhook: "webhook", email: "mail", telegram: "send", pagerduty: "bell" };
 /** "" = automatico: el backend lo deduce de la URL. */
 const WEBHOOK_FORMATS = ["", "generic", "slack", "discord", "teams"] as const;
 type WebhookFormat = (typeof WEBHOOK_FORMATS)[number];
@@ -92,6 +92,8 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
   const [to, setTo] = useState(((config.to as string[] | undefined) ?? []).join(", "));
   const [botToken, setBotToken] = useState("");
   const [chatId, setChatId] = useState(String(config.chatId ?? ""));
+  // Vacia al editar: el servidor conserva la guardada si no se escribe otra.
+  const [routingKey, setRoutingKey] = useState("");
   const create = useCreateChannel();
   const update = useUpdateChannel();
   const mutation = editing ? update : create;
@@ -103,7 +105,9 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
         ? { url: url.trim(), ...(secret.trim() ? { secret: secret.trim() } : {}), ...(format ? { format } : {}) }
         : type === "email"
           ? { to: to.split(",").map((value) => value.trim()).filter(Boolean) }
-          : { botToken: botToken.trim(), chatId: chatId.trim() };
+          : type === "telegram"
+            ? { botToken: botToken.trim(), chatId: chatId.trim() }
+            : { routingKey: routingKey.trim() };
 
     if (channel) {
       await update.mutateAsync({ id: channel.id, name: name.trim(), config: nextConfig });
@@ -119,6 +123,7 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
     setTo("");
     setBotToken("");
     setChatId("");
+    setRoutingKey("");
   };
 
   const keepHint = editing ? t.alerts.keepSecretHint : undefined;
@@ -191,6 +196,19 @@ const ChannelForm: React.FC<{ channel?: AlertChannel; onDone?: () => void }> = (
               <Input value={chatId} onChange={(event) => setChatId(event.target.value)} className="font-mono" required />
             </Field>
           </div>
+        )}
+
+        {type === "pagerduty" && (
+          <Field label={t.alerts.routingKey} hint={keepHint ?? t.alerts.routingKeyHint} info={t.fieldInfo.alerts.routingKey}>
+            <Input
+              value={routingKey}
+              onChange={(event) => setRoutingKey(event.target.value)}
+              placeholder={editing ? String(config.routingKey ?? "") : "R0123456789ABCDEF0123456789ABCDE"}
+              className="font-mono"
+              required={!editing}
+              autoComplete="off"
+            />
+          </Field>
         )}
 
         {mutation.isError && <Alert variant="error">{errorMessage(mutation.error, t.common.unknownError)}</Alert>}
@@ -266,6 +284,7 @@ const ChannelsTab: React.FC = () => {
                     {channel.type === "webhook" && String(channel.config.url ?? "")}
                     {channel.type === "email" && (channel.config.to as string[] | undefined)?.join(", ")}
                     {channel.type === "telegram" && t.alerts.chat(String(channel.config.chatId ?? ""))}
+                    {channel.type === "pagerduty" && t.alerts.pagerDutyKey(String(channel.config.routingKey ?? ""))}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">

@@ -1,10 +1,11 @@
 "use client";
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconButton } from "@/components/atoms/Button";
 import { Icon, IconName, Logo } from "@/components/atoms/Icon";
 import { useI18n } from "@/common/i18n/I18nProvider";
+import { shortcutFor } from "@/common/keyboard/shortcuts";
 import { WorkspaceSwitcher } from "@/components/organisms/WorkspaceSwitcher";
 import { usePublicSettings } from "@/hooks/useSettings";
 
@@ -52,6 +53,54 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useI18n();
   const pathname = usePathname();
   const { labEnabled } = usePublicSettings();
+  const asideRef = useRef<HTMLElement>(null);
+
+  // En movil, cerrada esta fuera de pantalla: `inert` la saca tambien del
+  // orden de Tab y del lector, que antes la seguian recorriendo a ciegas.
+  const [desktop, setDesktop] = useState(true);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setDesktop(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  const hidden = !desktop && !mobileOpen;
+  // Por el DOM: React 18 no conoce aun el atributo y avisaria al pasarlo como prop.
+  useEffect(() => {
+    asideRef.current?.toggleAttribute("inert", hidden);
+  }, [hidden]);
+
+  // Abierta en movil, el foco entra en ella (y vuelve al cerrarla, porque el
+  // disparador recupera el foco solo al ser el ultimo elemento activo).
+  useEffect(() => {
+    if (desktop || !mobileOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    asideRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    return () => previous?.focus();
+  }, [desktop, mobileOpen]);
+
+  /** Esc cierra el menu movil y Tab no sale de el mientras esta abierto. */
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (desktop || !mobileOpen) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCloseMobile();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = asideRef.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled])");
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const sections: NavSection[] = [
     {
@@ -98,6 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <Link
           href={item.href}
           aria-current={active ? "page" : undefined}
+          aria-keyshortcuts={shortcutFor(item.href)}
           title={collapsed ? item.label : undefined}
           className={`group relative flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors hover:no-underline ${
             collapsed ? "lg:justify-center lg:px-0" : ""
@@ -121,7 +171,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
       <aside
+        ref={asideRef}
         aria-label={t.nav.mainNav}
+        onKeyDown={onKeyDown}
         className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-hidden bg-rail text-rail-ink transition-[width,transform] duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 ${
           mobileOpen ? "translate-x-0 shadow-pop" : "-translate-x-full"
         } ${collapsed ? "lg:w-[4.5rem]" : "lg:w-64 3xl:w-72"}`}

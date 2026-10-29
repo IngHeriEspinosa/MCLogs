@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { AlertChannel, AlertRule, AlertRuleType, Log } from "@prisma/client";
 import { config } from "../config/env";
 import logger from "../config/logger";
+import { alertEvaluations } from "../config/metrics";
 import { prisma } from "../config/prisma";
 import { deliverToChannels } from "./notifiers";
 import { LOCK_KEYS, withAdvisoryLock } from "../jobs/lock";
@@ -402,8 +403,11 @@ export const evaluateRules = async (now = new Date()): Promise<number> => {
 
   for (const rule of rules) {
     try {
-      if (await evaluateRule(rule, now)) disparadas += 1;
+      const triggered = await evaluateRule(rule, now);
+      if (triggered) disparadas += 1;
+      alertEvaluations.inc({ rule_type: rule.type, outcome: triggered ? "triggered" : "quiet" });
     } catch (error) {
+      alertEvaluations.inc({ rule_type: rule.type, outcome: "error" });
       logger.error("Alert rule evaluation failed", { rule: rule.name, error: String(error) });
     }
   }

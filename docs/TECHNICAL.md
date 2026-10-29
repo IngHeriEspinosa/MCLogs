@@ -116,6 +116,12 @@ model Snapshot     { id, workspaceId → Workspace (onDelete: Cascade), token @u
 11. `0011_app_settings` (configuración de la plataforma)
 12. `0012_snapshots` (snapshots compartibles)
 13. `0013_snapshot_kinds` (snapshots de Errores y de Traza: columna `kind`)
+14. `0014_retention_months` (retención en meses, de 3 a 60)
+15. `0015_app_setting_history` (historial de la configuración)
+16. `0016_api_key_last_mcp_use` (último uso de cada clave por MCP)
+17. `0017_trace_spans` (`parentSpanId` y `durationMs`)
+18. `0018_monitoring` (`ErrorGroup`, estado de las reglas, `release`, vistas guardadas y resúmenes)
+19. `0019_pagerduty_channel` (valor `pagerduty` en `AlertChannelType`)
 
 ```bash
 npx prisma migrate deploy    # aplica las pendientes
@@ -344,11 +350,18 @@ Los códigos de recuperación tienen formato `xxxxx-xxxxx`, valen una vez cada u
 | `POST /mcp` | JWT o API key con `read` | Servidor MCP (JSON-RPC). Ver [AI_INTEGRATION.md](AI_INTEGRATION.md) |
 | `GET /api/logs/stream` | JWT o API key con `read` | Stream de logs en vivo (SSE). Filtros: `level` (uno o varios, `error,warn`), `application`, `environment` |
 
-Además de las métricas por defecto del proceso, `/metrics` publica
-`http_request_duration_seconds{method,route,status}`,
-`mclog_logs_ingested_total{application,level}` y `mclog_sse_connections` (conexiones
-abiertas al stream en vivo). La ruta se etiqueta por su patrón
-(`/api/logs/:id`) y no por la URL concreta, que generaría una serie temporal por cada id.
+Además de las métricas por defecto del proceso, `/metrics` publica:
+
+| Métrica | Qué mide |
+|---|---|
+| `http_request_duration_seconds{method,route,status}` | Duración de las peticiones. La ruta se etiqueta por su patrón (`/api/logs/:id`) y no por la URL concreta, que generaría una serie por cada id |
+| `mclog_logs_ingested_total{application,level}` | Logs guardados. `application` está acotada a 200 valores distintos; el resto cuenta como `__other__` |
+| `mclog_ingest_lag_seconds` | Retraso entre el `timestamp` del log y su llegada, solo para los que traen timestamp propio |
+| `mclog_logs_rejected_total{reason}` | Logs no guardados: `validation`, `scope`, `batch_too_large`, `otlp_malformed` |
+| `mclog_alert_evaluations_total{rule_type,outcome}` | Evaluaciones de reglas: `triggered`, `quiet`, `error` |
+| `mclog_alert_deliveries_total{channel_type,kind,result}` | Envíos de avisos (`trigger`, `resolve`) y resúmenes (`digest`), `ok` o `failed` |
+| `mclog_scheduler_job_duration_seconds{job,outcome}` | Duración de cada pasada del planificador |
+| `mclog_sse_connections` | Conexiones abiertas al stream en vivo |
 
 ### 3.5 Administración
 
@@ -583,6 +596,9 @@ src/
 - **Ayuda en las métricas**: el icono de cada tarjeta de métrica y el ⓘ de las tarjetas de gráfico explican qué mide cada cifra.
 - **Lab** (admin): escenarios que envían logs reales a aplicaciones `lab-*` con la sesión del usuario, en lotes de 100 o de uno en uno para el stream, con un `AbortController` por escenario y purga de todo lo `lab-*`.
 - **Sin librerías de UI ni de gráficos**: componentes, iconos y gráficos SVG propios, accesibles por teclado.
+- **Accesibilidad verificada por lint**: `.eslintrc.cjs` añade `jsx-a11y/recommended` a `next/core-web-vitals`. Los únicos ajustes admiten patrones de la guía ARIA (APG) que la regla no distingue (teclado delegado en el contenedor de un widget compuesto, `<pre>` desplazable enfocable, `autoFocus` en lo que aparece tras una acción), y cada uno está explicado en el archivo.
+- **PWA con Serwist** (`src/app/sw.ts`): precaché del build, `CacheFirst` solo para `/_next/static/` y los iconos, y `NetworkOnly` para todo lo demás (API, páginas, datos). Así no se guardan datos de un espacio en el dispositivo ni se sirven respuestas caducadas. Sin conexión, la navegación cae en `/~offline`. `sw.js` se genera en el build (no se versiona) y se sirve con `Cache-Control: no-cache`.
+- **Preferencias sincronizadas**: `usePreference` avisa con un evento a las demás instancias de la misma clave (la barra superior cambia el auto-refresco y la página lo aplica al momento) y escucha `storage` para las otras pestañas.
 - **Tokens de color en variables CSS** con un valor por tema; Tailwind los expone por rol (`surface`, `ink`, `brand`…). Paleta de niveles validada para daltonismo sobre cada superficie.
 - **Español e inglés** con diccionarios tipados (una traducción que falta no compila) e idioma y tema en cookies que el servidor lee, para que la primera pintura ya salga bien.
 - **Hasta 4K**: el tamaño raíz crece con el ancho y las vistas de datos usan hasta 3840 px.
@@ -599,7 +615,7 @@ Referencia completa en su [README](../packages/mclog/README.md).
 
 | Entry point | Exporta | Dependencias |
 |---|---|---|
-| `@multicomputos-srl/mclog` | `createMCLogClient`, `extractError` + tipos | **Ninguna** (fetch nativo, Node ≥18) |
+| `@multicomputos-srl/mclog` | `createMCLogClient`, `extractError`, contexto de traza (`traceContext`, `withContext`, `getContext`, `traceHeaders`, `parseTraceparent`…) + tipos | **Ninguna** (fetch nativo y `node:async_hooks`/`node:crypto`, Node ≥18) |
 | `@multicomputos-srl/mclog/express` | `validateLog`, `validateLogBatch`, `normalizeErrorFields`, `truncateLongFields` | `express`, `express-validator` (peers opcionales) |
 
 Separar los entry points es lo que permite que un emisor puro no arrastre Express. Puntos de diseño:
@@ -608,10 +624,11 @@ Separar los entry points es lo que permite que un emisor puro no arrastre Expres
 - Los fallos transitorios se reintentan (red, timeout, `408`, `429`, `5xx`) con backoff exponencial, jitter y `Retry-After`.
 - `sendBatch` trocea por entradas (`maxBatchSize`) y por bytes (`maxBatchBytes`), por debajo de los topes del servidor.
 - La librería nunca escribe en la consola del consumidor.
+- **Contexto de traza con `AsyncLocalStorage`:** el middleware y `startSpan().run()` abren un contexto que sobrevive a `await`. El cliente toma de él `traceId`, `spanId`, `parentSpanId`, servicio y metadata, con prioridad log > cliente > contexto (la metadata se mezcla). `traceparent` se valida con la misma regla que el servidor, y un `x-trace-id` entrante solo se acepta con caracteres de identificador, porque se devuelve en la respuesta.
 
 ```bash
 npm run build      # tsc → dist/ con .d.ts y source maps
-npm test           # vitest — 95 tests
+npm test           # vitest — 114 tests
 npm pack           # tarball de publicación
 ```
 

@@ -116,6 +116,12 @@ describe('createMCLogClient — envío', () => {
         expect(sent).not.toHaveProperty('metadata');
     });
 
+    it('envía los campos de tramo y release cuando se dan', async () => {
+        const f = fakeFetch();
+        await make({}, f.impl).send({ message: 'm', spanId: 's2', parentSpanId: 's1', durationMs: 840, release: '2.4.1' });
+        expect(bodyOf(f.calls[0]!)).toMatchObject({ spanId: 's2', parentSpanId: 's1', durationMs: 840, release: '2.4.1' });
+    });
+
     it('fusiona defaultMetadata con la metadata de la llamada', async () => {
         const f = fakeFetch();
         await make({ defaultMetadata: { region: 'eu', app: 'base' } }, f.impl)

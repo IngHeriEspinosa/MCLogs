@@ -20,9 +20,18 @@ type SegmentedProps<V extends string> = {
   label: string;
   /** "tabs" para cambiar de panel, "radio" para elegir un valor. */
   semantics?: "radio" | "tabs";
+  /**
+   * Con pestanas, id del panel que controlan. Cada pestana recibe entonces el
+   * id `segmentedTabId(controls, value)` para que el panel se etiquete con la
+   * activa (aria-labelledby).
+   */
+  controls?: string;
   size?: "sm" | "md";
   className?: string;
 };
+
+/** Id de la pestana de un Segmented con `controls`, para el aria-labelledby del panel. */
+export const segmentedTabId = (controls: string, value: string) => `${controls}-tab-${value}`;
 
 /**
  * Control segmentado. Sigue el patron de teclado de radios y pestanas: una
@@ -34,6 +43,7 @@ export function Segmented<V extends string>({
   options,
   label,
   semantics = "radio",
+  controls,
   size = "md",
   className = "",
 }: SegmentedProps<V>) {
@@ -82,6 +92,8 @@ export function Segmented<V extends string>({
             }}
             type="button"
             role={isTabs ? "tab" : "radio"}
+            id={isTabs && controls ? segmentedTabId(controls, option.value) : undefined}
+            aria-controls={isTabs ? controls : undefined}
             aria-selected={isTabs ? selected : undefined}
             aria-checked={isTabs ? undefined : selected}
             aria-label={option.title}

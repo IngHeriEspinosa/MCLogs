@@ -2,6 +2,7 @@ import { createHmac } from "crypto";
 import type { AlertChannel, DigestSchedule, Environment } from "@prisma/client";
 import { config } from "../config/env";
 import logger from "../config/logger";
+import { alertDeliveries } from "../config/metrics";
 import { sendMail } from "../config/mailer";
 import { prisma } from "../config/prisma";
 import { getErrorGroups } from "../services/analysisService";
@@ -12,6 +13,7 @@ import { NOTIFIER_TIMEOUT_MS } from "./types";
 import { WebhookConfig, detectWebhookFormat } from "./notifiers/webhook";
 import type { TelegramConfig } from "./notifiers/telegram";
 import type { EmailConfig } from "./notifiers/email";
+import { PAGERDUTY_CHANGE_URL, PagerDutyConfig, isRoutingKey, postPagerDuty } from "./notifiers/pagerduty";
 
 /**
  * Resumen programado: cada dia o cada semana, lo esencial del espacio por los
@@ -158,11 +160,31 @@ const sendDigestTelegram: DigestSender = async (channel, digest) => {
   await postJson(`https://api.telegram.org/bot${settings.botToken}/sendMessage`, { chat_id: settings.chatId, text, disable_web_page_preview: true });
 };
 
+/**
+ * En PagerDuty un resumen no es un incidente: va como change event, que queda
+ * en la linea de tiempo del servicio sin despertar a nadie.
+ */
+const sendDigestPagerDuty: DigestSender = async (channel, digest) => {
+  const settings = channel.config as unknown as PagerDutyConfig;
+  if (!isRoutingKey(settings?.routingKey)) throw new Error("El canal de PagerDuty necesita una routingKey válida");
+  await postPagerDuty(PAGERDUTY_CHANGE_URL, {
+    routing_key: settings.routingKey,
+    payload: {
+      summary: digestTitle(digest).slice(0, 1024),
+      source: "mclog",
+      timestamp: new Date().toISOString(),
+      custom_details: { lines: digestLines(digest), topGroups: topLines(digest) },
+    },
+    ...(digest.dashboardUrl ? { links: [{ href: digest.dashboardUrl, text: "Ver en MCLog" }] } : {}),
+  });
+};
+
 /** Envio por tipo de canal, sustituible en los tests como `notifiers`. */
 export const digestSenders: Record<AlertChannel["type"], DigestSender> = {
   email: sendDigestEmail,
   webhook: sendDigestWebhook,
   telegram: sendDigestTelegram,
+  pagerduty: sendDigestPagerDuty,
 };
 
 /** Envia un resumen por sus canales activos. Nunca lanza: devuelve el resultado de cada uno. */
@@ -174,8 +196,10 @@ export const deliverDigest = async (channels: AlertChannel[], digest: Digest): P
         const base = { channelId: channel.id, channelName: channel.name };
         try {
           await digestSenders[channel.type](channel, digest);
+          alertDeliveries.inc({ channel_type: channel.type, kind: "digest", result: "ok" });
           return { ...base, ok: true };
         } catch (error) {
+          alertDeliveries.inc({ channel_type: channel.type, kind: "digest", result: "failed" });
           const detalle = error instanceof Error ? error.message : String(error);
           logger.error("Digest delivery failed", { channelId: channel.id, digest: digest.name, error: detalle });
           return { ...base, ok: false, error: detalle };
