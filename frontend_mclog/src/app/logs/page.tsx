@@ -161,8 +161,11 @@ function LogsView() {
   };
   // Lo llegado desde el ultimo refresco, para anunciarlo de una vez: anunciar
   // cada log por separado saturaria al lector con un stream activo.
+  // Se actualiza en un efecto y no al renderizar: el render no debe escribir refs.
   const arrivedRef = useRef({ total: 0, errors: 0 });
-  arrivedRef.current = { total: stream.logs.length, errors: stream.logs.filter((log) => log.level === "error").length };
+  useEffect(() => {
+    arrivedRef.current = { total: stream.logs.length, errors: stream.logs.filter((log) => log.level === "error").length };
+  }, [stream.logs]);
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
   useEffect(() => {
     if (!liveOn) return;

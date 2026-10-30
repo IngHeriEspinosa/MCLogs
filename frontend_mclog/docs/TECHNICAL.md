@@ -2,7 +2,7 @@
 
 ## Stack
 
-Next.js 14 (App Router) · React 18 · TypeScript · TanStack React Query v5 · axios · Tailwind CSS.
+Next.js 16 (App Router, compilado con webpack por Serwist) · React 19 · TypeScript · TanStack React Query v5 · axios · Tailwind CSS.
 
 Sin librerías de componentes, iconos ni gráficos: selects, calendario, menús, diálogos, iconos y gráficos son propios. Pesan menos que cualquier paquete equivalente y el proyecto no suma dependencias.
 
@@ -207,7 +207,7 @@ Copias congeladas de Logs, Registros, Errores o una Traza con un enlace propio. 
 
 ## Accesibilidad y atajos
 
-- **Objetivo WCAG 2.1 AA**, comprobado con `jsx-a11y/recommended` en `.eslintrc.cjs`. Los ajustes de la configuración y las tres excepciones en línea (clic en el fondo de un `<dialog>`, cuyo equivalente es Esc; opción de un `Select`, cuyo teclado lleva el combobox) están justificados donde se hacen.
+- **Objetivo WCAG 2.1 AA**, comprobado con `jsx-a11y/recommended` en `eslint.config.mjs` (ESLint 9, configuración flat). Los ajustes de la configuración y las tres excepciones en línea (clic en el fondo de un `<dialog>`, cuyo equivalente es Esc; opción de un `Select`, cuyo teclado lleva el combobox) están justificados donde se hacen.
 - **Tabindex itinerante** en la tabla de logs y en el grupo de tipos de Reportes: una parada de Tab y flechas dentro.
 - **`Segmented` con `controls`**: en modo pestañas, cada pestaña recibe `id` y `aria-controls`, y el panel se etiqueta con la activa (`segmentedTabId`).
 - **Atajos globales** (`useGlobalShortcuts` en `DashboardLayout`): la resolución es pura y está probada (`common/keyboard/shortcuts.ts`). `g` deja pendiente la segunda tecla durante 1,5 s, y una letra sin destino cancela el atajo. Se ignoran con modificadores, mientras se escribe, dentro de un `slider` y con un `<dialog>` abierto. `?` abre `ShortcutsDialog`.
@@ -303,7 +303,7 @@ Es una variable **de compilación**: Next la incrusta en el bundle, así que cam
 
   Ver [DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
 
-La imagen (`Dockerfile`, Node 20) usa `output: "standalone"` y escucha en `PORT`, o en 3001 si no se define: Railway inyecta `PORT` y Compose no.
+La imagen (`Dockerfile`, Node 24) usa `output: "standalone"` y escucha en `PORT`, o en 3001 si no se define: Railway inyecta `PORT` y Compose no.
 
 **El build necesita acceso a `fonts.googleapis.com`** para descargar las tipografías (después se sirven desde el propio dashboard). Detrás de un proxy corporativo que intercepta TLS, Node no confía en su certificado por defecto; con Node 22.15+ basta con `NODE_OPTIONS=--use-system-ca`, que usa el almacén de certificados del sistema sin desactivar la verificación.
 
@@ -313,6 +313,6 @@ La imagen (`Dockerfile`, Node 20) usa `output: "standalone"` y escucha en `PORT`
 npm run dev     # http://localhost:3001
 npm run build   # build de producción (output standalone)
 npm start       # sirve el build en 3001
-npm run lint    # next/core-web-vitals + jsx-a11y (.eslintrc.cjs)
+npm run lint    # eslint . — core-web-vitals + jsx-a11y (eslint.config.mjs)
 npm test        # tests de las funciones puras (node:test)
 ```

@@ -33,7 +33,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
   const { t } = useI18n();
   const notify = useToast();
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 

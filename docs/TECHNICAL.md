@@ -16,7 +16,7 @@ Referencia técnica **del sistema completo**. Para el detalle interno de cada co
 | Componente | Carpeta | Stack | Puerto |
 |---|---|---|---|
 | API REST | [Back_MCLog/](../Back_MCLog/) | Node 20+ (imagen: Node 24) · Express 4 · TypeScript strict · Prisma 7 (`@prisma/adapter-pg`) · PostgreSQL 16 | 3000 |
-| Dashboard | [frontend_mclog/](../frontend_mclog/) | Next.js 14 App Router (`output: standalone`) · React 18 · React Query v5 · axios · Tailwind | 3001 |
+| Dashboard | [frontend_mclog/](../frontend_mclog/) | Next.js 16 App Router (`output: standalone`, webpack) · React 19 · React Query v5 · axios · Tailwind | 3001 |
 | Sitio público | [site/](../site/) | Next.js (export estático) · GitHub Pages | — |
 | Librería Node | [packages/mclog/](../packages/mclog/) | TypeScript · sin dependencias runtime | — |
 | Librería NetSuite | [integrations/netsuite/](../integrations/netsuite/) | SuiteScript 2.1 | — |
@@ -596,7 +596,7 @@ src/
 - **Ayuda en las métricas**: el icono de cada tarjeta de métrica y el ⓘ de las tarjetas de gráfico explican qué mide cada cifra.
 - **Lab** (admin): escenarios que envían logs reales a aplicaciones `lab-*` con la sesión del usuario, en lotes de 100 o de uno en uno para el stream, con un `AbortController` por escenario y purga de todo lo `lab-*`.
 - **Sin librerías de UI ni de gráficos**: componentes, iconos y gráficos SVG propios, accesibles por teclado.
-- **Accesibilidad verificada por lint**: `.eslintrc.cjs` añade `jsx-a11y/recommended` a `next/core-web-vitals`. Los únicos ajustes admiten patrones de la guía ARIA (APG) que la regla no distingue (teclado delegado en el contenedor de un widget compuesto, `<pre>` desplazable enfocable, `autoFocus` en lo que aparece tras una acción), y cada uno está explicado en el archivo.
+- **Accesibilidad verificada por lint**: `eslint.config.mjs` (ESLint 9, configuración flat) añade `jsx-a11y/recommended` a `eslint-config-next/core-web-vitals`. Las reglas para el React Compiler de `react-hooks` 7 van como aviso. Los únicos ajustes admiten patrones de la guía ARIA (APG) que la regla no distingue (teclado delegado en el contenedor de un widget compuesto, `<pre>` desplazable enfocable, `autoFocus` en lo que aparece tras una acción), y cada uno está explicado en el archivo.
 - **PWA con Serwist** (`src/app/sw.ts`): precaché del build, `CacheFirst` solo para `/_next/static/` y los iconos, y `NetworkOnly` para todo lo demás (API, páginas, datos). Así no se guardan datos de un espacio en el dispositivo ni se sirven respuestas caducadas. Sin conexión, la navegación cae en `/~offline`. `sw.js` se genera en el build (no se versiona) y se sirve con `Cache-Control: no-cache`.
 - **Preferencias sincronizadas**: `usePreference` avisa con un evento a las demás instancias de la misma clave (la barra superior cambia el auto-refresco y la página lo aplica al momento) y escucha `storage` para las otras pestañas.
 - **Tokens de color en variables CSS** con un valor por tema; Tailwind los expone por rol (`surface`, `ink`, `brand`…). Paleta de niveles validada para daltonismo sobre cada superficie.
@@ -669,7 +669,7 @@ Guía completa en [DEPLOYMENT.md](DEPLOYMENT.md). Hay dos topologías soportadas
   - Corre como usuario `node`.
   - `entrypoint.sh` aplica `prisma migrate deploy` antes de arrancar; CapRover no permite sobrescribir el comando.
   - `HEALTHCHECK` contra `127.0.0.1:3000/health`.
-- **Dashboard** (`frontend_mclog/Dockerfile`), sobre Node 20 alpine:
+- **Dashboard** (`frontend_mclog/Dockerfile`), sobre Node 24 alpine:
   - Build `standalone`.
   - `NEXT_PUBLIC_API_URL` como build arg.
   - Escucha en `PORT` (3001 por defecto).

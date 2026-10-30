@@ -94,7 +94,7 @@ export function useFloating<A extends HTMLElement = HTMLButtonElement, F extends
  * captura para enterarse aunque el clic caiga en algo que detiene la
  * propagacion.
  */
-export function useDismiss(open: boolean, onDismiss: () => void, refs: Array<RefObject<HTMLElement>>) {
+export function useDismiss(open: boolean, onDismiss: () => void, refs: Array<RefObject<HTMLElement | null>>) {
   const latest = useRef({ onDismiss, refs });
   latest.current = { onDismiss, refs };
 

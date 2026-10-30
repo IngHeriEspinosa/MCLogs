@@ -66,11 +66,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => query.removeEventListener("change", update);
   }, []);
   const hidden = !desktop && !mobileOpen;
-  // Por el DOM: React 18 no conoce aun el atributo y avisaria al pasarlo como prop.
-  useEffect(() => {
-    asideRef.current?.toggleAttribute("inert", hidden);
-  }, [hidden]);
-
   // Abierta en movil, el foco entra en ella (y vuelve al cerrarla, porque el
   // disparador recupera el foco solo al ser el ultimo elemento activo).
   useEffect(() => {
@@ -173,6 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         ref={asideRef}
         aria-label={t.nav.mainNav}
+        inert={hidden}
         onKeyDown={onKeyDown}
         className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-hidden bg-rail text-rail-ink transition-[width,transform] duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 ${
           mobileOpen ? "translate-x-0 shadow-pop" : "-translate-x-full"

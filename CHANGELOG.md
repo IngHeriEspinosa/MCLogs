@@ -6,9 +6,9 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y [
 
 Las entradas marcadas con **⚠ Requiere acción** obligan a tocar la configuración o el despliegue al actualizar.
 
-## [2.0.0] — 2026-10-29
+## [2.0.0] — 2026-10-30
 
-Versión mayor de la API y el dashboard, que reúne la hoja de ruta de mejoras: cálculos corregidos (fase 1), trazas legibles (fase 2), monitoreo esencial (fase 3), accesibilidad y dinamismo (fase 4) e integraciones (fase 5). `/health` y el servidor MCP anuncian **2.0.0**. Es mayor porque cambia comportamiento del que dependen las integraciones; ver las entradas con ⚠ **Requiere acción**: las estadísticas siguen la ventana, MCLog ya no inventa el `traceId`, algunas huellas cambian una vez y hay tres migraciones (`0017_trace_spans`, `0018_monitoring` y `0019_pagerduty_channel`).
+Versión mayor de la API y el dashboard, que reúne la hoja de ruta de mejoras: cálculos corregidos (fase 1), trazas legibles (fase 2), monitoreo esencial (fase 3), accesibilidad y dinamismo (fase 4) e integraciones (fase 5), más la actualización de seguridad de las dependencias (Next.js 16, React 19, nodemailer 10, vitest 4). `/health` y el servidor MCP anuncian **2.0.0**. Es mayor porque cambia comportamiento del que dependen las integraciones; ver las entradas con ⚠ **Requiere acción**: las estadísticas siguen la ventana, MCLog ya no inventa el `traceId`, algunas huellas cambian una vez y hay tres migraciones (`0017_trace_spans`, `0018_monitoring` y `0019_pagerduty_channel`).
 
 **Librería `@multicomputos-srl/mclog` 1.4.0** (minor, compatible): el cliente y el middleware de validación aceptan `parentSpanId`, `durationMs` y `release`, con las mismas reglas que el servidor.
 
@@ -109,6 +109,18 @@ Versión mayor de la API y el dashboard, que reúne la hoja de ruta de mejoras: 
 - **API — Mismos filtros en estadísticas, grupos de error e inventario:** `GET /api/logs/stats`, `/api/logs/errors/groups` y `/api/logs/applications` aceptan todos los filtros de `GET /api/logs` (`service`, `host`, `search`, `message`, `errorName`, `errorCode`, `fingerprint`, `traceId`, `level`…). La serie por hora y el inventario los aplican con `buildWhereSql`, que replica `buildWhere` en SQL.
 
 ### Cambiado
+- **Dashboard — Next 16:**
+  - `cookies()`, `headers()` y `params` son asíncronos.
+  - `build` y `dev` usan webpack (`--webpack`), porque el plugin de Serwist que genera el service worker es de webpack y Next 16 compila con Turbopack por defecto.
+  - `next lint` ya no existe: `npm run lint` es `eslint .` con ESLint 9 y configuración flat (`eslint.config.mjs`).
+  - Las reglas nuevas de `eslint-plugin-react-hooks` 7 (`set-state-in-effect`, `refs`, `preserve-manual-memoization`, `purity`), pensadas para el React Compiler, quedan como aviso: marcan 26 patrones que ya existían y se revisarán aparte.
+  - Con React 19, el menú lateral usa la prop `inert` directamente.
+- **Sitio — Next 16:** `params` asíncrono en las páginas de documentación, `robots.txt` y `sitemap.xml` declarados estáticos (`dynamic = "force-static"`, obligatorio con `output: export`) y lint con ESLint 9.
+- **Imagen del dashboard en Node 24** (antes Node 20, sin parches de seguridad desde abril de 2026), igual que la API. ⚠ **Requiere acción** solo si el dashboard se construye fuera de su `Dockerfile`: Next 16 pide Node 20.9 o posterior.
+- **CI:**
+  - El dashboard y el sitio generan los tipos de rutas (`next typegen`) antes de `tsc`, porque `next-env.d.ts` los importa.
+  - El dashboard pasa también el lint y los tests.
+  - Los dos trabajos y el despliegue de Pages usan Node 24.
 - **Dashboard — Accesibilidad (WCAG 2.1 AA):**
   - **Tabla de logs:** es una sola parada de Tab (tabindex itinerante, con ↑/↓/Inicio/Fin) con anillo de foco visible. La fila abierta lleva `aria-current` en lugar de `aria-selected`. Las cabeceras ordenables llevan `aria-sort`: un clic ordena por esa columna y otro invierte el orden.
   - **Gráfica de actividad:** es un `slider` sobre los intervalos. ←/→ (e Inicio/Fin) los recorren y el lector anuncia el desglose; Mayús + flechas amplía una selección e Intro la aplica al rango.
@@ -121,7 +133,7 @@ Versión mayor de la API y el dashboard, que reúne la hoja de ruta de mejoras: 
   - **Varios:** los puntos de nivel dicen el nivel al lector; las opciones de menús y desplegables tienen foco visible; los `aria-label` están traducidos.
 - **Prometheus — `application` acotada:** las primeras 200 aplicaciones distintas conservan su etiqueta en `mclog_logs_ingested_total`; las demás se suman en `__other__`. Un emisor que inventara nombres creaba antes una serie por nombre, sin límite.
 - **Dashboard — Canal PagerDuty** en **Espacio → Alertas → Canales**, con su integration key.
-- **Dashboard — ESLint del proyecto** (`frontend_mclog/.eslintrc.cjs`): `next/core-web-vitals` más `jsx-a11y/recommended`, con cada ajuste justificado en el propio archivo. Lo aplican `npm run lint` y `next build`.
+- **Dashboard — ESLint del proyecto** (`frontend_mclog/eslint.config.mjs`): `eslint-config-next/core-web-vitals` más `jsx-a11y/recommended`, con cada ajuste justificado en el propio archivo. Lo aplica `npm run lint`.
 - **Dashboard — `next.config.mjs`** sustituye a `next.config.js`, porque Serwist es un módulo ES. La imagen Docker copia ahora `public/`, donde se genera `sw.js`.
 - **Alertas — `new_error_group`** ya no agrega todo lo retenido en cada pasada: solo mira las huellas con algún log en la ventana. ⚠ **Requiere acción:** aplicar la migración `0018_monitoring` (con varias tablas nuevas y el relleno de `ErrorGroup`, que en una tabla `Log` grande tarda) antes de arrancar la API nueva.
 - **MCP — `get_trace`** devuelve también `parentSpanId` y `durationMs` de cada paso.
@@ -165,7 +177,10 @@ Versión mayor de la API y el dashboard, que reúne la hoja de ruta de mejoras: 
 - **Dependencias:**
   - Se aplicó `npm audit fix` en la API y en el dashboard (entre otros, Prisma 7.10.1).
   - El dashboard fija `zod` en 4.6.7 con `overrides`: la versión que traía Serwist tenía un aviso alto (GHSA-mrhx-c7xc-m3w5).
-  - Quedan avisos que exigen saltos de versión mayor, que se tratarán aparte: Next.js 14 (crítico, se corrige en la 15.5.28 o posterior), `eslint-config-next`/`glob`/`postcss`, `nodemailer` 10, `vitest` 5 (solo en desarrollo) y `uuid` 14.
+  - **Dashboard y sitio — Next.js 14 → 16.4.3, con React 18 → 19.3.1.** Cierra los avisos críticos de Next (ejecución remota de código en la optimización de imágenes y en servidores Windows) y los altos (DoS y SSRF en Server Actions, bypass de middleware y otros), además de los de `postcss`, `glob` y `eslint-config-next`.
+  - **API — `nodemailer` 7 → 10.3.1:** inyección CRLF/SMTP, DoS en el parser de direcciones y validación TLS al pedir el token OAuth2. Los cambios incompatibles de las versiones 8, 9 y 10 no afectan a cómo se usa: no se descargan adjuntos remotos, no se usa el código `NoAuth` y la imagen ya corre en Node 24.
+  - **API y librería — `vitest` 1 → 4.1.12** (solo en desarrollo): lectura y ejecución de archivos con la UI de Vitest y RCE en `tinypool`. La librería actualiza además `express` (dependencia de desarrollo) a 4.22.3.
+  - Tras esto, `npm audit` no da ningún aviso alto ni crítico en la API, el dashboard, el sitio y la librería. Queda uno moderado de `uuid` que afecta a v3/v5/v6 con buffer; aquí solo se usa `v4`.
 
 ## 2026-09-25
 

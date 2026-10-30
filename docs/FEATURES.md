@@ -291,7 +291,7 @@ Sin sesión → `401`. Con sesión pero rol insuficiente en el espacio → `403`
 
 ## 8. Dashboard web
 
-Aplicación Next.js 14 en el puerto 3001. Manual completo en [USER_GUIDE.md](USER_GUIDE.md).
+Aplicación Next.js 16 (React 19) en el puerto 3001. Manual completo en [USER_GUIDE.md](USER_GUIDE.md).
 
 **Código:** [frontend_mclog/src/](../frontend_mclog/src/)
 
@@ -805,7 +805,7 @@ En **Espacio → Alertas → Resúmenes**, el dueño programa un resumen **diari
 - El menú móvil atrapa el foco y, cerrado, queda inerte.
 - Los cambios importantes (resultados, estado del modo en vivo) se anuncian en regiones vivas.
 
-El lint del proyecto incluye `jsx-a11y`. **Código:** [.eslintrc.cjs](../frontend_mclog/.eslintrc.cjs)
+El lint del proyecto incluye `jsx-a11y`. **Código:** [eslint.config.mjs](../frontend_mclog/eslint.config.mjs)
 
 **Atajos.** `g l` Logs, `g e` Errores, `g t` Operaciones, `g r` Reportes, `g a` Alertas; `?` abre la ayuda con todos, también los de la tabla, el detalle y la gráfica. No actúan mientras se escribe ni con un diálogo abierto. **Código:** [shortcuts.ts](../frontend_mclog/src/common/keyboard/shortcuts.ts)
 

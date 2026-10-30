@@ -7,7 +7,8 @@ import { DOCS, DOC_GROUPS, getAdjacentDocs, getDoc, getDocMeta } from "@/lib/doc
 import { asset } from "@/lib/site";
 
 interface PageProps {
-  params: { slug: string };
+  // Desde Next 15, params es una promesa.
+  params: Promise<{ slug: string }>;
 }
 
 /** Con output: export, esto fija las paginas que se generan en el build. */
@@ -15,8 +16,8 @@ export function generateStaticParams() {
   return DOCS.map((doc) => ({ slug: doc.slug }));
 }
 
-export function generateMetadata({ params }: PageProps): Metadata {
-  const meta = getDocMeta(params.slug);
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const meta = getDocMeta((await params).slug);
   if (!meta) return {};
 
   return {
@@ -31,8 +32,8 @@ export function generateMetadata({ params }: PageProps): Metadata {
   };
 }
 
-export default function DocPage({ params }: PageProps) {
-  const doc = getDoc(params.slug);
+export default async function DocPage({ params }: PageProps) {
+  const doc = getDoc((await params).slug);
   if (!doc) notFound();
 
   const { prev, next } = getAdjacentDocs(doc.slug);

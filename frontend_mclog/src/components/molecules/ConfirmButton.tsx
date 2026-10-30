@@ -32,7 +32,7 @@ export const ConfirmButton: React.FC<Props> = ({
   size = "sm",
 }) => {
   const [armed, setArmed] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 

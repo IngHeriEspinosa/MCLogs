@@ -42,7 +42,7 @@ export const InfoTip: React.FC<InfoTipProps> = ({ children, label, trigger, clas
   const [focused, setFocused] = useState(false);
   const [pinned, setPinned] = useState(false);
   const open = hovered || focused || pinned;
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const { anchorRef, floatingRef, style } = useFloating<HTMLButtonElement, HTMLDivElement>(open, {
     align: "center",
     offset: 8,

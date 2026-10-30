@@ -121,15 +121,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24: lo usa la imagen Docker, y `npm test` ejecuta TypeScript con
+      # el runner nativo de Node, que solo quita los tipos desde la 22.18/24.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: frontend_mclog/package-lock.json
 
       - run: npm ci
+      # next-env.d.ts importa los tipos de rutas de .next/types, que genera
+      # `next typegen` (o el build): sin ellos, tsc fallaria.
+      - name: Tipos de rutas de Next
+        run: npx next typegen
       - name: Comprobacion de tipos
         run: npx tsc --noEmit
+      - name: Lint (core-web-vitals + jsx-a11y)
+        run: npm run lint
+      - name: Tests
+        run: npm test
       - name: Compilacion
         run: npm run build
 
@@ -145,13 +155,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: site/package-lock.json
 
       - run: npm ci
+      # next-env.d.ts importa los tipos de rutas que genera `next typegen`.
+      - name: Tipos de rutas de Next
+        run: npx next typegen
       - name: Comprobacion de tipos
         run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
       # Compila tambien los .md de docs/: una ruta rota en la documentacion
       # rompe el build antes de llegar a produccion.
       - name: Compilacion

@@ -2,6 +2,9 @@ import type { MetadataRoute } from "next";
 import { DOCS, getDocLastModified } from "@/lib/docs";
 import { SITE_URL } from "@/lib/site";
 
+// Con `output: export`, Next 16 exige declarar estatica cada ruta de metadatos.
+export const dynamic = "force-static";
+
 // `trailingSlash: true` hace que cada ruta se sirva como carpeta/index.html,
 // asi que el sitemap declara esa misma forma y no una redireccion.
 const url = (path: string) => `${SITE_URL}${path}`;

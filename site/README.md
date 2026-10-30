@@ -9,7 +9,7 @@ autenticación, sin API y sin acceso a la base de datos.
 
 ## Stack
 
-Next.js 14 (App Router) con `output: "export"` · Tailwind · `marked` + `highlight.js`.
+Next.js 16 (App Router) con `output: "export"` · Tailwind · `marked` + `highlight.js`.
 Todo se resuelve en el build: el sitio publicado no lleva servidor ni llamadas a ninguna API.
 
 ## Arrancar en local

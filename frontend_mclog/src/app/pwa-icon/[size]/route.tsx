@@ -12,9 +12,10 @@ const COLORS = { mark: "#19607e", accent: "#ebae23" };
  * "maskable" (512 px con margen de seguridad, para los lanzadores que recortan
  * el icono en circulo o en gota). Cualquier otro tamano responde 404.
  */
-export function GET(_request: Request, { params }: { params: { size: string } }) {
-  const maskable = params.size === "maskable";
-  const size = maskable ? 512 : Number(params.size);
+export async function GET(_request: Request, { params }: { params: Promise<{ size: string }> }) {
+  const { size: requested } = await params;
+  const maskable = requested === "maskable";
+  const size = maskable ? 512 : Number(requested);
   if (size !== 192 && size !== 512) return new Response("Not found", { status: 404 });
 
   // El maskable ocupa el 80 % central: lo que queda fuera puede recortarse.

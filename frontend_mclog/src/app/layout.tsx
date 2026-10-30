@@ -22,9 +22,9 @@ const DESCRIPTION = "Consola de logs centralizados · Centralized log console";
  * `opengraph-image.tsx`; su URL tiene que ser absoluta y el dominio depende de
  * donde se despliegue, asi que el origen sale de la peticion.
  */
-export function generateMetadata(): Metadata {
+export async function generateMetadata(): Promise<Metadata> {
   return {
-    metadataBase: requestOrigin(),
+    metadataBase: await requestOrigin(),
     title: { default: "MCLog", template: "%s · MCLog" },
     description: DESCRIPTION,
     applicationName: "MCLog",
@@ -41,10 +41,11 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const store = cookies();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Desde Next 15, cookies() y headers() son asincronas.
+  const store = await cookies();
   const storedLocale = store.get(LOCALE_COOKIE)?.value;
-  const locale = isLocale(storedLocale) ? storedLocale : localeFromAcceptLanguage(headers().get("accept-language"));
+  const locale = isLocale(storedLocale) ? storedLocale : localeFromAcceptLanguage((await headers()).get("accept-language"));
   const storedTheme = store.get(THEME_COOKIE)?.value;
   const theme = isThemePreference(storedTheme) ? storedTheme : "system";
 

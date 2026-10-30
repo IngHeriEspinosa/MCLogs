@@ -13,9 +13,9 @@ export const alt = "MCLog snapshot";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const requestLocale = (): Locale => {
-  const stored = cookies().get(LOCALE_COOKIE)?.value;
-  return isLocale(stored) ? stored : localeFromAcceptLanguage(headers().get("accept-language"));
+const requestLocale = async (): Promise<Locale> => {
+  const stored = (await cookies()).get(LOCALE_COOKIE)?.value;
+  return isLocale(stored) ? stored : localeFromAcceptLanguage((await headers()).get("accept-language"));
 };
 
 // Los colores del panel (tema oscuro): la tarjeta se reconoce como MCLog en el chat.
@@ -36,11 +36,11 @@ const COLORS = {
  * dicen. Sin JavaScript en el navegador y sin fuentes externas (usa la que trae
  * next/og). De un snapshot de equipo o desconocido, una tarjeta generica.
  */
-export default async function Image({ params }: { params: { token: string } }) {
-  const locale = requestLocale();
+export default async function Image({ params }: { params: Promise<{ token: string }> }) {
+  const locale = await requestLocale();
   const t = dictionaries[locale];
   const fmt = createFormatter(locale);
-  const preview = await fetchSnapshotPreview(params.token);
+  const preview = await fetchSnapshotPreview((await params).token);
 
   const kicker = preview ? `${t.snapshots.viewer.badge} · ${t.snapshots.kinds[preview.kind]}` : t.snapshots.viewer.badge;
   const title = preview?.title ?? t.sharePreview.genericTitle;

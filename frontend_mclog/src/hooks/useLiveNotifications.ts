@@ -1,7 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useI18n } from "@/common/i18n/I18nProvider";
 import type { BufferedLog } from "@/hooks/useLogStream";
+
+const noSubscription = () => () => undefined;
+const notificationsAvailable = () => "Notification" in window;
 
 /** Como mucho un aviso cada 30 s: los errores que lleguen entre medias se suman al siguiente. */
 const MIN_GAP_MS = 30_000;
@@ -14,10 +17,10 @@ const BODY_MAX = 140;
  */
 export const useLiveNotifications = (enabled: boolean, logs: BufferedLog[]) => {
   const { t } = useI18n();
-  // Se decide tras montar: en el servidor no hay Notification y algunos
-  // navegadores (Safari en iOS fuera de una PWA) tampoco la tienen.
-  const [supported, setSupported] = useState(false);
-  useEffect(() => setSupported(typeof window !== "undefined" && "Notification" in window), []);
+  // En el servidor no hay Notification y algunos navegadores (Safari en iOS
+  // fuera de una PWA) tampoco la tienen. useSyncExternalStore da false en el
+  // servidor y en la hidratacion, y el valor real despues, sin desajustes.
+  const supported = useSyncExternalStore(noSubscription, notificationsAvailable, () => false);
 
   const seen = useRef(new Set<string>());
   const pending = useRef<BufferedLog[]>([]);

@@ -13,8 +13,12 @@ const MODIFIERS = ["Shift", "Control", "Alt", "Meta"];
 export const useGlobalShortcuts = (onHelp: () => void) => {
   const router = useRouter();
   const pendingSince = useRef<number | null>(null);
+  // El ultimo onHelp, sin reabrir el listener en cada render; se actualiza en
+  // un efecto porque el render no debe escribir refs.
   const latestOnHelp = useRef(onHelp);
-  latestOnHelp.current = onHelp;
+  useEffect(() => {
+    latestOnHelp.current = onHelp;
+  }, [onHelp]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

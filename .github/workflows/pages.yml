@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: site/package-lock.json
 
@@ -40,6 +40,11 @@ jobs:
       - name: Instalar dependencias
         working-directory: site
         run: npm ci
+
+      # next-env.d.ts importa los tipos de rutas que genera `next typegen`.
+      - name: Tipos de rutas de Next
+        working-directory: site
+        run: npx next typegen
 
       - name: Comprobacion de tipos
         working-directory: site

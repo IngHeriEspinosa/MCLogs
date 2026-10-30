@@ -31,7 +31,7 @@ MCLog centraliza los logs de múltiples aplicaciones en una base PostgreSQL, exp
                        ▼
              ┌───────────────────┐        ┌─────────────────────────┐
              │  frontend_mclog   │        │  Canales de aviso       │
-             │  Next.js 14       │        │  webhook · correo ·     │
+             │  Next.js 16       │        │  webhook · correo ·     │
              │   (puerto 3001)   │        │  Telegram               │
              └───────────────────┘        └─────────────────────────┘
                                                       ▲
@@ -241,7 +241,7 @@ Un snapshot es una **copia**, no una consulta guardada: al crearlo, el backend e
 
 ## Frontend
 
-- Next.js 14 App Router con `output: "standalone"`. El acceso (`/`), el visor de snapshots (`/s/<token>`) y todo el dashboard son client-side: los datos son privados y dinámicos, y el SSR no aporta.
+- Next.js 16 App Router (React 19) con `output: "standalone"`, compilado con webpack por el plugin de Serwist. El acceso (`/`), el visor de snapshots (`/s/<token>`) y todo el dashboard son client-side: los datos son privados y dinámicos, y el SSR no aporta.
 - React Query gestiona cache y reintentos; `placeholderData: keepPreviousData` evita parpadeos al paginar.
 - El interceptor de axios reintenta una vez con `/auth/refresh` ante un 401 (un único refresh en vuelo: las peticiones que caducan a la vez esperan al mismo) y redirige al acceso (`/`) si falla, salvo en `/auth/me`, que el propio acceso consulta para saber si hay sesión, y en `/api/share/:token`, cuyo 401 el visor convierte en "inicia sesión para verlo"; `DashboardLayout` manda a `/?next=` si `/auth/me` falla. El guard de sesión es el propio backend.
 - El login es una pequeña máquina de estados de dos pasos: contraseña y, si la cuenta tiene 2FA, código. El `mfaToken` solo vive en memoria del formulario.

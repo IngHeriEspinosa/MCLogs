@@ -11,7 +11,8 @@ type FieldProps = {
   info?: React.ReactNode;
   className?: string;
   /** Un unico control. Field le pone el id y el aria-describedby. */
-  children: React.ReactElement;
+  /** El control: recibe el id y el aria-describedby del campo si no trae los suyos. */
+  children: React.ReactElement<{ id?: string; "aria-describedby"?: string }>;
 };
 
 /**

@@ -8,9 +8,9 @@ import { requestOrigin } from "@/common/requestOrigin";
 import { describePreview, fetchSnapshotPreview } from "@/common/snapshots/preview";
 
 /** El idioma de quien pide la pagina: su cookie o, un robot de vista previa, su Accept-Language. */
-const requestLocale = (): Locale => {
-  const stored = cookies().get(LOCALE_COOKIE)?.value;
-  return isLocale(stored) ? stored : localeFromAcceptLanguage(headers().get("accept-language"));
+const requestLocale = async (): Promise<Locale> => {
+  const stored = (await cookies()).get(LOCALE_COOKIE)?.value;
+  return isLocale(stored) ? stored : localeFromAcceptLanguage((await headers()).get("accept-language"));
 };
 
 /**
@@ -21,15 +21,15 @@ const requestLocale = (): Locale => {
  * El token viaja en la URL: `no-referrer` para que ninguna peticion saliente lo
  * lleve, y `noindex` para que ningun buscador lo guarde.
  */
-export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
-  const locale = requestLocale();
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const locale = await requestLocale();
   const t = dictionaries[locale];
-  const preview = await fetchSnapshotPreview(params.token);
+  const preview = await fetchSnapshotPreview((await params).token);
   const title = preview?.title ?? t.sharePreview.genericTitle;
   const description = preview ? describePreview(preview, t, createFormatter(locale)) : t.sharePreview.genericDescription;
 
   return {
-    metadataBase: requestOrigin(),
+    metadataBase: await requestOrigin(),
     title,
     description,
     referrer: "no-referrer",

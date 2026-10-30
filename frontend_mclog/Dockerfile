@@ -1,5 +1,6 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Build stage. Node 24, como el backend: Next 16 pide >= 20.9 y Node 20 ya no
+# recibe parches de seguridad.
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
@@ -18,7 +19,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # Runtime stage
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

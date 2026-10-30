@@ -2,7 +2,7 @@
 
 Dashboard web para consultar y gestionar los logs centralizados de MCLog.
 
-- Next.js 14 (App Router) + React Query v5 + Tailwind, sin librerías de componentes ni de gráficos.
+- Next.js 16 (App Router) + React 19 + React Query v5 + Tailwind, sin librerías de componentes ni de gráficos.
 - Español e inglés; tema claro, oscuro o del sistema, sin destello al cargar.
 - Diseñado de móvil a 4K (3840 px): la interfaz escala y aprovecha el ancho.
 - Acceso en `/` (con sesión abierta lleva directo a Logs) y sesión en cookies httpOnly con renovación automática, con verificación en dos pasos (TOTP o código de recuperación) si la cuenta la tiene activa.

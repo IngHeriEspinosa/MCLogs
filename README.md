@@ -7,10 +7,10 @@ Plataforma para capturar, consultar y gestionar los logs de **todas tus aplicaci
 | Carpeta | Qué es | Stack |
 |---|---|---|
 | [`Back_MCLog/`](Back_MCLog/) | API REST de ingesta y consulta de logs | Node.js · Express · TypeScript · Prisma · PostgreSQL |
-| [`frontend_mclog/`](frontend_mclog/) | Dashboard web de monitoreo | Next.js 14 (App Router) · React Query · Tailwind |
+| [`frontend_mclog/`](frontend_mclog/) | Dashboard web de monitoreo | Next.js 16 (App Router) · React 19 · React Query · Tailwind |
 | [`packages/mclog/`](packages/mclog/) | Librería npm `@multicomputos-srl/mclog` para apps Node.js | TypeScript · sin dependencias runtime |
 | [`integrations/netsuite/`](integrations/netsuite/) | Librería SuiteScript 2.1 + ejemplos para NetSuite | SuiteScript 2.1 |
-| [`site/`](site/) | Landing y documentación pública ([sitio](https://ingheriespinosa.github.io/MCLogs)) | Next.js 14 (static export) · GitHub Pages |
+| [`site/`](site/) | Landing y documentación pública ([sitio](https://ingheriespinosa.github.io/MCLogs)) | Next.js 16 (static export) · GitHub Pages |
 | [`docs/`](docs/) | Documentación completa del proyecto | — |
 
 ## Qué hace

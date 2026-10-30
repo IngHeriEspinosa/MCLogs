@@ -13,7 +13,7 @@ import { createPortal } from "react-dom";
  * solo se montan tras una interaccion (nunca en el servidor), y montarlos en
  * el mismo commit que los abre permite medirlos y posicionarlos antes de pintar.
  */
-export const Portal: React.FC<{ anchorRef?: RefObject<HTMLElement>; children: React.ReactNode }> = ({ anchorRef, children }) => {
+export const Portal: React.FC<{ anchorRef?: RefObject<HTMLElement | null>; children: React.ReactNode }> = ({ anchorRef, children }) => {
   if (typeof document === "undefined") return null;
   const container = anchorRef?.current?.closest("dialog") ?? document.body;
   return createPortal(children, container);
